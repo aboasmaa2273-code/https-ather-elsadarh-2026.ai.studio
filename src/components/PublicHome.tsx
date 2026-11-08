@@ -176,7 +176,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
           <div className="lg:col-span-6">
             <div className="relative rounded-2xl overflow-hidden border-2 border-[#C6A66A] shadow-2xl bg-[#0F1D2B] group">
               <img
-                src="/assets/aistudio/Gemini_Generated_Image_dftlnrdftlnrdftl_bf07db32.jfif"
+                src="assets/aistudio/Gemini_Generated_Image_dftlnrdftlnrdftl_bf07db32.jfif"
                 alt="منصة أثر - وحدة المشاهدة والتقييم الصفي المباشر - مدرسة الصدارة بنين"
                 referrerPolicy="no-referrer"
                 className="w-full h-[380px] sm:h-[430px] object-cover transition-transform duration-700 group-hover:scale-102"
