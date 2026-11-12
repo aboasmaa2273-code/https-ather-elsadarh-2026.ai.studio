@@ -64,6 +64,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [schoolStage, setSchoolStage] = useState(settings.schoolStage);
   const [principalName, setPrincipalName] = useState(settings.principalName || '');
   const [logoUrl, setLogoUrl] = useState(settings.logoUrl || '');
+  const [homeImageUrl, setHomeImageUrl] = useState(settings.homeImageUrl || '');
   const [welcomeMessage, setWelcomeMessage] = useState(settings.welcomeMessage);
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [secondaryColor, setSecondaryColor] = useState(settings.secondaryColor);
@@ -108,6 +109,28 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setTimeout(() => setFeedbackMessage(null), 3500);
   };
 
+  // Upload optimized-size image assets into the platform's saved settings.
+  const handleImageUpload = (file: File | undefined, target: 'logo' | 'home') => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showFeedback('error', isEn ? 'Please choose an image file.' : 'يرجى اختيار ملف صورة صالح.');
+      return;
+    }
+    if (file.size > 1200 * 1024) {
+      showFeedback('error', isEn ? 'Image must be 1.2 MB or smaller.' : 'يجب ألا يتجاوز حجم الصورة 1.2 ميجابايت.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result || '');
+      if (target === 'logo') setLogoUrl(value);
+      else setHomeImageUrl(value);
+      showFeedback('success', isEn ? 'Image selected. Save platform settings to apply it.' : 'تم اختيار الصورة. احفظ إعدادات المنصة لتطبيقها.');
+    };
+    reader.onerror = () => showFeedback('error', isEn ? 'Could not read the image.' : 'تعذرت قراءة الصورة.');
+    reader.readAsDataURL(file);
+  };
+
   // Delete Evaluator Account
   const handleDeleteUser = (userId: string, userName: string) => {
     if (!confirm(isEn ? `Are you sure you want to delete evaluator "${userName}"?` : `هل أنت متأكد من رغبتك في حذف حساب المقيم "${userName}" نهائياً من المنظومة؟`)) {
@@ -149,6 +172,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       schoolStage,
       principalName,
       logoUrl,
+      homeImageUrl,
       welcomeMessage,
       primaryColor,
       secondaryColor,
@@ -527,15 +551,20 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block font-bold text-[#172C40] mb-1">{t.settings.logoUrlLabel}</label>
-                <input
-                  type="text"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]"
-                />
+              <div className="md:col-span-2 p-4 rounded-xl border border-[#C6A66A]/40 bg-[#F2EBDD]/30 space-y-3">
+                <div>
+                  <label className="block font-bold text-[#172C40] mb-2">{isEn ? 'School Logo' : 'شعار المدرسة'}</label>
+                  <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files?.[0], 'logo')} className="w-full text-xs file:me-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-[#172C40] file:text-white" />
+                  <input type="text" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder={isEn ? 'Or paste an image URL...' : 'أو ألصق رابط صورة الشعار...'} className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]" />
+                  {logoUrl && <img src={logoUrl} alt="معاينة شعار المدرسة" className="mt-2 h-20 max-w-40 object-contain bg-white border rounded-lg p-2" />}
+                </div>
+                <div className="border-t border-[#C6A66A]/30 pt-3">
+                  <label className="block font-bold text-[#172C40] mb-2">{isEn ? 'Homepage Hero Image' : 'صورة الصفحة الرئيسة'}</label>
+                  <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files?.[0], 'home')} className="w-full text-xs file:me-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-[#172C40] file:text-white" />
+                  <input type="text" value={homeImageUrl} onChange={(e) => setHomeImageUrl(e.target.value)} placeholder={isEn ? 'Or paste an image URL...' : 'أو ألصق رابط صورة الصفحة الرئيسة...'} className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]" />
+                  {homeImageUrl && <img src={homeImageUrl} alt="معاينة صورة الصفحة الرئيسة" className="mt-2 w-full max-h-36 object-cover rounded-lg border" />}
+                  <p className="text-[10px] text-slate-500 mt-1">{isEn ? 'Image uploads up to 1.2 MB are supported.' : 'يمكن إرفاق صور لا يتجاوز حجمها 1.2 ميجابايت.'}</p>
+                </div>
               </div>
 
               <div>
