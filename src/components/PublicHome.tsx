@@ -90,12 +90,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
     }
   };
 
-  const handleCardClick = (user: User, navigateTo: string = 'new-visit') => {
-    if (onSelectEvaluator) {
-      onSelectEvaluator(user, navigateTo);
-    } else {
-      onLoginClick();
-    }
+  const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
+    // Evaluator identity is established only after credential verification.
+    onLoginClick();
   };
 
   return (
@@ -337,10 +334,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-slate-500 font-mono bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-between">
-                    <span>{isEn ? 'Username:' : 'اليوزرنيم:'}</span>
-                    <span className="font-bold text-[#172C40]" dir="ltr">@{user.username || 'evaluator'}</span>
-                  </div>
+
                 </div>
 
                 {/* Primary Button: Enter and Start Visit */}
