@@ -42,7 +42,7 @@ export interface Teacher {
   dateAdded: string;
 }
 
-export type IndicatorRating = 'yes' | 'no' | 'needs_improvement' | 'not_observed';
+export type IndicatorRating = 'outstanding' | 'very_good' | 'good' | 'acceptable' | 'weak' | 'not_observed';
 
 export interface IndicatorDefinition {
   id: number;
@@ -215,6 +215,7 @@ export interface PlatformSettings {
   schoolStage: string;
   principalName?: string;
   logoUrl?: string;
+  homeImageUrl?: string;
   welcomeMessage: string;
   primaryColor: string;
   secondaryColor: string;
