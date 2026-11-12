@@ -1592,13 +1592,13 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            {/* Selected Pills Display */}
-            {selectedStrengths.length > 0 && (            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2">
               <input value={customStrength} onChange={e => setCustomStrength(e.target.value)} placeholder={isEn ? 'Add another strength...' : 'اكتب نقطة قوة أو ممارسة متميزة إضافية...'} className="flex-1 px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs" />
               <button type="button" onClick={handleAddCustomStrength} className="px-3 py-2 rounded-lg bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
             </div>
 
-
+            {/* Selected Pills Display */}
+            {selectedStrengths.length > 0 && (
               <div className="pt-2 border-t border-emerald-200/50 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-emerald-900">{t.recommendationBanks.selectedCount}</span>
                 {selectedStrengths.map((s, idx) => (
@@ -1684,13 +1684,13 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            {/* Selected Pills Display */}
-            {selectedGrowth.length > 0 && (            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2">
               <input value={customGrowth} onChange={e => setCustomGrowth(e.target.value)} placeholder={isEn ? 'Add another improvement area...' : 'اكتب مجال تحسين وتطوير إضافيًا...'} className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs" />
               <button type="button" onClick={handleAddCustomGrowth} className="px-3 py-2 rounded-lg bg-amber-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
             </div>
 
-
+            {/* Selected Pills Display */}
+            {selectedGrowth.length > 0 && (
               <div className="pt-2 border-t border-amber-200/50 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-amber-900">{t.recommendationBanks.selectedCount}</span>
                 {selectedGrowth.map((g, idx) => (
@@ -1776,13 +1776,13 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            {/* Selected Pills Display */}
-            {selectedRecommendations.length > 0 && (            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2">
               <input value={customRecommendation} onChange={e => setCustomRecommendation(e.target.value)} placeholder={isEn ? 'Add another recommendation...' : 'اكتب توصية إجرائية إضافية...'} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs" />
               <button type="button" onClick={handleAddCustomRecommendation} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
             </div>
 
-
+            {/* Selected Pills Display */}
+            {selectedRecommendations.length > 0 && (
               <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-slate-700">{t.recommendationBanks.selectedCount}</span>
                 {selectedRecommendations.map((r, idx) => (
@@ -1868,13 +1868,13 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            {/* Selected Pills Display */}
-            {selectedFollowUps.length > 0 && (            <div className="flex gap-2 pt-2">
+            <div className="flex gap-2 pt-2">
               <input value={customFollowUp} onChange={e => setCustomFollowUp(e.target.value)} placeholder={isEn ? 'Add another follow-up action...' : 'اكتب إجراء متابعة إضافيًا...'} className="flex-1 px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-xs" />
               <button type="button" onClick={handleAddCustomFollowUp} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
             </div>
 
-
+            {/* Selected Pills Display */}
+            {selectedFollowUps.length > 0 && (
               <div className="pt-2 border-t border-[#C6A66A]/30 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-slate-700">{t.recommendationBanks.selectedCount}</span>
                 {selectedFollowUps.map((f, idx) => (
