@@ -257,11 +257,11 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
               </button>
 
               <button
-                onClick={() => setIsAddModalOpen(true)}
+                onClick={onLoginClick}
                 className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
               >
-                <PlusCircle className="w-3.5 h-3.5 text-[#C6A66A]" />
-                <span>{isEn ? '+ Register New Evaluator' : '+ تسجيل مقيّم جديد'}</span>
+                <Lock className="w-3.5 h-3.5 text-[#C6A66A]" />
+                <span>{isEn ? 'Authorized Evaluator Sign In' : 'دخول المقيمين المعتمدين'}</span>
               </button>
             </div>
           </div>
