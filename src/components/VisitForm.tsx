@@ -12,7 +12,6 @@ import {
   StudentGender,
   VisitVisitor,
   VisitorRole,
-  RegisteredVisitor
 } from '../types';
 import { OFFICIAL_INDICATORS, GENERAL_DOMAINS, POTENTIAL_VISIT_GOALS, PRESET_RECOMMENDATION_BANKS } from '../data/defaultData';
 import { AtharStorageService } from '../services/storageService';
@@ -91,9 +90,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [date, setDate] = useState(editingVisit?.date || new Date().toISOString().split('T')[0]);
   const [time, setTime] = useState(editingVisit?.time || '09:00');
   const [visitGoal, setVisitGoal] = useState(
-    editingVisit?.visitGoal || POTENTIAL_VISIT_GOALS[0]?.text || ''
+    visitType === 'full' ? (isEn ? 'Official Visit' : 'زيارة رسمية') : (editingVisit?.visitGoal || POTENTIAL_VISIT_GOALS[0]?.text || '')
   );
   const [selectedGoalPresetId, setSelectedGoalPresetId] = useState<string>(() => {
+    if (visitType === 'full') return 'official';
     if (editingVisit?.visitGoal) {
       const found = POTENTIAL_VISIT_GOALS.find(g => g.text === editingVisit.visitGoal);
       return found ? found.id : 'custom';
@@ -144,7 +144,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       {
         id: `vis-${Date.now()}-1`,
         name: currentUser.name || (isEn ? 'Lead Observer' : 'المقيم الزائر'),
-        role: editingVisit?.visitorRole || defaultRole
+        role: editingVisit?.visitorRole || defaultRole,
+        roleTitle: currentUser.specialization || ''
       }
     ];
   });
@@ -179,7 +180,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
         updated[0] = {
           ...updated[0],
           name: currentUser.name,
-          role: userRole
+          role: userRole,
+          roleTitle: currentUser.specialization || ''
         };
         return updated;
       });
@@ -260,15 +262,15 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [domainRatings, setDomainRatings] = useState<Record<string, DomainPerformanceLevel>>(() => {
     const initial: Record<string, DomainPerformanceLevel> = {};
     if (editingVisit && editingVisit.domains.length > 0) {
-      editingVisit.domains.forEach(d => {
-        initial[d.domainId] = d.rating;
-      });
+      editingVisit.domains.forEach(d => { initial[d.domainId] = d.rating; });
     } else {
-      GENERAL_DOMAINS.forEach(d => {
-        initial[d.id] = 'good';
-      });
+      GENERAL_DOMAINS.forEach(d => { initial[d.id] = 'good'; });
     }
     return initial;
+  });
+  const [domainCustomText, setDomainCustomText] = useState(() => {
+    const other = editingVisit?.domains.find(d => d.domainId === 'other')?.domainName || '';
+    return other.startsWith('أخرى - ') ? other.slice('أخرى - '.length) : '';
   });
 
   // e-Learning Maturity
@@ -277,8 +279,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   );
 
   // Recommendations & Strengths Banks (Multi-choice selectable banks)
-  const [registeredVisitors] = useState<RegisteredVisitor[]>(() => AtharStorageService.getRegisteredVisitors());
-
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(() => {
     if (editingVisit?.strengths && editingVisit.strengths.length > 0) {
       return editingVisit.strengths;
@@ -316,15 +316,13 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   });
 
   const [selectedFollowUps, setSelectedFollowUps] = useState<string[]>(() => {
-    if (editingVisit?.suggestedFollowUpPlan) {
-      return editingVisit.suggestedFollowUpPlan.split('\n').map(s => s.trim()).filter(Boolean);
-    }
-    return [
-      isEn 
-        ? PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textEn 
-        : PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textAr
-    ];
+    if (editingVisit?.suggestedFollowUpPlan) return editingVisit.suggestedFollowUpPlan.split('\n').map(s => s.trim()).filter(Boolean);
+    return [isEn ? PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textEn : PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textAr];
   });
+  const [customStrength, setCustomStrength] = useState('');
+  const [customGrowth, setCustomGrowth] = useState('');
+  const [customRecommendation, setCustomRecommendation] = useState('');
+  const [customFollowUp, setCustomFollowUp] = useState('');
 
   const [strengthsText, setStrengthsText] = useState<string>(() => selectedStrengths.join('\n'));
   const [improvementAreasText, setImprovementAreasText] = useState<string>(() => selectedGrowth.join('\n'));
@@ -371,6 +369,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     });
     triggerAutoSave();
   };
+
+  // Add evaluator-defined entries to each qualitative bank
+  const handleAddCustomStrength = () => { const value = customStrength.trim(); if (!value) return; const next = [...selectedStrengths, value]; setSelectedStrengths(next); setStrengthsText(next.join('\n')); setCustomStrength(''); triggerAutoSave(); };
+  const handleAddCustomGrowth = () => { const value = customGrowth.trim(); if (!value) return; const next = [...selectedGrowth, value]; setSelectedGrowth(next); setImprovementAreasText(next.join('\n')); setCustomGrowth(''); triggerAutoSave(); };
+  const handleAddCustomRecommendation = () => { const value = customRecommendation.trim(); if (!value) return; const next = [...selectedRecommendations, value]; setSelectedRecommendations(next); setPracticalRecommendations(next.join('\n')); setCustomRecommendation(''); triggerAutoSave(); };
+  const handleAddCustomFollowUp = () => { const value = customFollowUp.trim(); if (!value) return; const next = [...selectedFollowUps, value]; setSelectedFollowUps(next); setSuggestedFollowUpPlan(next.join('\n')); setCustomFollowUp(''); triggerAutoSave(); };
 
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
@@ -496,7 +500,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
     const formattedDomains: DomainEvaluation[] = GENERAL_DOMAINS.map(d => ({
       domainId: d.id,
-      domainName: isEn ? (d.nameEn || d.name) : d.name,
+      domainName: d.id === 'other' && domainCustomText.trim() ? `${d.name} - ${domainCustomText.trim()}` : (isEn ? (d.nameEn || d.name) : d.name),
       rating: domainRatings[d.id] || 'good'
     }));
 
@@ -701,7 +705,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   name="visitType"
                   value="full"
                   checked={visitType === 'full'}
-                  onChange={() => { setVisitType('full'); triggerAutoSave(); }}
+                  onChange={() => { setVisitType('full'); setVisitGoal(isEn ? 'Official Visit' : 'زيارة رسمية'); setSelectedGoalPresetId('official'); triggerAutoSave(); }}
                   className="mt-1"
                 />
                 <div>
@@ -722,7 +726,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   name="visitType"
                   value="quick"
                   checked={visitType === 'quick'}
-                  onChange={() => { setVisitType('quick'); triggerAutoSave(); }}
+                  onChange={() => { setVisitType('quick'); setVisitGoal(POTENTIAL_VISIT_GOALS[0]?.text || ''); setSelectedGoalPresetId(POTENTIAL_VISIT_GOALS[0]?.id || 'custom'); triggerAutoSave(); }}
                   className="mt-1"
                 />
                 <div>
@@ -1039,34 +1043,11 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         )}
                       </div>
 
-                      {registeredVisitors.length > 0 && (
-                        <div className="flex items-center justify-between text-[10px] text-slate-500">
-                          <span>{t.visitorsManagement.quickPick}:</span>
-                          <select
-                            onChange={(e) => {
-                              const found = registeredVisitors.find(rv => rv.id === e.target.value);
-                              if (found) {
-                                handleVisitorChange(visitor.id, 'name', found.name);
-                                handleVisitorChange(visitor.id, 'role', found.role);
-                              }
-                            }}
-                            defaultValue=""
-                            className="bg-[#F2EBDD]/60 border border-[#C6A66A]/50 rounded px-1.5 py-0.5 text-[10px] font-bold text-[#172C40] focus:outline-none"
-                          >
-                            <option value="">{isEn ? '-- Select from directory --' : '-- اختيار من الدليل المعتمد --'}</option>
-                            {registeredVisitors.map(rv => (
-                              <option key={rv.id} value={rv.id}>
-                                {rv.name} ({isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role)})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
                       <input
                         type="text"
                         value={visitor.name}
                         onChange={(e) => handleVisitorChange(visitor.id, 'name', e.target.value)}
+                        readOnly={idx === 0}
                         placeholder={t.visitorsSection.visitorName}
                         className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
                       />
@@ -1082,6 +1063,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                       <div className="flex items-center gap-2">
                         <select
                           value={visitor.role}
+                          disabled={idx === 0}
                           onChange={(e) => handleVisitorChange(visitor.id, 'role', e.target.value)}
                           className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
                         >
@@ -1108,6 +1090,9 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                           </button>
                         )}
                       </div>
+                      {idx === 0 && currentUser.specialization && (
+                        <p className="text-[11px] font-semibold text-[#668575]">{currentUser.specialization}</p>
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1133,39 +1118,42 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Dropdown containing all potential visit goals */}
             <div className="relative">
-              <select
-                value={selectedGoalPresetId}
-                onChange={(e) => handleGoalPresetChange(e.target.value)}
-                className="w-full px-3.5 py-2.5 bg-white border-2 border-[#172C40]/20 hover:border-[#172C40]/40 rounded-lg text-xs font-bold text-[#172C40] focus:outline-none focus:border-[#172C40]"
-              >
-                <option value="" disabled>{t.visits.choosePresetGoal}</option>
-                {Object.entries(groupedPotentialGoals).map(([categoryName, goals]) => (
-                  <optgroup key={categoryName} label={`📌 ${categoryName}`}>
-                    {goals.map(goal => (
-                      <option key={goal.id} value={goal.id}>
-                        {goal.text}
-                      </option>
-                    ))}
-                  </optgroup>
-                ))}
-                <option value="custom">{t.visits.customGoalOption}</option>
-              </select>
+              {visitType === 'full' ? (
+                <div className="rounded-lg border-2 border-[#C6A66A] bg-[#F2EBDD] px-4 py-3 font-extrabold text-[#172C40]">
+                  {isEn ? 'Official Visit' : 'زيارة رسمية'}
+                </div>
+              ) : (
+                <select
+                  value={selectedGoalPresetId}
+                  onChange={(e) => handleGoalPresetChange(e.target.value)}
+                  className="w-full px-3.5 py-2.5 bg-white border-2 border-[#172C40]/20 hover:border-[#172C40]/40 rounded-lg text-xs font-bold text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                >
+                  <option value="" disabled>{t.visits.choosePresetGoal}</option>
+                  {Object.entries(groupedPotentialGoals).map(([categoryName, goals]) => (
+                    <optgroup key={categoryName} label={`📌 ${categoryName}`}>
+                      {goals.map(goal => <option key={goal.id} value={goal.id}>{goal.text}</option>)}
+                    </optgroup>
+                  ))}
+                  <option value="custom">{isEn ? 'Other – write a custom goal' : 'أخرى – كتابة هدف غير مدرج'}</option>
+                </select>
+              )}
             </div>
 
             {/* Editable goal text */}
-            <div>
-              <textarea
-                rows={2}
-                value={visitGoal}
-                onChange={(e) => {
-                  setVisitGoal(e.target.value);
-                  setSelectedGoalPresetId('custom');
-                  triggerAutoSave();
-                }}
-                placeholder={isEn ? 'Write targeted observation goal...' : 'صياغة الهدف التربوي والممارسات المراد رصد أثرها بدقة...'}
-                className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-[#172C40] focus:outline-none focus:border-[#172C40]"
-              />
-            </div>
+            {visitType === 'quick' && (
+              <div className="space-y-2">
+                <textarea
+                  rows={3}
+                  value={visitGoal}
+                  onChange={(e) => { setVisitGoal(e.target.value); setSelectedGoalPresetId('custom'); triggerAutoSave(); }}
+                  placeholder={isEn ? 'Write one or more targeted goals...' : 'اكتب هدف الزيارة السريعة، ويمكنك إضافة أكثر من هدف...'}
+                  className="w-full p-2.5 bg-white border border-slate-300 rounded-lg text-xs font-medium text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                />
+                <button type="button" onClick={() => { setVisitGoal(prev => prev ? `${prev}\n` : ''); setSelectedGoalPresetId('custom'); triggerAutoSave(); }} className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs hover:bg-[#101F2D]">
+                  <Plus className="w-4 h-4 text-[#C6A66A]" /> {isEn ? 'Add another goal' : 'إضافة هدف آخر'}
+                </button>
+              </div>
+            )}
 
             {/* Re-apply indicators button for quick visits */}
             {visitType === 'quick' && selectedGoalPresetId !== 'custom' && (
@@ -1303,9 +1291,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                 {isEn ? `2. Classroom Indicators Matrix (${activeIndicatorsList.length} indicators)` : `2. مصفوفة الملاحظة الصفية (${activeIndicatorsList.length} مؤشراً)`}
               </h3>
               <p className="text-slate-500 mt-0.5">
-                {isEn 
-                  ? 'Rating Options: Yes · Needs Improvement · No · Not Observed (strictly excluded from calculation).'
-                  : 'الخيارات: نعم · لا · يحتاج إلى تحسين · لم يُشاهد (لا يُحسب إخفاقاً ولا يدخل في مقام النسبة).'}
+                {isEn ? 'Verbal ratings: Excellent · Very Good · Good · Acceptable · Weak · Not Observed.' : 'التقديرات اللفظية: ممتاز · جيد جداً · جيد · مقبول · ضعيف · لم يُشاهد.'}
               </p>
             </div>
             <div className="text-xs bg-[#F2EBDD] text-[#172C40] font-bold px-3 py-1.5 rounded-lg border border-[#C6A66A]/30 self-start">
@@ -1333,13 +1319,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                       <div 
                         key={ind.id} 
                         className={`p-4 rounded-xl border transition-all ${
-                          currentRating === 'yes'
-                            ? 'bg-emerald-50/30 border-emerald-200'
-                            : currentRating === 'needs_improvement'
-                            ? 'bg-amber-50/30 border-amber-200'
-                            : currentRating === 'no'
-                            ? 'bg-rose-50/30 border-rose-200'
-                            : 'bg-white border-slate-200'
+                          currentRating === 'outstanding' || currentRating === 'very_good' ? 'bg-emerald-50/30 border-emerald-200' :
+                          currentRating === 'good' ? 'bg-sky-50/30 border-sky-200' :
+                          currentRating === 'acceptable' ? 'bg-amber-50/30 border-amber-200' :
+                          currentRating === 'weak' ? 'bg-rose-50/30 border-rose-200' : 'bg-white border-slate-200'
                         }`}
                       >
                         <div className="flex flex-col lg:flex-row lg:items-center justify-between gap-3 mb-2">
@@ -1359,57 +1342,26 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                             )}
                           </div>
 
-                          {/* 4 Ratings Buttons */}
+                          {/* Verbal Rating Buttons */}
                           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'yes')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'yes'
-                                  ? 'bg-emerald-700 text-white shadow-xs'
-                                  : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50'
-                              }`}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>{t.ratings.yes}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'needs_improvement')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'needs_improvement'
-                                  ? 'bg-amber-600 text-white shadow-xs'
-                                  : 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-50'
-                              }`}
-                            >
-                              <span>{t.ratings.needs_improvement}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'no')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'no'
-                                  ? 'bg-rose-700 text-white shadow-xs'
-                                  : 'bg-white text-rose-800 border border-rose-300 hover:bg-rose-50'
-                              }`}
-                            >
-                              <span>{t.ratings.no}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'not_observed')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'not_observed'
-                                  ? 'bg-slate-700 text-white shadow-xs'
-                                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
-                              }`}
-                              title={isEn ? 'Not observed in this period (excluded from metrics)' : 'لم يُشاهد في هذه الحصة (يُستبعد تماماً من الاحتساب)'}
-                            >
-                              <span>{t.ratings.not_observed}</span>
-                            </button>
+                            {([
+                              { value: 'outstanding', ar: 'ممتاز', en: 'Excellent', active: 'bg-emerald-700 text-white', idle: 'bg-white text-emerald-800 border border-emerald-300' },
+                              { value: 'very_good', ar: 'جيد جداً', en: 'Very Good', active: 'bg-emerald-600 text-white', idle: 'bg-white text-emerald-800 border border-emerald-300' },
+                              { value: 'good', ar: 'جيد', en: 'Good', active: 'bg-sky-700 text-white', idle: 'bg-white text-sky-800 border border-sky-300' },
+                              { value: 'acceptable', ar: 'مقبول', en: 'Acceptable', active: 'bg-amber-600 text-white', idle: 'bg-white text-amber-800 border border-amber-300' },
+                              { value: 'weak', ar: 'ضعيف', en: 'Weak', active: 'bg-rose-700 text-white', idle: 'bg-white text-rose-800 border border-rose-300' },
+                              { value: 'not_observed', ar: 'لم يُشاهد', en: 'Not Observed', active: 'bg-slate-700 text-white', idle: 'bg-white text-slate-600 border border-slate-300' }
+                            ] as const).map(option => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => handleRatingChange(ind.id, option.value)}
+                                className={`px-2.5 py-1.5 rounded-lg font-bold text-[11px] transition-all cursor-pointer ${currentRating === option.value ? option.active + ' shadow-xs' : option.idle + ' hover:brightness-95'}`}
+                                title={option.value === 'not_observed' ? (isEn ? 'Excluded from calculation' : 'يُستبعد من احتساب النسبة') : option.ar}
+                              >
+                                {isEn ? option.en : option.ar}
+                              </button>
+                            ))}
                           </div>
                         </div>
 
@@ -1497,6 +1449,9 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                       );
                     })}
                   </div>
+                  {domain.id === 'other' && (
+                    <input type="text" value={domainCustomText} onChange={(e) => { setDomainCustomText(e.target.value); triggerAutoSave(); }} placeholder={isEn ? 'Specify the additional evaluation domain...' : 'اكتب المجال الإضافي الذي تريد تقييمه...'} className="w-full mt-2 px-3 py-2 bg-white border border-slate-300 rounded-lg text-xs text-[#172C40] focus:outline-none focus:border-[#172C40]" />
+                  )}
                 </div>
               );
             })}
@@ -1634,7 +1589,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             </div>
 
             {/* Selected Pills Display */}
-            {selectedStrengths.length > 0 && (
+            {selectedStrengths.length > 0 && (            <div className="flex gap-2 pt-2">
+              <input value={customStrength} onChange={e => setCustomStrength(e.target.value)} placeholder={isEn ? 'Add another strength...' : 'اكتب نقطة قوة أو ممارسة متميزة إضافية...'} className="flex-1 px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs" />
+              <button type="button" onClick={handleAddCustomStrength} className="px-3 py-2 rounded-lg bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            </div>
+
+
               <div className="pt-2 border-t border-emerald-200/50 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-emerald-900">{t.recommendationBanks.selectedCount}</span>
                 {selectedStrengths.map((s, idx) => (
@@ -1721,7 +1681,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             </div>
 
             {/* Selected Pills Display */}
-            {selectedGrowth.length > 0 && (
+            {selectedGrowth.length > 0 && (            <div className="flex gap-2 pt-2">
+              <input value={customGrowth} onChange={e => setCustomGrowth(e.target.value)} placeholder={isEn ? 'Add another improvement area...' : 'اكتب مجال تحسين وتطوير إضافيًا...'} className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs" />
+              <button type="button" onClick={handleAddCustomGrowth} className="px-3 py-2 rounded-lg bg-amber-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            </div>
+
+
               <div className="pt-2 border-t border-amber-200/50 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-amber-900">{t.recommendationBanks.selectedCount}</span>
                 {selectedGrowth.map((g, idx) => (
@@ -1808,7 +1773,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             </div>
 
             {/* Selected Pills Display */}
-            {selectedRecommendations.length > 0 && (
+            {selectedRecommendations.length > 0 && (            <div className="flex gap-2 pt-2">
+              <input value={customRecommendation} onChange={e => setCustomRecommendation(e.target.value)} placeholder={isEn ? 'Add another recommendation...' : 'اكتب توصية إجرائية إضافية...'} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs" />
+              <button type="button" onClick={handleAddCustomRecommendation} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            </div>
+
+
               <div className="pt-2 border-t border-slate-200 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-slate-700">{t.recommendationBanks.selectedCount}</span>
                 {selectedRecommendations.map((r, idx) => (
@@ -1895,7 +1865,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             </div>
 
             {/* Selected Pills Display */}
-            {selectedFollowUps.length > 0 && (
+            {selectedFollowUps.length > 0 && (            <div className="flex gap-2 pt-2">
+              <input value={customFollowUp} onChange={e => setCustomFollowUp(e.target.value)} placeholder={isEn ? 'Add another follow-up action...' : 'اكتب إجراء متابعة إضافيًا...'} className="flex-1 px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-xs" />
+              <button type="button" onClick={handleAddCustomFollowUp} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            </div>
+
+
               <div className="pt-2 border-t border-[#C6A66A]/30 flex flex-wrap gap-1.5 items-center">
                 <span className="text-[10px] font-bold text-slate-700">{t.recommendationBanks.selectedCount}</span>
                 {selectedFollowUps.map((f, idx) => (
