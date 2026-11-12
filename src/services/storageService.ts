@@ -145,16 +145,16 @@ export class AtharStorageService {
       (u.username || '').trim().toLowerCase() === trimmedUsername
     );
 
-    // Keep the approved directory as the source of truth and provision a matching
-    // local user record when an approved visitor has not yet signed in before.
+    // Keep the approved directory as the source of truth and provision or
+    // refresh the matching local profile after credentials have been verified.
+    const approvedRole: UserRole = approved.role === 'principal' ? 'school_admin'
+      : approved.role === 'vice_principal' ? 'vice_principal' : 'evaluator';
     if (!matchedUser) {
-      const role: UserRole = approved.role === 'principal' ? 'school_admin'
-        : approved.role === 'vice_principal' ? 'vice_principal' : 'evaluator';
       matchedUser = {
         id: approved.id,
         name: approved.name,
         email: approved.email || `${trimmedUsername}@alsadara.sch.ae`,
-        role,
+        role: approvedRole,
         schoolId: 'sch_alsadara_01',
         specialization: approved.roleTitle || approved.department || 'مقيّم معتمد',
         username: trimmedUsername,
@@ -163,6 +163,15 @@ export class AtharStorageService {
       const custom = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
       custom.push(matchedUser);
       setStored(STORAGE_KEYS.CUSTOM_USERS, custom);
+    } else {
+      matchedUser = {
+        ...matchedUser,
+        name: approved.name,
+        role: approvedRole,
+        specialization: approved.roleTitle || approved.department || matchedUser.specialization,
+        username: trimmedUsername,
+        password: approved.password
+      };
     }
 
     // Credentials are checked against the approved roster, never against an
