@@ -34,8 +34,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [tab, setTab] = useState<'login' | 'register'>('login');
   
   // Login fields
-  const [username, setUsername] = useState<string>('arabic');
-  const [password, setPassword] = useState<string>('123');
+  const [username, setUsername] = useState<string>('');
+  const [password, setPassword] = useState<string>('');
   const [showPassword, setShowPassword] = useState<boolean>(false);
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
@@ -142,30 +142,8 @@ export const LoginModal: React.FC<LoginModalProps> = ({
           </button>
         </div>
 
-        {/* Tab Selection */}
-        <div className="flex border-b border-slate-200 bg-slate-50 text-xs font-bold">
-          <button
-            type="button"
-            onClick={() => { setTab('login'); setErrorMessage(''); }}
-            className={`flex-1 py-3 text-center border-b-2 transition-colors cursor-pointer ${
-              tab === 'login' 
-                ? 'border-[#172C40] text-[#172C40] bg-white' 
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            {isEn ? 'Sign In (Username & Password)' : 'تسجيل الدخول (يوزرنيم وباسوورد)'}
-          </button>
-          <button
-            type="button"
-            onClick={() => { setTab('register'); setRegError(''); }}
-            className={`flex-1 py-3 text-center border-b-2 transition-colors cursor-pointer ${
-              tab === 'register' 
-                ? 'border-[#172C40] text-[#172C40] bg-white' 
-                : 'border-transparent text-slate-500 hover:text-slate-800'
-            }`}
-          >
-            {isEn ? '➕ Register New Evaluator' : '➕ تسجيل مقيّم جديد'}
-          </button>
+        <div className="border-b border-slate-200 bg-slate-50 text-xs font-bold py-3 text-center text-[#172C40]">
+          {isEn ? 'Authorized Evaluator Sign In' : 'دخول المقيمين والزائرين المعتمدين فقط'}
         </div>
 
         {/* Body Content */}
@@ -241,55 +219,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
                 )}
               </button>
 
-              {/* Quick Fill / Demo Accounts Helper */}
-              <div className="mt-5 pt-4 border-t border-slate-100 space-y-2">
-                <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 font-bold flex items-center gap-2">
-                  <Shield className="w-4 h-4 text-amber-700 shrink-0" />
-                  <span>{isEn ? 'Strict Security: Access, editing, and deletion are restricted to authorized personnel only.' : 'أمان مشدد: صلاحيات الإضافة والتعديل والحذف مقيدة للأشخاص المخولين فقط.'}</span>
-                </div>
-
-                <div className="flex items-center justify-between text-[11px] text-slate-500 font-semibold pt-1">
-                  <span>{isEn ? 'Quick-fill Authorized Evaluators:' : 'حسابات المقيّمين المعتمدة:'}</span>
-                  <span className="text-slate-400">{isEn ? 'Pass: 123' : 'كلمة المرور: 123'}</span>
-                </div>
-
-                <div className="grid grid-cols-2 sm:grid-cols-4 gap-2">
-                  <button
-                    type="button"
-                    onClick={() => fillPreset('aisha', '123')}
-                    className="p-2 text-center rounded-lg border-2 border-[#C6A66A] bg-amber-50/40 hover:bg-[#F2EBDD] transition-colors text-right cursor-pointer"
-                  >
-                    <span className="block text-[11px] font-black text-[#172C40] truncate">أ. عائشة الغفلي</span>
-                    <span className="block text-[9px] text-[#C6A66A] font-bold">مديرة نطاق 2.8</span>
-                    <span className="block text-[8px] text-slate-500 font-mono" dir="ltr">u: aisha</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fillPreset('arabic', '123')}
-                    className="p-2 text-center rounded-lg border border-slate-200 hover:border-[#172C40] hover:bg-[#F2EBDD]/40 transition-colors text-right cursor-pointer"
-                  >
-                    <span className="block text-[11px] font-bold text-[#172C40] truncate">رئيس المواد العربية</span>
-                    <span className="block text-[8px] text-slate-500 font-mono" dir="ltr">u: arabic</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fillPreset('principal', '123')}
-                    className="p-2 text-center rounded-lg border border-slate-200 hover:border-[#172C40] hover:bg-[#F2EBDD]/40 transition-colors text-right cursor-pointer"
-                  >
-                    <span className="block text-[11px] font-bold text-[#172C40] truncate">مدير المدرسة</span>
-                    <span className="block text-[8px] text-slate-500 font-mono" dir="ltr">u: principal</span>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => fillPreset('vp', '123')}
-                    className="p-2 text-center rounded-lg border border-slate-200 hover:border-[#172C40] hover:bg-[#F2EBDD]/40 transition-colors text-right cursor-pointer"
-                  >
-                    <span className="block text-[11px] font-bold text-[#172C40] truncate">مساعد المدير</span>
-                    <span className="block text-[8px] text-slate-500 font-mono" dir="ltr">u: vp</span>
-                  </button>
+              <div className="mt-5 pt-4 border-t border-slate-100">
+                <div className="p-2.5 rounded-lg bg-amber-50/70 border border-amber-200/80 text-[11px] text-amber-900 font-bold">
+                  {isEn ? 'Only accounts listed and activated by the platform administrator can sign in.' : 'يُسمح بالدخول للحسابات المدرجة والمعتمدة من إدارة المنظومة فقط.'}
                 </div>
               </div>
             </form>
