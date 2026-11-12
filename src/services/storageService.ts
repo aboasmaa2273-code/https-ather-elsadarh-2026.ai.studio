@@ -492,23 +492,47 @@ export class AtharStorageService {
     let needsImprovementCount = 0;
     let noCount = 0;
     let notObservedCount = 0;
+    let score = 0;
 
     indicators.forEach(ind => {
-      if (ind.rating === 'yes') yesCount++;
-      else if (ind.rating === 'needs_improvement') needsImprovementCount++;
-      else if (ind.rating === 'no') noCount++;
-      else if (ind.rating === 'not_observed') notObservedCount++;
+      switch (ind.rating) {
+        case 'not_observed':
+          notObservedCount++;
+          break;
+        case 'outstanding':
+          yesCount++;
+          score += 5;
+          break;
+        case 'very_good':
+          yesCount++;
+          score += 4;
+          break;
+        case 'good':
+          yesCount++;
+          score += 3;
+          break;
+        case 'acceptable':
+        case 'needs_improvement':
+          needsImprovementCount++;
+          score += 2;
+          break;
+        case 'weak':
+        case 'no':
+          noCount++;
+          score += 1;
+          break;
+        case 'yes':
+          yesCount++;
+          score += 5;
+          break;
+      }
     });
 
     const observedCount = yesCount + needsImprovementCount + noCount;
     const totalCount = indicators.length;
-
-    let percentage = 0;
-    if (observedCount > 0) {
-      // Yes = 1, Needs Improvement = 0.5, No = 0
-      const score = (yesCount * 1.0) + (needsImprovementCount * 0.5);
-      percentage = Math.round((score / observedCount) * 1000) / 10; // 1 decimal place
-    }
+    const percentage = observedCount > 0
+      ? Math.round((score / (observedCount * 5)) * 1000) / 10
+      : 0;
 
     return {
       percentage,
