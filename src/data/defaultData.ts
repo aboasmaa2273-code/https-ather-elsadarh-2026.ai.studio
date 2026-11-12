@@ -249,7 +249,7 @@ export const GENERAL_DOMAINS = [
   { id: 'teaching', name: 'التدريس', nameEn: 'Teaching & Pedagogy' },
   { id: 'assessment', name: 'التقييم', nameEn: 'Assessment & Feedback' },
   { id: 'curriculum', name: 'المنهاج', nameEn: 'Curriculum Implementation' },
-  { id: 'pcgs', name: 'PCGS', nameEn: 'PCGS (Protection, Care, Guidance and Support)' },
+  { id: 'pcgs', name: 'PCGS (الحماية والرعاية والتوجيه والدعم)', nameEn: 'PCGS (Protection, Care, Guidance and Support)' },
   { id: 'leadership', name: 'القيادة والإدارة', nameEn: 'Leadership & Governance' },
   { id: 'other', name: 'أخرى', nameEn: 'Other School Criteria' }
 ];
