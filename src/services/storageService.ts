@@ -226,6 +226,23 @@ export class AtharStorageService {
 
     const updatedUser = { ...existing, ...updatedFields };
     
+    // Keep the approved evaluator directory synchronized with credential edits.
+    const approvedVisitors = this.getRegisteredVisitors();
+    const visitorIndex = approvedVisitors.findIndex(v =>
+      v.id === userId ||
+      (existing.username && (v.username || '').trim().toLowerCase() === existing.username.trim().toLowerCase()) ||
+      v.name === existing.name
+    );
+    if (visitorIndex >= 0) {
+      approvedVisitors[visitorIndex] = {
+        ...approvedVisitors[visitorIndex],
+        name: newName?.trim() || approvedVisitors[visitorIndex].name,
+        username: trimmedUsername,
+        password: newPassword?.trim() || approvedVisitors[visitorIndex].password
+      };
+      setStored(STORAGE_KEYS.REGISTERED_VISITORS, approvedVisitors);
+    }
+
     // Update current user if this user is the active one
     const current = getStored<User | null>(STORAGE_KEYS.CURRENT_USER, null);
     if (current && current.id === userId) {
