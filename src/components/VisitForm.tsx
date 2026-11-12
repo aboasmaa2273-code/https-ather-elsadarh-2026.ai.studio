@@ -248,7 +248,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     const initial: Record<number, { rating: IndicatorRating; notes: string }> = {};
     if (editingVisit && editingVisit.indicators.length > 0) {
       editingVisit.indicators.forEach(res => {
-        initial[res.indicatorId] = { rating: res.rating, notes: res.notes || '' };
+        const migratedRating: IndicatorRating = res.rating === 'yes' ? 'outstanding'
+          : res.rating === 'needs_improvement' ? 'acceptable'
+          : res.rating === 'no' ? 'weak' : res.rating;
+        initial[res.indicatorId] = { rating: migratedRating, notes: res.notes || '' };
       });
     } else {
       OFFICIAL_INDICATORS.forEach(ind => {
@@ -406,6 +409,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const handleGoalPresetChange = (presetId: string) => {
     setSelectedGoalPresetId(presetId);
     if (presetId === 'custom') {
+      setVisitGoal('');
       triggerAutoSave();
       return;
     }
