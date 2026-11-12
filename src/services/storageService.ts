@@ -125,30 +125,48 @@ export class AtharStorageService {
   // Authentication by Username and Password
   static authenticate(username: string, password: string): { success: boolean; user?: User; error?: string } {
     const trimmedUsername = username.trim().toLowerCase();
+    const approvedVisitors = this.getRegisteredVisitors();
+    const approved = approvedVisitors.find(v =>
+      (v.username || '').trim().toLowerCase() === trimmedUsername &&
+      Boolean(v.password) &&
+      v.password === password &&
+      v.role !== 'teacher'
+    );
+
+    if (!approved) {
+      return {
+        success: false,
+        error: 'بيانات الدخول غير مطابقة لقائمة المقيمين والزائرين المعتمدين. يرجى مراجعة إدارة المنظومة.'
+      };
+    }
+
     const allUsers = this.getAllUsers();
+    let matchedUser = allUsers.find(u =>
+      (u.username || '').trim().toLowerCase() === trimmedUsername
+    );
 
-    const matchedUser = allUsers.find(u => {
-      const uName = (u.username || '').trim().toLowerCase();
-      const uEmail = (u.email || '').trim().toLowerCase();
-      return uName === trimmedUsername || uEmail === trimmedUsername;
-    });
-
+    // Keep the approved directory as the source of truth and provision a matching
+    // local user record when an approved visitor has not yet signed in before.
     if (!matchedUser) {
-      return { 
-        success: false, 
-        error: 'اسم المستخدم غير مسجل في المنظومة. يرجى التحقق من صحة الاسم المدخل.' 
+      const role: UserRole = approved.role === 'principal' ? 'school_admin'
+        : approved.role === 'vice_principal' ? 'vice_principal' : 'evaluator';
+      matchedUser = {
+        id: approved.id,
+        name: approved.name,
+        email: approved.email || `${trimmedUsername}@alsadara.sch.ae`,
+        role,
+        schoolId: 'sch_alsadara_01',
+        specialization: approved.roleTitle || approved.department || 'مقيّم معتمد',
+        username: trimmedUsername,
+        password: approved.password
       };
+      const custom = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
+      custom.push(matchedUser);
+      setStored(STORAGE_KEYS.CUSTOM_USERS, custom);
     }
 
-    // Verify password (default to '123' or '123456' if not set)
-    const expectedPassword = matchedUser.password || '123';
-    if (password !== expectedPassword) {
-      return { 
-        success: false, 
-        error: 'كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى أو مراجعة بيانات الاعتماد.' 
-      };
-    }
-
+    // Credentials are checked against the approved roster, never against an
+    // arbitrary account or the public self-registration form.
     this.setCurrentUser(matchedUser);
     this.logAction(matchedUser, 'تسجيل دخول ناجح', `تم تسجيل دخول المستخدم (${matchedUser.name}) بنجاح`);
     return { success: true, user: matchedUser };
