@@ -765,7 +765,14 @@ export class AtharStorageService {
 
   // Platform Settings
   static getPlatformSettings(): PlatformSettings {
-    return getStored<PlatformSettings>(STORAGE_KEYS.PLATFORM_SETTINGS, DEFAULT_PLATFORM_SETTINGS);
+    const saved = getStored<Partial<PlatformSettings> | null>(STORAGE_KEYS.PLATFORM_SETTINGS, null);
+    // Merge newly introduced identity fields into existing installations without
+    // overwriting any school-specific values already saved by the administrator.
+    return {
+      ...DEFAULT_PLATFORM_SETTINGS,
+      ...(saved || {}),
+      logoUrl: saved?.logoUrl || DEFAULT_PLATFORM_SETTINGS.logoUrl
+    };
   }
 
   static savePlatformSettings(settings: PlatformSettings): { success: boolean; error?: string } {
