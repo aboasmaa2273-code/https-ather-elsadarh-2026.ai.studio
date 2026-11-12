@@ -393,10 +393,15 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                           {translateIndicatorText(ind.indicatorId, ind.indicatorText, language)}
                         </td>
                         <td className="p-2 border border-slate-300 text-center font-bold">
-                          {ind.rating === 'yes' && <span className="text-emerald-700">{t.ratings.yes}</span>}
-                          {ind.rating === 'needs_improvement' && <span className="text-amber-700">{t.ratings.needs_improvement}</span>}
-                          {ind.rating === 'no' && <span className="text-rose-700">{t.ratings.no}</span>}
-                          {ind.rating === 'not_observed' && <span className="text-slate-400">{t.ratings.not_observed}</span>}
+                          {ind.rating === 'outstanding' && <span className="text-emerald-800">ممتاز</span>}
+                          {ind.rating === 'very_good' && <span className="text-emerald-700">جيد جداً</span>}
+                          {ind.rating === 'good' && <span className="text-sky-700">جيد</span>}
+                          {ind.rating === 'acceptable' && <span className="text-amber-700">مقبول</span>}
+                          {ind.rating === 'weak' && <span className="text-rose-700">ضعيف</span>}
+                          {ind.rating === 'not_observed' && <span className="text-slate-400">لم يُشاهد</span>}
+                          {ind.rating === 'yes' && <span className="text-emerald-700">ممتاز</span>}
+                          {ind.rating === 'needs_improvement' && <span className="text-amber-700">مقبول</span>}
+                          {ind.rating === 'no' && <span className="text-rose-700">ضعيف</span>}
                         </td>
                         <td className="p-2 border border-slate-300 text-slate-600">
                           {ind.notes || '—'}
@@ -487,31 +492,21 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             </div>
           )}
 
-          {/* Official Signatures Strip with Multi-Visitors Support */}
+          {/* Official evaluator signatures and school approval */}
           <div className="pt-8 border-t border-slate-300 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs print:pt-12">
             <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.evaluatorSig}:</span>
-              <div className="space-y-1 border-t border-slate-300 pt-1">
-                {visit.visitors && visit.visitors.length > 0 ? (
-                  visit.visitors.map((v, i) => (
-                    <div key={i} className="font-bold text-[#172C40]">
-                      {v.name} ({v.roleTitle || AtharStorageService.getVisitorRoleLabel(v.role, language)})
-                    </div>
-                  ))
-                ) : (
-                  <div className="font-bold text-[#172C40]">{visit.evaluatorName}</div>
-                )}
-              </div>
+              <span className="text-slate-500 block mb-6">{isEn ? 'Visitor / Evaluator Signature:' : 'توقيع الزائر / المقيّم:'}</span>
+              <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">{visit.evaluatorName}</div>
             </div>
             <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.teacherSig}:</span>
-              <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">{visit.teacherName}</div>
-            </div>
-            <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.principalSig}:</span>
+              <span className="text-slate-500 block mb-6">{isEn ? 'Visitor / Evaluator Signature:' : 'توقيع الزائر / المقيّم:'}</span>
               <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">
-                {platformSettings.principalName || (isEn ? 'School Leadership' : 'إدارة مدرسة الصدارة')}
+                {visit.visitors?.find(v => v.id !== visit.visitors?.[0]?.id)?.name || visit.evaluatorName}
               </div>
+            </div>
+            <div>
+              <span className="text-slate-500 block mb-6">{isEn ? 'School Approval:' : 'اعتماد إدارة مدرسة الصدارة'}</span>
+              <div className="min-h-7 border-t border-slate-300 pt-1" aria-label={isEn ? 'School approval area' : 'مساحة اعتماد إدارة المدرسة'}></div>
             </div>
           </div>
 
