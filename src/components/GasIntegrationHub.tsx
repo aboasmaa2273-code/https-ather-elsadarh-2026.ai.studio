@@ -23,8 +23,8 @@ export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language =
   const [selectedFile, setSelectedFile] = useState<GasFile>(GAS_FILES[0]);
   const [copiedFileName, setCopiedFileName] = useState<string | null>(null);
   
-  // Database initialization simulation state
-  const [isInitializing, setIsInitializing] = useState(false);
+  // This page only provides Apps Script source files. It is not connected
+  // to a deployed Apps Script project, so never report a simulated success.
   const [initResult, setInitResult] = useState<any | null>(null);
 
   const isAr = language === 'ar';
@@ -68,21 +68,12 @@ export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language =
   };
 
   const handleSimulateInit = () => {
-    setIsInitializing(true);
-    setInitResult(null);
-
-    setTimeout(() => {
-      setIsInitializing(false);
-      setInitResult({
-        success: true,
-        sheetsCreated: 18,
-        indicatorsSeeded: 22,
-        timeZone: 'Asia/Dubai',
-        message: isAr 
-          ? 'تمت تهيئة قاعدة البيانات وأوراق العمل الـ 18 بنجاح تام وفق Schema منظومة أَثَر.' 
-          : 'Database initialized successfully! All 18 sheets generated matching ATHAR schema.'
-      });
-    }, 1500);
+    setInitResult({
+      success: false,
+      message: isAr
+        ? 'لا يوجد اتصال فعلي بقاعدة Google Sheets حتى الآن. هذه الصفحة تعرض ملفات Apps Script للنسخ والتنزيل فقط؛ ولم يتم إنشاء قاعدة بيانات أو اختبار اتصال.'
+        : 'No live Google Sheets connection is configured. This page only provides Apps Script files to copy or download; no database was created or connection tested.'
+    });
   };
 
   return (
@@ -109,29 +100,21 @@ export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language =
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleSimulateInit}
-            disabled={isInitializing}
-            className="px-4 py-2 bg-[#C6A66A] text-[#172C40] rounded-lg font-bold hover:bg-[#b8975b] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+            className="px-4 py-2 bg-[#C6A66A] text-[#172C40] rounded-lg font-bold hover:bg-[#b8975b] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
-            <span>{isInitializing ? (isAr ? 'جاري اختبار التهيئة...' : 'Testing Initialization...') : (isAr ? 'تشغيل اختبار initializeDatabase()' : 'Run initializeDatabase() Test')}</span>
+            <span>{isAr ? 'التحقق من حالة الاتصال' : 'Check Connection Status'}</span>
           </button>
         </div>
       </div>
 
       {/* Simulator feedback */}
       {initResult && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1">
           <div className="flex items-center gap-2 font-bold text-sm">
-            <Check className="w-4 h-4 text-emerald-700" />
+            <HelpCircle className="w-4 h-4 text-amber-700" />
             <span>{initResult.message}</span>
           </div>
-          <p className="text-[11px] text-emerald-800">
-            {isAr ? (
-              <>تم فحص وإنشاء وتنسيق الـ ({initResult.sheetsCreated}) ورقة مع الرؤوس الملونة بخلفية كحلية `#172C40`، وتعبئة ({initResult.indicatorsSeeded}) مؤشراً في ورقة <code className="font-mono">IndicatorLibrary</code> بتوقيت دبي.</>
-            ) : (
-              <>Verified and formatted all ({initResult.sheetsCreated}) sheets with navy headers `#172C40`, and seeded ({initResult.indicatorsSeeded}) indicators into <code className="font-mono">IndicatorLibrary</code> (Asia/Dubai timezone).</>
-            )}
-          </p>
         </div>
       )}
 
