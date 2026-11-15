@@ -325,17 +325,17 @@ function saveClassroomVisit(visitData) {
     // حفظ تفاصيل المؤشرات الحالية
     for (var k = 0; k < indicators.length; k++) {
       var ind = indicators[k];
-      var indRow = [
-        Utilities.getUuid(),
-        visitId,
-        ind.indicatorId,
-        ind.indicatorText,
-        ind.indicatorGroup,
-        ind.rating,
-        ind.notes || '',
-        timestamp
-      ];
+      var indRow = [Utilities.getUuid(), visitId, ind.indicatorId, ind.indicatorText, ind.indicatorGroup, ind.rating, ind.notes || '', timestamp];
       indSheet.appendRow(indRow);
+    }
+
+    // حفظ تقييمات المجالات العشرة المرتبطة بالزيارة.
+    var domainsSheet = ss.getSheetByName('VisitDomains');
+    if (domainsSheet && visitData.domains && visitData.domains.length) {
+      var domainRows = visitData.domains.map(function(domain) {
+        return [Utilities.getUuid(), visitId, domain.domainId, domain.domainName, domain.rating];
+      });
+      domainsSheet.getRange(domainsSheet.getLastRow() + 1, 1, domainRows.length, 5).setValues(domainRows);
     }
 
     // تسجيل العملية في AuditLog
@@ -587,7 +587,13 @@ function dispatchApiAction_(action, payload, session) {
   if (action === 'bootstrap') {
     var teachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(x) { return x.schoolId === schoolId; });
     var visits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(x) { return x.schoolId === schoolId; });
-    var plans = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(x) { return x.schoolId === schoolId; });
+    var plans = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(x) { return x.schoolId === schoolId; }).map(function(p) {
+      p.relatedIndicatorText = p.relatedIndicator || '';
+      p.developmentalGoal = p.goal || '';
+      p.actionProcedure = p.procedure || '';
+      p.responsiblePerson = p.responsible || '';
+      return p;
+    });
     if (session.role === 'teacher') {
       teachers = teachers.filter(function(x) { return x.id === session.teacherId; });
       visits = visits.filter(function(x) { return x.teacherId === session.teacherId; });
@@ -624,7 +630,22 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'savePlan') {
     if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
-    return upsertObjectRow_('ImprovementPlans', payload, 'id', schoolId);
+    var planRow = {
+      id: payload.id,
+      teacherId: payload.teacherId,
+      teacherName: payload.teacherName,
+      teacherJobNumber: payload.teacherJobNumber,
+      improvementArea: payload.improvementArea,
+      relatedIndicator: payload.relatedIndicatorText || payload.relatedIndicator,
+      goal: payload.developmentalGoal || payload.goal,
+      procedure: payload.actionProcedure || payload.procedure,
+      responsible: payload.responsiblePerson || payload.responsible,
+      duration: payload.duration,
+      followUpDate: payload.followUpDate,
+      status: payload.status,
+      createdAt: payload.createdAt || new Date().toISOString()
+    };
+    return upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
   }
   if (action === 'saveSettings') {
     if (!requireRole_(session, ['platform_admin', 'school_admin'])) return { success: false, error: 'تعديل الإعدادات مقتصر على إدارة المنصة والمدرسة.' };
@@ -654,6 +675,10 @@ function upsertObjectRow_(sheetName, obj, idKey, schoolId) {
   var data = sheet.getDataRange().getValues();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) === id) {
+      var schoolCol = headers.indexOf('schoolId');
+      if (schoolCol >= 0 && String(data[i][schoolCol]) !== String(schoolId)) {
+        return { success: false, error: 'لا يمكن تعديل سجل تابع لمدرسة أخرى.' };
+      }
       sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
       return { success: true, id: id };
     }
