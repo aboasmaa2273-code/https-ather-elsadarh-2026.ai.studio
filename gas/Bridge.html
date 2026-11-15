@@ -1,0 +1,30 @@
+<!DOCTYPE html>
+<html>
+<head><base target="_top"><meta charset="utf-8"></head>
+<body>
+<script>
+(function () {
+  'use strict';
+  var allowedParent = null;
+  function send(id, result) {
+    if (window.parent && allowedParent) {
+      window.parent.postMessage({ channel: 'ATHAR_GAS_BRIDGE', id: id, result: result }, allowedParent);
+    }
+  }
+  window.addEventListener('message', function (event) {
+    var message = event.data;
+    if (!message || message.channel !== 'ATHAR_GAS_REQUEST' || !message.id || !message.request) return;
+    // The bridge only replies to the exact origin that initiated this request.
+    allowedParent = event.origin;
+    google.script.run
+      .withSuccessHandler(function (result) { send(message.id, result); })
+      .withFailureHandler(function (error) {
+        send(message.id, { success: false, error: error && error.message ? error.message : 'تعذر الاتصال بخادم أَثَر.' });
+      })
+      .dispatchBridgeRequest(message.request);
+  });
+  window.parent.postMessage({ channel: 'ATHAR_GAS_BRIDGE_READY' }, '*');
+})();
+</script>
+</body>
+</html>
