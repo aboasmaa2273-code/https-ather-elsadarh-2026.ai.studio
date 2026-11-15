@@ -453,3 +453,293 @@ function logAuditAction(schoolId, userName, action, details) {
     console.error("Audit log error:", e);
   }
 }
+
+
+// ====================================================
+// 8. واجهة API مركزية للمنصة الخارجية (React)
+// ====================================================
+// ملاحظة أمنية: لا تُفعّل هذه الواجهة قبل إعداد كلمات مرور المستخدمين.
+// لا تُرجع كلمات المرور أو بصماتها مطلقاً إلى المتصفح.
+
+function doPost(e) {
+  try {
+    var raw = e && e.parameter && e.parameter.payload
+      ? e.parameter.payload
+      : (e && e.postData && e.postData.contents ? e.postData.contents : '{}');
+    var request = JSON.parse(raw);
+    var action = String(request.action || '');
+    var payload = request.payload || {};
+
+    if (action === 'login') return jsonResponse_(apiLogin_(payload));
+    if (action === 'health') return jsonResponse_({ success: true, service: 'athar-api', timestamp: new Date().toISOString() });
+
+    var session = validateSession_(request.token);
+    if (!session) return jsonResponse_({ success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' });
+
+    return jsonResponse_(dispatchApiAction_(action, payload, session));
+  } catch (err) {
+    return jsonResponse_({ success: false, error: 'تعذر تنفيذ الطلب: ' + err.message });
+  }
+}
+
+function jsonResponse_(data) {
+  return ContentService.createTextOutput(JSON.stringify(data))
+    .setMimeType(ContentService.MimeType.JSON);
+}
+
+function apiLogin_(payload) {
+  var email = String(payload.email || '').trim().toLowerCase();
+  var password = String(payload.password || '');
+  if (!email || !password) return { success: false, error: 'البريد الإلكتروني وكلمة المرور مطلوبان.' };
+
+  var ss = getDatabaseSpreadsheet_();
+  if (!ss) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
+  var sheet = ss.getSheetByName('Users');
+  if (!sheet || sheet.getLastRow() < 2) return { success: false, error: 'لا توجد حسابات معتمدة في قاعدة البيانات.' };
+
+  var values = sheet.getDataRange().getValues();
+  var headers = values[0].map(function(v) { return String(v); });
+  var emailCol = headers.indexOf('email');
+  var roleCol = headers.indexOf('role');
+  var statusCol = headers.indexOf('status');
+  var saltCol = headers.indexOf('passwordSalt');
+  var hashCol = headers.indexOf('passwordHash');
+  if ([emailCol, roleCol, statusCol, saltCol, hashCol].some(function(i) { return i < 0; })) {
+    return { success: false, error: 'يلزم تحديث بنية ورقة Users وإعداد كلمات مرور الحسابات من مسؤول النظام.' };
+  }
+
+  for (var i = 1; i < values.length; i++) {
+    var row = values[i];
+    if (String(row[emailCol] || '').trim().toLowerCase() !== email) continue;
+    var status = String(row[statusCol] || 'active').toLowerCase();
+    if (status === 'inactive' || status === 'disabled') return { success: false, error: 'هذا الحساب معطّل.' };
+    var salt = String(row[saltCol] || '');
+    var expected = String(row[hashCol] || '');
+    if (!salt || !expected || !constantTimeEquals_(passwordHash_(password, salt), expected)) {
+      return { success: false, error: 'بيانات الدخول غير صحيحة.' };
+    }
+
+    var role = String(row[roleCol] || '');
+    var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
+    if (allowed.indexOf(role) < 0) return { success: false, error: 'دور الحساب غير معتمد.' };
+
+    var token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
+    var user = {
+      id: String(row[headers.indexOf('id')] || ''),
+      schoolId: String(row[headers.indexOf('schoolId')] || 'sch_alsadara_01'),
+      name: String(row[headers.indexOf('name')] || ''),
+      email: email,
+      role: role
+    };
+    CacheService.getScriptCache().put('ATHAR_SESSION_' + token, JSON.stringify(user), 21600);
+    return { success: true, token: token, user: user, expiresIn: 21600 };
+  }
+  return { success: false, error: 'هذا البريد غير مسجل ضمن المستخدمين المعتمدين.' };
+}
+
+function passwordHash_(password, salt) {
+  var digest = Utilities.computeDigest(
+    Utilities.DigestAlgorithm.SHA_256,
+    salt + ':' + password,
+    Utilities.Charset.UTF_8
+  );
+  return digest.map(function(b) {
+    var v = (b < 0 ? b + 256 : b).toString(16);
+    return v.length === 1 ? '0' + v : v;
+  }).join('');
+}
+
+function constantTimeEquals_(a, b) {
+  a = String(a); b = String(b);
+  if (a.length !== b.length) return false;
+  var diff = 0;
+  for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
+  return diff === 0;
+}
+
+function validateSession_(token) {
+  if (!token || typeof token !== 'string') return null;
+  var raw = CacheService.getScriptCache().get('ATHAR_SESSION_' + token);
+  if (!raw) return null;
+  try { return JSON.parse(raw); } catch (e) { return null; }
+}
+
+function requireRole_(session, roles) {
+  return !!session && roles.indexOf(session.role) >= 0;
+}
+
+function rowsAsObjects_(sheet) {
+  if (!sheet || sheet.getLastRow() < 2) return [];
+  var values = sheet.getDataRange().getValues();
+  var headers = values[0].map(function(h) { return String(h); });
+  return values.slice(1).filter(function(row) { return row[0] !== ''; }).map(function(row) {
+    var obj = {};
+    headers.forEach(function(h, i) { obj[h] = row[i] instanceof Date ? row[i].toISOString() : row[i]; });
+    return obj;
+  });
+}
+
+function dispatchApiAction_(action, payload, session) {
+  var ss = getDatabaseSpreadsheet_();
+  if (!ss) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
+  var schoolId = session.schoolId || 'sch_alsadara_01';
+
+  if (action === 'bootstrap') {
+    var teachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(x) { return x.schoolId === schoolId; });
+    var visits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(x) { return x.schoolId === schoolId; });
+    var plans = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(x) { return x.schoolId === schoolId; });
+    if (session.role === 'teacher') {
+      teachers = teachers.filter(function(x) { return x.id === session.teacherId; });
+      visits = visits.filter(function(x) { return x.teacherId === session.teacherId; });
+      plans = plans.filter(function(x) { return x.teacherId === session.teacherId; });
+    }
+    var indicators = rowsAsObjects_(ss.getSheetByName('IndicatorLibrary'));
+    var settings = rowsAsObjects_(ss.getSheetByName('Settings'));
+    var visitIndicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators'));
+    var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains'));
+    visits = visits.map(function(v) {
+      v.indicators = visitIndicators.filter(function(x) { return x.visitId === v.id; }).map(function(x) {
+        return { indicatorId: x.indicatorId, indicatorText: x.indicatorText, indicatorGroup: x.group, rating: x.rating, notes: x.notes };
+      });
+      v.domains = domains.filter(function(x) { return x.visitId === v.id; }).map(function(x) {
+        return { domainId: x.domainId, domainName: x.domainName, rating: x.rating };
+      });
+      try { v.strengths = JSON.parse(v.strengths || '[]'); } catch (e) { v.strengths = []; }
+      try { v.improvementAreas = JSON.parse(v.improvementAreas || '[]'); } catch (e) { v.improvementAreas = []; }
+      return v;
+    });
+    return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators, settings: settings };
+  }
+
+  if (action === 'saveTeacher') {
+    if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal'])) return { success: false, error: 'ليست لديك صلاحية إدارة المعلمين.' };
+    payload.schoolId = schoolId;
+    return saveTeacher(payload);
+  }
+  if (action === 'saveVisit') {
+    if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية تسجيل الزيارة.' };
+    payload.schoolId = schoolId;
+    if (session.role === 'teacher') return { success: false, error: 'لا يحق للمعلم إنشاء زيارة.' };
+    return saveClassroomVisit(payload);
+  }
+  if (action === 'savePlan') {
+    if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
+    return upsertObjectRow_('ImprovementPlans', payload, 'id', schoolId);
+  }
+  if (action === 'saveSettings') {
+    if (!requireRole_(session, ['platform_admin', 'school_admin'])) return { success: false, error: 'تعديل الإعدادات مقتصر على إدارة المنصة والمدرسة.' };
+    return saveSettingsRows_(payload, session.name);
+  }
+  if (action === 'deleteTeacher') {
+    if (!requireRole_(session, ['platform_admin', 'school_admin'])) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
+    return deleteById_('Teachers', payload.id, schoolId);
+  }
+  if (action === 'deleteVisit') {
+    if (!requireRole_(session, ['platform_admin', 'school_admin'])) return { success: false, error: 'ليست لديك صلاحية حذف الزيارات.' };
+    return deleteVisitRows_(payload.id, schoolId);
+  }
+  return { success: false, error: 'عملية API غير مدعومة: ' + action };
+}
+
+function upsertObjectRow_(sheetName, obj, idKey, schoolId) {
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName(sheetName);
+  if (!sheet) return { success: false, error: 'ورقة البيانات غير موجودة: ' + sheetName };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var id = String(obj[idKey] || Utilities.getUuid());
+  var row = headers.map(function(h) {
+    var value = h === 'id' ? id : (h === 'schoolId' ? schoolId : obj[h]);
+    return value === undefined || value === null ? '' : (typeof value === 'object' ? JSON.stringify(value) : value);
+  });
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) === id) {
+      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
+      return { success: true, id: id };
+    }
+  }
+  sheet.appendRow(row);
+  return { success: true, id: id };
+}
+
+function saveSettingsRows_(settings, userName) {
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('Settings');
+  if (!sheet) return { success: false, error: 'ورقة الإعدادات غير موجودة.' };
+  var now = new Date().toISOString();
+  Object.keys(settings || {}).forEach(function(key) {
+    var data = sheet.getDataRange().getValues();
+    var found = -1;
+    for (var i = 1; i < data.length; i++) if (String(data[i][0]) === key) found = i + 1;
+    var row = [key, typeof settings[key] === 'object' ? JSON.stringify(settings[key]) : settings[key], now, userName];
+    if (found > 0) sheet.getRange(found, 1, 1, 4).setValues([row]); else sheet.appendRow(row);
+  });
+  return { success: true };
+}
+
+function deleteById_(sheetName, id, schoolId) {
+  if (!id) return { success: false, error: 'المعرّف مطلوب.' };
+  var sheet = getDatabaseSpreadsheet_().getSheetByName(sheetName);
+  if (!sheet) return { success: false, error: 'ورقة البيانات غير موجودة.' };
+  var data = sheet.getDataRange().getValues();
+  for (var i = data.length - 1; i >= 1; i--) {
+    if (String(data[i][0]) === String(id) && String(data[i][1]) === String(schoolId)) {
+      sheet.deleteRow(i + 1);
+      return { success: true };
+    }
+  }
+  return { success: false, error: 'السجل غير موجود في هذه المدرسة.' };
+}
+
+function deleteVisitRows_(visitId, schoolId) {
+  var result = deleteById_('Visits', visitId, schoolId);
+  if (!result.success) return result;
+  ['VisitIndicators', 'VisitDomains'].forEach(function(name) {
+    var sheet = getDatabaseSpreadsheet_().getSheetByName(name);
+    if (!sheet || sheet.getLastRow() < 2) return;
+    var rows = sheet.getDataRange().getValues();
+    for (var i = rows.length - 1; i >= 1; i--) if (String(rows[i][1]) === String(visitId)) sheet.deleteRow(i + 1);
+  });
+  return { success: true };
+}
+
+// تُشغّل مرة واحدة من محرر Apps Script بواسطة مسؤول النظام لتوسيع أعمدة Users.
+// لا تنشئ كلمة مرور افتراضية ولا تمنح صلاحية تلقائية لأي مستخدم.
+function migrateUserPasswordColumns() {
+  var ss = getDatabaseSpreadsheet_();
+  if (!ss) throw new Error('شغّل initializeDatabase() أولاً.');
+  var sheet = ss.getSheetByName('Users');
+  if (!sheet) throw new Error('ورقة Users غير موجودة.');
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  ['passwordSalt', 'passwordHash'].forEach(function(h) {
+    if (headers.indexOf(h) < 0) {
+      sheet.getRange(1, sheet.getLastColumn() + 1).setValue(h);
+      headers.push(h);
+    }
+  });
+  return { success: true, message: 'تم تجهيز أعمدة كلمات المرور. عيّن كلمات المرور للحسابات المعتمدة قبل تفعيل الدخول.' };
+}
+
+// تعيين كلمة مرور لحساب موجود فقط؛ لا تنشئ مستخدمين ولا تغيّر أدوارهم.
+function setUserPassword(email, password) {
+  if (!email || !password || String(password).length < 10) throw new Error('أدخل البريد وكلمة مرور لا تقل عن 10 أحرف.');
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss && ss.getSheetByName('Users');
+  if (!sheet) throw new Error('ورقة Users غير موجودة.');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(String);
+  var emailCol = headers.indexOf('email');
+  var saltCol = headers.indexOf('passwordSalt');
+  var hashCol = headers.indexOf('passwordHash');
+  if (emailCol < 0 || saltCol < 0 || hashCol < 0) throw new Error('نفّذ migrateUserPasswordColumns() أولاً.');
+  var normalized = String(email).trim().toLowerCase();
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][emailCol] || '').trim().toLowerCase() === normalized) {
+      var salt = Utilities.getUuid() + Utilities.getUuid();
+      sheet.getRange(i + 1, saltCol + 1).setValue(salt);
+      sheet.getRange(i + 1, hashCol + 1).setValue(passwordHash_(String(password), salt));
+      return { success: true, message: 'تم تحديث كلمة مرور الحساب.' };
+    }
+  }
+  throw new Error('لم يتم العثور على بريد مطابق في قائمة Users.');
+}
