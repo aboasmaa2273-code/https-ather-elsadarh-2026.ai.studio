@@ -25,6 +25,25 @@ function include(filename) {
   return HtmlService.createHtmlOutputFromFile(filename).getContent();
 }
 
+/**
+ * Returns the single persistent database spreadsheet for this Apps Script project.
+ * Web apps do not reliably have an active spreadsheet, so the created spreadsheet ID
+ * must be stored in Script Properties and reopened by ID on every request.
+ */
+function getDatabaseSpreadsheet_() {
+  var properties = PropertiesService.getScriptProperties();
+  var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
+  if (spreadsheetId) {
+    return SpreadsheetApp.openById(spreadsheetId);
+  }
+  var active = SpreadsheetApp.getActiveSpreadsheet();
+  if (active) {
+    properties.setProperty('ATHAR_DATABASE_SPREADSHEET_ID', active.getId());
+    return active;
+  }
+  return null;
+}
+
 // ====================================================
 // 2. تهيئة قاعدة البيانات وأوراق العمل (18 ورقة عمل)
 // ====================================================
@@ -34,9 +53,10 @@ function initializeDatabase() {
   lock.tryLock(30000); // 30 seconds wait
   
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getDatabaseSpreadsheet_();
     if (!ss) {
       ss = SpreadsheetApp.create("أَثَر - قاعدة بيانات منظومة التميز والتطوير التعليمي");
+      PropertiesService.getScriptProperties().setProperty('ATHAR_DATABASE_SPREADSHEET_ID', ss.getId());
     }
     
     var sheetsSchema = {
@@ -140,7 +160,7 @@ function seedInitialDataIfEmpty(ss) {
 
 function getBootstrapData() {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getDatabaseSpreadsheet_();
     if (!ss) {
       return { success: false, error: 'لم يتم العثور على جدول البيانات النشط. يُرجى تشغيل initializeDatabase().' };
     }
@@ -166,7 +186,7 @@ function getBootstrapData() {
 
 function determineUserRole(email) {
   if (!email) return 'school_admin';
-  var ss = SpreadsheetApp.getActiveSpreadsheet();
+  var ss = getDatabaseSpreadsheet_();
   var usersSheet = ss.getSheetByName('Users');
   if (!usersSheet || usersSheet.getLastRow() <= 1) return 'school_admin';
   
@@ -188,12 +208,14 @@ function saveClassroomVisit(visitData) {
   lock.tryLock(20000);
   
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getDatabaseSpreadsheet_();
     var visitsSheet = ss.getSheetByName('Visits');
     var indSheet = ss.getSheetByName('VisitIndicators');
     
     if (!visitsSheet || !indSheet) {
-      initializeDatabase();
+      var initResult = initializeDatabase();
+      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
+      ss = getDatabaseSpreadsheet_();
       visitsSheet = ss.getSheetByName('Visits');
       indSheet = ss.getSheetByName('VisitIndicators');
     }
@@ -310,10 +332,12 @@ function saveTeacher(teacherData) {
   lock.tryLock(15000);
   
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getDatabaseSpreadsheet_();
     var sheet = ss.getSheetByName('Teachers');
     if (!sheet) {
-      initializeDatabase();
+      var initResult = initializeDatabase();
+      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
+      ss = getDatabaseSpreadsheet_();
       sheet = ss.getSheetByName('Teachers');
     }
 
@@ -380,7 +404,7 @@ function saveTeacher(teacherData) {
 
 function logAuditAction(schoolId, userName, action, details) {
   try {
-    var ss = SpreadsheetApp.getActiveSpreadsheet();
+    var ss = getDatabaseSpreadsheet_();
     var sheet = ss.getSheetByName('AuditLog');
     if (sheet) {
       var row = [
