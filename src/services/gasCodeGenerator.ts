@@ -222,19 +222,13 @@ function saveClassroomVisit(visitData) {
   try {
     var ss = getDatabaseSpreadsheet_();
     if (!ss) {
-      var initResult = initializeDatabase();
-      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
-      ss = getDatabaseSpreadsheet_();
+      throw new Error('قاعدة البيانات غير مهيأة. شغّل initializeDatabase() مرة واحدة من محرر Apps Script قبل استخدام المنصة.');
     }
     var visitsSheet = ss.getSheetByName('Visits');
     var indSheet = ss.getSheetByName('VisitIndicators');
     
     if (!visitsSheet || !indSheet) {
-      var initResult = initializeDatabase();
-      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
-      ss = getDatabaseSpreadsheet_();
-      visitsSheet = ss.getSheetByName('Visits');
-      indSheet = ss.getSheetByName('VisitIndicators');
+      throw new Error('أوراق الزيارات غير موجودة. شغّل initializeDatabase() من محرر Apps Script.');
     }
 
     // حساب نسبة الإنجاز مع استبعاد "لم يُشاهد" تماماً
@@ -308,7 +302,17 @@ function saveClassroomVisit(visitData) {
       visitsSheet.appendRow(visitRow);
     }
 
-    // حفظ تفاصيل المؤشرات
+    // عند تعديل زيارة موجودة، احذف تفاصيل مؤشرّاتها السابقة أولاً حتى لا تتكرر.
+    if (existingRowIndex > 0 && indSheet.getLastRow() > 1) {
+      var indicatorRows = indSheet.getDataRange().getValues();
+      for (var ir = indicatorRows.length - 1; ir >= 1; ir--) {
+        if (indicatorRows[ir][1] === visitId) {
+          indSheet.deleteRow(ir + 1);
+        }
+      }
+    }
+
+    // حفظ تفاصيل المؤشرات الحالية
     for (var k = 0; k < indicators.length; k++) {
       var ind = indicators[k];
       var indRow = [
@@ -357,10 +361,7 @@ function saveTeacher(teacherData) {
     }
     var sheet = ss.getSheetByName('Teachers');
     if (!sheet) {
-      var initResult = initializeDatabase();
-      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
-      ss = getDatabaseSpreadsheet_();
-      sheet = ss.getSheetByName('Teachers');
+      throw new Error('ورقة المعلمين غير موجودة. شغّل initializeDatabase() من محرر Apps Script.');
     }
 
     var jobNumber = teacherData.jobNumber.toString().trim();
