@@ -10,6 +10,11 @@
 // ==========================================
 
 function doGet(e) {
+  if (e && e.parameter && e.parameter.bridge === '1') {
+    return HtmlService.createHtmlOutputFromFile('Bridge')
+      .setTitle('Athar Secure Bridge')
+      .setXFrameOptionsMode(HtmlService.XFrameOptionsMode.ALLOWALL);
+  }
   var template = HtmlService.createTemplateFromFile('Index');
   template.platformTitle = "أَثَر | منظومة التميز والتطوير التعليمي";
   template.schoolName = "مدرسة الصدارة بنين - الحلقة الثانية";
@@ -767,4 +772,21 @@ function setUserPassword(email, password) {
     }
   }
   throw new Error('لم يتم العثور على بريد مطابق في قائمة Users.');
+}
+
+
+// نقطة دخول موحدة لطلبات الجسر داخل iframe؛ تستدعيها google.script.run.
+function dispatchBridgeRequest(request) {
+  try {
+    if (!request || typeof request !== 'object') return { success: false, error: 'طلب غير صالح.' };
+    var action = String(request.action || '');
+    var payload = request.payload || {};
+    if (action === 'login') return apiLogin_(payload);
+    if (action === 'health') return { success: true, service: 'athar-api', timestamp: new Date().toISOString() };
+    var session = validateSession_(request.token);
+    if (!session) return { success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' };
+    return dispatchApiAction_(action, payload, session);
+  } catch (err) {
+    return { success: false, error: 'تعذر تنفيذ الطلب: ' + err.message };
+  }
 }
