@@ -50,7 +50,7 @@ function getDatabaseSpreadsheet_() {
 
 function initializeDatabase() {
   var lock = LockService.getScriptLock();
-  lock.tryLock(30000); // 30 seconds wait
+  if (!lock.tryLock(30000)) return { success: false, error: 'قاعدة البيانات مشغولة حالياً. حاول مرة أخرى.' }; // 30 seconds wait
   
   try {
     var ss = getDatabaseSpreadsheet_();
@@ -205,10 +205,15 @@ function determineUserRole(email) {
 
 function saveClassroomVisit(visitData) {
   var lock = LockService.getScriptLock();
-  lock.tryLock(20000);
+  if (!lock.tryLock(20000)) return { success: false, error: 'هناك عملية حفظ أخرى قيد التنفيذ. حاول مرة أخرى.' };
   
   try {
     var ss = getDatabaseSpreadsheet_();
+    if (!ss) {
+      var initResult = initializeDatabase();
+      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
+      ss = getDatabaseSpreadsheet_();
+    }
     var visitsSheet = ss.getSheetByName('Visits');
     var indSheet = ss.getSheetByName('VisitIndicators');
     
@@ -329,10 +334,15 @@ function saveClassroomVisit(visitData) {
 
 function saveTeacher(teacherData) {
   var lock = LockService.getScriptLock();
-  lock.tryLock(15000);
+  if (!lock.tryLock(15000)) return { success: false, error: 'هناك عملية حفظ أخرى قيد التنفيذ. حاول مرة أخرى.' };
   
   try {
     var ss = getDatabaseSpreadsheet_();
+    if (!ss) {
+      var initResult = initializeDatabase();
+      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
+      ss = getDatabaseSpreadsheet_();
+    }
     var sheet = ss.getSheetByName('Teachers');
     if (!sheet) {
       var initResult = initializeDatabase();
