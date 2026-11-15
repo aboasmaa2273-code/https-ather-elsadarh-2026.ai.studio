@@ -167,17 +167,32 @@ function getBootstrapData() {
 
     var userEmail = Session.getActiveUser().getEmail();
     var userRole = determineUserRole(userEmail);
-    
+    if (!userRole) {
+      return { success: false, error: 'تعذر التحقق من هوية المستخدم أو لا يوجد حساب معتمد لهذا البريد. لم يتم منح أي صلاحية.' };
+    }
+
+    var teachersSheet = ss.getSheetByName('Teachers');
+    var visitsSheet = ss.getSheetByName('Visits');
+    var plansSheet = ss.getSheetByName('ImprovementPlans');
+    var indicatorsSheet = ss.getSheetByName('IndicatorLibrary');
+    var settingsSheet = ss.getSheetByName('Settings');
     return {
       success: true,
       currentUser: {
         email: userEmail,
         role: userRole,
-        name: userEmail ? userEmail.split('@')[0] : 'مستخدم نظام أَثَر'
+        name: userEmail.split('@')[0]
       },
       schoolName: 'مدرسة الصدارة بنين - الحلقة الثانية',
       platformName: 'أَثَر',
-      slogan: '«نَرْصُدُ الأَدَاءَ... وَنَصْنَعُ الأَثَرَ»'
+      slogan: '«نَرْصُدُ الأَدَاءَ... وَنَصْنَعُ الأَثَرَ»',
+      data: {
+        teachersCount: teachersSheet ? Math.max(0, teachersSheet.getLastRow() - 1) : 0,
+        visitsCount: visitsSheet ? Math.max(0, visitsSheet.getLastRow() - 1) : 0,
+        plansCount: plansSheet ? Math.max(0, plansSheet.getLastRow() - 1) : 0,
+        indicatorsCount: indicatorsSheet ? Math.max(0, indicatorsSheet.getLastRow() - 1) : 0,
+        settingsConfigured: !!(settingsSheet && settingsSheet.getLastRow() > 1)
+      }
     };
   } catch (err) {
     return { success: false, error: err.toString() };
@@ -185,18 +200,25 @@ function getBootstrapData() {
 }
 
 function determineUserRole(email) {
-  if (!email) return 'school_admin';
+  // Fail closed: an absent, unlisted, or disabled account never receives admin rights.
+  if (!email || typeof email !== 'string') return null;
   var ss = getDatabaseSpreadsheet_();
+  if (!ss) return null;
   var usersSheet = ss.getSheetByName('Users');
-  if (!usersSheet || usersSheet.getLastRow() <= 1) return 'school_admin';
-  
+  if (!usersSheet || usersSheet.getLastRow() <= 1) return null;
+
   var data = usersSheet.getDataRange().getValues();
+  var normalizedEmail = email.trim().toLowerCase();
   for (var i = 1; i < data.length; i++) {
-    if (data[i][3] && data[i][3].toString().toLowerCase() === email.toLowerCase()) {
-      return data[i][4]; // role column
+    var storedEmail = data[i][3] ? data[i][3].toString().trim().toLowerCase() : '';
+    var status = data[i][7] ? data[i][7].toString().trim().toLowerCase() : 'active';
+    if (storedEmail && storedEmail === normalizedEmail && status !== 'inactive' && status !== 'disabled') {
+      var role = data[i][4] ? data[i][4].toString().trim() : '';
+      var allowedRoles = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
+      return allowedRoles.indexOf(role) >= 0 ? role : null;
     }
   }
-  return 'school_admin';
+  return null;
 }
 
 // ====================================================
@@ -343,9 +365,7 @@ function saveTeacher(teacherData) {
   try {
     var ss = getDatabaseSpreadsheet_();
     if (!ss) {
-      var initResult = initializeDatabase();
-      if (!initResult || !initResult.success) throw new Error((initResult && initResult.error) || 'تعذر تهيئة قاعدة البيانات.');
-      ss = getDatabaseSpreadsheet_();
+      throw new Error('قاعدة البيانات غير مهيأة. شغّل initializeDatabase() يدويًا مرة واحدة من محرر Apps Script، ثم أعد المحاولة.');
     }
     var sheet = ss.getSheetByName('Teachers');
     if (!sheet) {
