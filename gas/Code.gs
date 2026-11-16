@@ -1157,7 +1157,17 @@ function recordVisitSnapshot_(ss, visitId, oldVisitRow, visitHeaders, schoolId, 
   var indicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators')).filter(function(x) { return String(x.visitId) === String(visitId); });
   var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains')).filter(function(x) { return String(x.visitId) === String(visitId); });
   var snapshot = { visit: visitObject, indicators: indicators, domains: domains };
-  ss.getSheetByName('VisitHistory').appendRow([
+  // Older production databases may not yet contain the optional visit-history sheet.
+  // Create only this missing history sheet; never reinitialize or alter existing data.
+  var historySheet = ss.getSheetByName('VisitHistory');
+  if (!historySheet) {
+    historySheet = ss.insertSheet('VisitHistory');
+    historySheet.getRange(1, 1, 1, 8).setValues([[
+      'id', 'schoolId', 'visitId', 'changedBy', 'changedByRole', 'changedAt', 'action', 'snapshotJson'
+    ]]);
+    historySheet.setFrozenRows(1);
+  }
+  historySheet.appendRow([
     Utilities.getUuid(), schoolId, visitId, actorName || '', actorRole || '', new Date().toISOString(), action || 'تعديل التقرير', JSON.stringify(snapshot)
   ]);
 }
