@@ -115,7 +115,7 @@ function initializeDatabase_() {
       'Settings': ['key', 'value', 'updatedAt', 'updatedBy'],
       'AuditLog': ['id', 'schoolId', 'timestamp', 'userName', 'userRole', 'action', 'details'],
       'ReportTemplates': ['id', 'templateName', 'layoutJson', 'isDefault'],
-      'InternalNotes': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'noteText', 'createdBy', 'createdByRole', 'createdAt', 'updatedBy', 'updatedByRole', 'updatedAt', 'status'],
+      'InternalNotes': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'noteText', 'createdBy', 'createdById', 'createdByRole', 'createdAt', 'updatedBy', 'updatedByRole', 'updatedAt', 'status'],
       'InternalNoteHistory': ['id', 'schoolId', 'noteId', 'changedBy', 'changedByRole', 'changedAt', 'oldText', 'newText'],
       'AdministrativeFollowUps': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'followUpDate', 'action', 'notes', 'recommendations', 'result', 'nextAction', 'nextDate', 'status', 'createdBy', 'createdByRole', 'createdAt', 'updatedAt'],
       'VisitHistory': ['id', 'schoolId', 'visitId', 'changedBy', 'changedByRole', 'changedAt', 'action', 'snapshotJson']
@@ -169,6 +169,19 @@ function initializeDatabase_() {
  * Source rows are preserved. Unknown roles are skipped and reported.
  * Password hashes are copied only when both hash and salt exist.
  */
+/**
+ * Adds stable creator identity to existing internal-note sheets without altering note rows.
+ */
+function ensureInternalNoteOwnerColumn_(sheet) {
+  if (!sheet) return { success: false, error: 'ورقة الملاحظات الداخلية غير موجودة.' };
+  var lastColumn = sheet.getLastColumn();
+  if (lastColumn < 1) return { success: false, error: 'مخطط ورقة الملاحظات الداخلية غير صالح.' };
+  var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(value) { return String(value).trim(); });
+  if (headers.indexOf('createdById') >= 0) return { success: true, added: false };
+  sheet.getRange(1, sheet.getLastColumn() + 1).setValue('createdById');
+  return { success: true, added: true };
+}
+
 /**
  * Adds evaluator ownership columns to an existing ImprovementPlans sheet.
  * This is an additive, non-destructive migration: existing rows and values are preserved.
@@ -1355,6 +1368,8 @@ function setUserStatus_(payload, session) {
 }
 
 function saveInternalNote_(payload, session, schoolId) {
+  var ownerMigration = ensureInternalNoteOwnerColumn_(getDatabaseSpreadsheet_().getSheetByName('InternalNotes'));
+  if (!ownerMigration.success) return ownerMigration;
   var text = String(payload.noteText || '').trim();
   if (!text) return { success: false, error: 'نص الملاحظة مطلوب.' };
   var teacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
@@ -1366,8 +1381,9 @@ function saveInternalNote_(payload, session, schoolId) {
   var noteId = String(payload.id || Utilities.getUuid());
   var existing = rowsAsObjects_(sheet).filter(function(n) { return String(n.id) === noteId && String(n.schoolId) === String(schoolId); })[0];
   if (payload.id && !existing) return { success: false, error: 'الملاحظة غير موجودة أو لا تتبع المدرسة.' };
-  if (existing && ['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) < 0 && String(existing.createdBy || '') !== String(session.name || '')) {
-    return { success: false, error: 'يمكنك تعديل ملاحظاتك التي كتبتها فقط. يمكن للإدارة تعديل جميع الملاحظات.' };
+  var canManageAllNotes = ['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0;
+  if (existing && !canManageAllNotes && String(existing.createdById || '') !== String(session.id || '')) {
+    return { success: false, error: 'يمكنك تعديل الملاحظات التي أنشأتها بحسابك فقط. الملاحظات القديمة التي لا تحمل هوية منشئ موثقة متاحة للإدارة للتعديل.' };
   }
   if (payload.visitId) {
     var linkedVisit = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId) && String(v.teacherId) === String(teacher.id); })[0];
@@ -1382,6 +1398,8 @@ function saveInternalNote_(payload, session, schoolId) {
     id: noteId, schoolId: schoolId, teacherId: teacher.id, teacherName: teacher.fullName,
     visitId: String(payload.visitId || ''), noteText: text,
     createdBy: existing ? existing.createdBy : session.name,
+    // Stable account identity prevents collisions between users with the same display name.
+    createdById: existing ? (existing.createdById || '') : session.id,
     createdByRole: existing ? existing.createdByRole : session.role,
     createdAt: existing ? existing.createdAt : now,
     updatedBy: session.name, updatedByRole: session.role, updatedAt: now, status: 'active'

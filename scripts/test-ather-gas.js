@@ -318,3 +318,67 @@ assert.equal(unauthorizedPlanSave.success, false);
 assert.equal(unauthorizedMigrationAttempted, false);
 sandbox.ensureImprovementPlanOwnershipColumns_ = originalOwnershipMigration;
 console.log('PASS: unauthorized roles are rejected before any improvement-plan schema migration');
+
+
+const noteHeaders = ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'noteText', 'createdBy', 'createdByRole', 'createdAt', 'updatedBy', 'updatedByRole', 'updatedAt', 'status', 'createdById'];
+const noteRecords = [
+  { id: 'note-owned-by-other', schoolId, teacherId: 'teacher-1', noteText: 'ملاحظة خاصة', createdBy: 'المقيم نفسه بالاسم', createdById: 'different-account-id', createdByRole: 'evaluator', createdAt: '2026-01-01' }
+];
+const noteSheet = makeMutableSheet(noteHeaders, noteRecords);
+const noteTeacherSheet = sheet([{ id: 'teacher-1', schoolId, fullName: 'المعلم الأول' }]);
+const noteHistorySheet = { appendRow: () => {} };
+const noteSheets = { InternalNotes: noteSheet, Teachers: noteTeacherSheet, InternalNoteHistory: noteHistorySheet, Visits: sheet([]) };
+sandbox.getDatabaseSpreadsheet_ = () => ({ getSheetByName: (name) => noteSheets[name] || null });
+sandbox.rowsAsObjects_ = (value) => {
+  if (value === noteSheet) {
+    return value.getDataRange().getValues().slice(1).map((row) =>
+      Object.fromEntries(noteHeaders.map((header, index) => [header, row[index] ?? '']))
+    );
+  }
+  return value && Array.isArray(value.records) ? value.records : [];
+};
+sandbox.requireRole_ = (session, roles) => roles.includes(session.role);
+sandbox.Utilities = { getUuid: () => 'new-note-id' };
+sandbox.logAuditAction = () => {};
+sandbox.upsertObjectRow_ = (sheetName, object, idKey, targetSchoolId) => {
+  const target = noteSheets[sheetName];
+  const existing = target.records.find((item) => String(item[idKey]) === String(object[idKey]));
+  if (existing && String(existing.schoolId) !== String(targetSchoolId)) return { success: false };
+  if (existing) Object.assign(existing, object);
+  else target.records.push({ ...object });
+  return { success: true, id: object[idKey] };
+};
+const sameDisplayNameDifferentAccount = sandbox.dispatchApiAction_('saveInternalNote', {
+  id: 'note-owned-by-other', teacherId: 'teacher-1', noteText: 'محاولة تعديل باسم مطابق'
+}, { id: 'attacker-account-id', schoolId, role: 'evaluator', name: 'المقيم نفسه بالاسم' });
+assert.equal(sameDisplayNameDifferentAccount.success, false);
+assert.equal(noteRecords[0].noteText, 'ملاحظة خاصة');
+const legitimateOwnerEdit = sandbox.dispatchApiAction_('saveInternalNote', {
+  id: 'note-owned-by-other', teacherId: 'teacher-1', noteText: 'تعديل من صاحب الملاحظة'
+}, { id: 'different-account-id', schoolId, role: 'evaluator', name: 'اسم مختلف' });
+assert.equal(legitimateOwnerEdit.success, true);
+assert.equal(noteRecords[0].noteText, 'تعديل من صاحب الملاحظة');
+const ownNoteSave = sandbox.dispatchApiAction_('saveInternalNote', {
+  teacherId: 'teacher-1', noteText: 'ملاحظة جديدة'
+}, { id: 'note-owner-id', schoolId, role: 'evaluator', name: 'مقيم جديد' });
+assert.equal(ownNoteSave.success, true);
+assert.equal(noteRecords.find((item) => item.id === 'new-note-id').createdById, 'note-owner-id');
+
+const legacyNoteHeaders = ['id', 'schoolId', 'teacherId', 'noteText', 'createdBy'];
+const legacyNoteRecords = [{ id: 'legacy-note', schoolId, teacherId: 'teacher-1', noteText: 'ملاحظة محفوظة', createdBy: 'مقيم سابق' }];
+const legacyNoteSheet = makeMutableSheet(legacyNoteHeaders, legacyNoteRecords);
+const legacyMigration = sandbox.ensureInternalNoteOwnerColumn_(legacyNoteSheet);
+assert.equal(legacyMigration.success, true);
+assert.equal(legacyMigration.added, true);
+assert.equal(legacyNoteHeaders.includes('createdById'), true);
+assert.equal(legacyNoteRecords[0].noteText, 'ملاحظة محفوظة');
+assert.equal(legacyNoteRecords.length, 1);
+noteSheets.InternalNotes = legacyNoteSheet;
+const managementLegacyEdit = sandbox.dispatchApiAction_('saveInternalNote', {
+  id: 'legacy-note', teacherId: 'teacher-1', noteText: 'تعديل إداري للملاحظة القديمة'
+}, { id: 'school-admin-id', schoolId, role: 'school_admin', name: 'مدير المدرسة' });
+assert.equal(managementLegacyEdit.success, true);
+assert.equal(legacyNoteRecords[0].noteText, 'تعديل إداري للملاحظة القديمة');
+assert.equal(legacyNoteRecords[0].createdById, '');
+console.log('PASS: internal note ownership uses stable account IDs, not display names');
+console.log('PASS: legacy internal-note migration adds the owner column without changing existing note rows');
