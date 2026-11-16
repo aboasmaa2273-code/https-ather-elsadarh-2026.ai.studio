@@ -540,28 +540,49 @@ function logAuditAction(schoolId, userName, action, details, userRole) {
 // Shared public evaluator directory for both the JSON API and iframe bridge.
 // Return only profile fields required by the public homepage and evaluator login selector.
 function getPublicEvaluators_() {
+  // Public directory is read-only and intentionally returns profile fields only.
+  // Evaluators may be stored in either Users (login-enabled accounts) or
+  // RegisteredVisitors (directory/visitor records), so combine both sources.
   var ss = getDatabaseSpreadsheet_();
-  var users = rowsAsObjects_(ss.getSheetByName('Users'));
   var schoolId = 'sch_alsadara_01';
-  var evaluators = users.filter(function(user) {
-    return String(user.schoolId || schoolId) === schoolId &&
-      String(user.role || '') === 'evaluator' &&
-      String(user.status || 'active').toLowerCase() === 'active';
-  }).map(function(user) {
-    return {
-      id: String(user.id || ''),
-      name: String(user.name || ''),
+  var users = rowsAsObjects_(ss.getSheetByName('Users'));
+  var visitors = rowsAsObjects_(ss.getSheetByName('RegisteredVisitors'));
+  var byId = {};
+
+  function addPublicEvaluator(record, source) {
+    if (!record) return;
+    var recordSchool = String(record.schoolId || schoolId);
+    var role = String(record.role || '').trim().toLowerCase();
+    var status = String(record.status || 'active').trim().toLowerCase();
+    if (recordSchool !== schoolId || role !== 'evaluator' ||
+        (status !== 'active' && status !== '')) return;
+
+    var id = String(record.id || '').trim();
+    var name = String(record.name || '').trim();
+    if (!id || !name) return;
+
+    // Users takes precedence if the same person is present in both sheets.
+    if (byId[id] && source === 'visitor') return;
+    byId[id] = {
+      id: id,
+      name: name,
       email: '',
       role: 'evaluator',
       status: 'active',
       schoolId: schoolId,
-      roleTitle: String(user.roleTitle || user.jobTitle || 'مقيّم معتمد'),
-      specialization: String(user.specialization || ''),
-      department: String(user.department || ''),
-      profileSummary: String(user.profileSummary || user.bio || ''),
-      avatarUrl: String(user.avatarUrl || '')
+      roleTitle: String(record.roleTitle || record.jobTitle || 'مقيّم معتمد'),
+      specialization: String(record.specialization || ''),
+      department: String(record.department || ''),
+      profileSummary: String(record.profileSummary || record.bio || ''),
+      avatarUrl: String(record.avatarUrl || '')
     };
-  }).filter(function(user) { return user.id && user.name; });
+  }
+
+  users.forEach(function(user) { addPublicEvaluator(user, 'user'); });
+  visitors.forEach(function(visitor) { addPublicEvaluator(visitor, 'visitor'); });
+
+  var evaluators = Object.keys(byId).map(function(id) { return byId[id]; });
+  evaluators.sort(function(a, b) { return a.name.localeCompare(b.name, 'ar'); });
   return { success: true, evaluators: evaluators };
 }
 
