@@ -62,7 +62,7 @@ function initializeDatabase() {
     }
     
     var sheetsSchema = {
-      'Users': ['id', 'schoolId', 'name', 'email', 'role', 'jobNumber', 'specialization', 'status', 'createdAt', 'username', 'teacherId'],
+      'Users': ['id', 'schoolId', 'name', 'email', 'role', 'jobNumber', 'specialization', 'status', 'createdAt', 'username', 'teacherId', 'roleTitle', 'department', 'profileSummary', 'avatarUrl'],
       'RegisteredVisitors': ['id', 'schoolId', 'name', 'role', 'roleTitle', 'department', 'jobNumber', 'email', 'phone', 'username', 'status', 'createdAt'],
       'Schools': ['id', 'name', 'code', 'stage', 'welcomeMessage', 'primaryColor', 'secondaryColor', 'contactEmail', 'contactPhone'],
       'Teachers': ['id', 'schoolId', 'fullName', 'jobNumber', 'specialization', 'status', 'email', 'phone', 'dateAdded'],
@@ -548,6 +548,30 @@ function doPost(e) {
 
     if (action === 'login') return jsonResponse_(apiLogin_(payload));
     if (action === 'health') return jsonResponse_({ success: true, service: 'athar-api', timestamp: new Date().toISOString() });
+    // Public, read-only evaluator directory. Never expose usernames, emails, passwords, or account identifiers.
+    if (action === 'publicEvaluators') {
+      var publicSs = getDatabaseSpreadsheet_();
+      var publicUsers = rowsAsObjects_(publicSs.getSheetByName('Users'));
+      var publicSchoolId = 'sch_alsadara_01';
+      var publicEvaluators = publicUsers.filter(function(u) {
+        return String(u.schoolId || publicSchoolId) === publicSchoolId &&
+          String(u.role || '') === 'evaluator' &&
+          String(u.status || 'active').toLowerCase() === 'active';
+      }).map(function(u) {
+        return {
+          id: String(u.id || ''),
+          name: String(u.name || ''),
+          role: 'evaluator',
+          schoolId: publicSchoolId,
+          roleTitle: String(u.roleTitle || u.jobTitle || 'مقيّم معتمد'),
+          specialization: String(u.specialization || ''),
+          department: String(u.department || ''),
+          profileSummary: String(u.profileSummary || u.bio || ''),
+          avatarUrl: String(u.avatarUrl || '')
+        };
+      }).filter(function(u) { return u.id && u.name; });
+      return jsonResponse_({ success: true, evaluators: publicEvaluators });
+    }
 
     var session = validateSession_(request.token);
     if (!session) return jsonResponse_({ success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' });
