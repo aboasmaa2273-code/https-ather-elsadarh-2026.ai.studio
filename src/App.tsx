@@ -374,6 +374,13 @@ export default function App() {
               alert(error instanceof Error ? error.message : 'تعذر إرسال الملاحظات إلى بريد المعلم.');
             }
           }}
+          onLogWhatsAppOpen={async (visitId, messageType) => {
+            try {
+              await atharRemoteAction('logWhatsAppOpen', { id: visitId, messageType });
+            } catch (error) {
+              console.error('تعذر تسجيل فتح واتساب في سجل العمليات:', error);
+            }
+          }}
           onRestoreReport={async (visitId) => {
             try { await atharRemoteAction('restoreVisit', { id: visitId }); await refreshAllData(true); }
             catch (error) { alert(error instanceof Error ? error.message : 'تعذر استعادة التقرير من الأرشيف.'); }
