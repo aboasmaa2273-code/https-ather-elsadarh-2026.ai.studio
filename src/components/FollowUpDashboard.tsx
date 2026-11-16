@@ -38,7 +38,6 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
   const filteredVisits = useMemo(() => {
     const q = search.trim().toLocaleLowerCase('ar');
     return visits.filter(v => {
-      const teacher = teachers.find(t => t.id === v.teacherId);
       const haystack = [v.id, v.teacherName, v.teacherJobNumber, v.teacherSpecialization, v.evaluatorName, v.subject, v.grade, v.section, v.visitGoal]
         .join(' ').toLocaleLowerCase('ar');
       return (!q || haystack.includes(q))
@@ -53,11 +52,12 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
         && (status === 'all' || v.status === status)
         && (!fromDate || v.date >= fromDate)
         && (!toDate || v.date <= toDate)
-        && (!teacher || teacher.status !== 'deleted');
+;
     }).sort((a,b) => String(b.date).localeCompare(String(a.date)));
   }, [visits, teachers, search, teacherId, evaluator, academicYear, term, visitType, subject, grade, section, status, fromDate, toDate]);
 
-  const filteredPlans = plans.filter(p => teacherId === 'all' || p.teacherId === teacherId);
+  const matchingTeacherIds = new Set(filteredVisits.map(v => v.teacherId));
+  const filteredPlans = plans.filter(p => teacherId !== 'all' ? p.teacherId === teacherId : matchingTeacherIds.has(p.teacherId));
   const completed = filteredVisits.filter(v => ['completed','approved'].includes(v.status)).length;
   const openPlans = filteredPlans.filter(p => ['not_started','in_progress','needs_follow_up'].includes(p.status)).length;
   const reset = () => {
@@ -114,11 +114,11 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
         {selectFilter('المقيم',evaluator,setEvaluator,evaluators)}
         {selectFilter('العام الدراسي',academicYear,setAcademicYear,years)}
         {selectFilter('الفصل الدراسي',term,setTerm,options(visits.map(v=>v.term||'')))}
-        {selectFilter('نوع الزيارة',visitType,setVisitType,['full','quick'])}
+        <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">نوع الزيارة</span><select className={fieldClass} value={visitType} onChange={e=>setVisitType(e.target.value)}><option value="all">الكل</option><option value="full">زيارة كاملة</option><option value="quick">زيارة سريعة</option></select></label>
         {selectFilter('المادة الدراسية',subject,setSubject,subjects)}
         {selectFilter('الصف',grade,setGrade,grades)}
         {selectFilter('الشعبة',section,setSection,sections)}
-        {selectFilter('حالة التقرير',status,setStatus,['draft','in_progress','completed','approved','archived'])}
+        <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">حالة التقرير</span><select className={fieldClass} value={status} onChange={e=>setStatus(e.target.value)}><option value="all">الكل</option><option value="draft">مسودة</option><option value="in_progress">قيد التنفيذ</option><option value="completed">مكتمل</option><option value="approved">معتمد</option><option value="archived">مؤرشف</option></select></label>
         <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">من تاريخ</span><input type="date" className={fieldClass} value={fromDate} onChange={e=>setFromDate(e.target.value)}/></label>
         <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">إلى تاريخ</span><input type="date" className={fieldClass} value={toDate} onChange={e=>setToDate(e.target.value)}/></label>
       </div>
