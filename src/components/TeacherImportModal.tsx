@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { Upload, Download, AlertTriangle, CheckCircle2, FileText, X } from 'lucide-react';
-import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { translations, Language } from '../i18n/translations';
 
 interface TeacherImportModalProps {
@@ -17,6 +17,8 @@ export const TeacherImportModal: React.FC<TeacherImportModalProps> = ({
   language = 'ar'
 }) => {
   const [csvText, setCsvText] = useState('');
+  const [selectedFileName, setSelectedFileName] = useState('');
+  const [isImporting, setIsImporting] = useState(false);
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[] } | null>(null);
@@ -57,6 +59,8 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
     reader.onload = (event) => {
       const content = event.target?.result as string;
       setCsvText(content);
+      setSelectedFileName(file.name);
+      setImportResult(null);
       parseAndValidateCsv(content);
     };
     reader.readAsText(file);
@@ -72,8 +76,6 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
 
     const rows: any[] = [];
     const errors: string[] = [];
-    const existingTeachers = AtharStorageService.getTeachers();
-    const existingJobNumbers = new Set(existingTeachers.map(t => t.jobNumber.trim()));
     const seenBatchJobNumbers = new Set<string>();
 
     for (let i = 1; i < lines.length; i++) {
@@ -97,10 +99,6 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
         rowStatus.valid = false;
         rowStatus.reasons.push(isEn ? 'Job ID missing' : 'الرقم الوظيفي مفقود');
       } else {
-        if (existingJobNumbers.has(jobNumber)) {
-          rowStatus.valid = false;
-          rowStatus.reasons.push(isEn ? `Job ID (${jobNumber}) already registered` : `الرقم الوظيفي (${jobNumber}) مسجل مسبقاً في النظام`);
-        }
         if (seenBatchJobNumbers.has(jobNumber)) {
           rowStatus.valid = false;
           rowStatus.reasons.push(isEn ? `Duplicate Job ID (${jobNumber}) in file` : `الرقم الوظيفي (${jobNumber}) مكرر داخل هذا الملف`);
@@ -133,30 +131,30 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
     setValidationErrors(errors);
   };
 
-  const handleExecuteImport = () => {
+  const handleExecuteImport = async () => {
     const validRows = parsedRows.filter(r => r.isValid);
     if (validRows.length === 0) {
       alert(isEn ? 'No valid records found to import!' : 'لا توجد سجلات صالحة للاستيراد!');
       return;
     }
+    setIsImporting(true);
+    try {
+      const result = await atharRemoteAction('importTeachers', {
+        teachers: validRows.map(r => ({ lineNum: r.lineNum, fullName: r.fullName, jobNumber: r.jobNumber, specialization: r.specialization, email: r.email, phone: r.phone }))
+      }) as { importedCount?: number; rejectedCount?: number; errors?: Array<{lineNum:number;jobNumber:string;reasons:string[]}> };
+      const serverErrors = (result.errors || []).map(item => 'السطر ' + item.lineNum + ': ' + item.reasons.join('، '));
+      const previewErrors = parsedRows.filter(r => !r.isValid).map(r => 'السطر ' + r.lineNum + ': ' + r.reasons.join('، '));
+      setImportResult({ imported: Number(result.importedCount || 0), rejected: Number(result.rejectedCount || 0) + previewErrors.length, errors: [...previewErrors, ...serverErrors] });
+      if (Number(result.importedCount || 0) > 0) onImportComplete();
+    } catch (error) {
+      setImportResult({ imported: 0, rejected: validRows.length, errors: [error instanceof Error ? error.message : 'تعذر إتمام الاستيراد المركزي.'] });
+    } finally { setIsImporting(false); }
+  };
 
-    const result = AtharStorageService.bulkImportTeachers(
-      validRows.map(r => ({
-        fullName: r.fullName,
-        jobNumber: r.jobNumber,
-        specialization: r.specialization,
-        email: r.email,
-        phone: r.phone
-      }))
-    );
-
-    setImportResult({
-      imported: result.importedCount,
-      rejected: result.rejectedCount + (parsedRows.length - validRows.length),
-      errors: result.errors
-    });
-
-    onImportComplete();
+  const clearSelectedFile = () => {
+    setCsvText(''); setSelectedFileName(''); setParsedRows([]); setValidationErrors([]); setImportResult(null);
+    const input = document.getElementById('csvFileInput') as HTMLInputElement | null;
+    if (input) input.value = '';
   };
 
   return (
@@ -213,9 +211,10 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
                 {isEn ? 'Click to select CSV file or drag and drop here' : 'انقر لاختيار ملف CSV أو اسحبه هنا'}
               </p>
               <p className="text-slate-500 text-[11px] mt-1">
-                {isEn ? 'Live validation detects duplicate job numbers and missing fields before import.' : 'يتم التحقق الفوري واكتشاف الأرقام الوظيفية المكررة قبل الحفظ.'}
+                {isEn ? 'Checks missing fields and duplicates within this file; existing records are checked in the central database during import.' : 'يتم فحص الحقول والأرقام المكررة داخل الملف، ثم التحقق من السجلات الموجودة في قاعدة البيانات المركزية عند الاستيراد.'}
               </p>
             </label>
+            {selectedFileName && <div className="mt-3 flex items-center justify-center gap-3 text-[11px]"><span className="font-semibold text-[#172C40]">{selectedFileName}</span><button type="button" onClick={clearSelectedFile} className="text-red-700 underline font-bold">{isEn ? 'Remove selected file / clear preview' : 'إزالة الملف المختار ومسح المعاينة'}</button></div>}
           </div>
 
           {/* Preview Table */}
@@ -271,13 +270,10 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
 
           {/* Result Alert */}
           {importResult && (
-            <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-800">
+            <div className="p-4 rounded-xl bg-slate-50 border border-slate-200 text-slate-800">
               <p className="font-bold">{isEn ? 'Import Outcome:' : 'نتيجة الاستيراد:'}</p>
-              <p className="mt-1">
-                {isEn 
-                  ? `Successfully imported ${importResult.imported} teachers into database. Skipped ${importResult.rejected} invalid records.`
-                  : `تم بنجاح استيراد ${importResult.imported} معلماً وإضافتهم لقاعدة البيانات، وتم استبعاد ${importResult.rejected} سجلات غير صالحة.`}
-              </p>
+              <p className="mt-1">{isEn ? `Saved centrally: ${importResult.imported}. Rejected: ${importResult.rejected}.` : `تم الحفظ في قاعدة البيانات المركزية: ${importResult.imported} معلماً. السجلات المستبعدة: ${importResult.rejected}.`}</p>
+              {importResult.errors.length > 0 && <ul className="mt-2 list-disc pr-5 space-y-1 text-red-700">{importResult.errors.slice(0, 12).map((error, index) => <li key={index}>{error}</li>)}</ul>}
             </div>
           )}
 
@@ -295,10 +291,11 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
           {parsedRows.filter(r => r.isValid).length > 0 && !importResult && (
             <button
               onClick={handleExecuteImport}
-              className="px-6 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-2 cursor-pointer shadow-sm"
+              disabled={isImporting}
+              className="px-6 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] disabled:opacity-60 flex items-center gap-2 cursor-pointer shadow-sm"
             >
               <CheckCircle2 className="w-4 h-4 text-[#C6A66A]" />
-              <span>{isEn ? `Confirm Import (${parsedRows.filter(r => r.isValid).length}) Records` : `تأكيد استيراد (${parsedRows.filter(r => r.isValid).length}) سجل صالح`}</span>
+              <span>{isImporting ? (isEn ? 'Importing...' : 'جارٍ الحفظ المركزي...') : (isEn ? `Confirm Import (${parsedRows.filter(r => r.isValid).length}) Records` : `تأكيد الاستيراد المركزي (${parsedRows.filter(r => r.isValid).length}) سجل صالح`)}</span>
             </button>
           )}
         </div>
