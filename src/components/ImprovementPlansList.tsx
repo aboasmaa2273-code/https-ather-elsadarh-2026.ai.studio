@@ -87,28 +87,25 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     const tch = teachers.find(t => t.id === teacherId);
     if (!tch) return;
 
-    const res = AtharStorageService.savePlan({
-      schoolId: 'sch_alsadara_01',
-      teacherId: tch.id,
-      teacherName: tch.fullName,
-      teacherJobNumber: tch.jobNumber,
-      improvementArea,
-      relatedIndicatorText,
-      developmentalGoal,
-      actionProcedure,
-      responsiblePerson,
-      duration,
-      followUpDate,
-      status: 'in_progress'
-    });
-
-    if (res.success) {
-      try { await atharRemoteAction('savePlan', { ...res.plan, relatedIndicatorText, developmentalGoal, actionProcedure, responsiblePerson }); }
-      catch (error) { alert(error instanceof Error ? error.message : 'تعذر الحفظ المركزي.'); return; }
+    try {
+      await atharRemoteAction('savePlan', {
+        schoolId: 'sch_alsadara_01',
+        teacherId: tch.id,
+        teacherName: tch.fullName,
+        teacherJobNumber: tch.jobNumber,
+        improvementArea,
+        relatedIndicatorText,
+        developmentalGoal,
+        actionProcedure,
+        responsiblePerson,
+        duration,
+        followUpDate,
+        status: 'in_progress'
+      });
       setIsCreateModalOpen(false);
       onRefreshPlans();
-    } else {
-      alert(res.error);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر حفظ خطة التطوير في قاعدة البيانات المركزية.');
     }
   };
 
@@ -120,21 +117,21 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     setIsFollowUpModalOpen(true);
   };
 
-  const handleFollowUpSubmit = (e: React.FormEvent) => {
+  const handleFollowUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanForFollowUp) return;
-
-    const res = AtharStorageService.updatePlanFollowUp(selectedPlanForFollowUp.id, {
-      status: followUpStatus,
-      followUpResult,
-      followUpNotes
-    });
-
-    if (res.success) {
+    try {
+      await atharRemoteAction('savePlanFollowUp', {
+        planId: selectedPlanForFollowUp.id,
+        status: followUpStatus,
+        followUpResult,
+        followUpNotes,
+        followUpDate: new Date().toISOString()
+      });
       setIsFollowUpModalOpen(false);
       onRefreshPlans();
-    } else {
-      alert(res.error);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر حفظ متابعة الخطة مركزياً.');
     }
   };
 
