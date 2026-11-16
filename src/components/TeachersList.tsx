@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Teacher, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   Search, 
   UserPlus, 
@@ -96,7 +97,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
     setIsEditModalOpen(true);
   };
 
-  const handleSaveTeacher = (e: React.FormEvent) => {
+  const handleSaveTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -116,7 +117,9 @@ export const TeachersList: React.FC<TeachersListProps> = ({
       status: editingTeacher ? editingTeacher.status : 'active'
     });
 
-    if (res.success) {
+    if (res.success && res.teacher) {
+      try { await atharRemoteAction('saveTeacher', res.teacher as unknown as Record<string, unknown>); }
+      catch (error) { setFormError(error instanceof Error ? error.message : 'تعذر الحفظ المركزي.'); return; }
       setIsEditModalOpen(false);
       onRefreshTeachers();
     } else {
