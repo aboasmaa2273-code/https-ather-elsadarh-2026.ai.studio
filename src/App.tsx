@@ -6,7 +6,11 @@ import {
   ImprovementPlan, 
   AcademicSettings, 
   PlatformSettings,
-  AuditLogEntry
+  AuditLogEntry,
+  InternalNote,
+  InternalNoteHistory,
+  AdministrativeFollowUp,
+  VisitHistoryEntry
 } from './types';
 import { AtharStorageService } from './services/storageService';
 import { atharRemoteBootstrap, atharRemoteAction, clearAtharRemoteSession } from './services/gasBridgeClient';
@@ -15,6 +19,7 @@ import { PublicHome } from './components/PublicHome';
 import { PublicConnectionSetup } from './components/PublicConnectionSetup';
 import { Dashboard } from './components/Dashboard';
 import { FollowUpDashboard } from './components/FollowUpDashboard';
+import { InternalNotesView } from './components/InternalNotesView';
 import { TeachersList } from './components/TeachersList';
 import { VisitsList } from './components/VisitsList';
 import { VisitForm } from './components/VisitForm';
@@ -65,6 +70,10 @@ export default function App() {
   const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [internalNotes, setInternalNotes] = useState<InternalNote[]>([]);
+  const [internalNoteHistory, setInternalNoteHistory] = useState<InternalNoteHistory[]>([]);
+  const [administrativeFollowUps, setAdministrativeFollowUps] = useState<AdministrativeFollowUp[]>([]);
+  const [visitHistory, setVisitHistory] = useState<VisitHistoryEntry[]>([]);
   const [dataConnectionError, setDataConnectionError] = useState<string>('');
 
   // Selected sub-views state
@@ -83,6 +92,10 @@ export default function App() {
       setVisits(Array.isArray(remote.visits) ? remote.visits : []);
       setPlans(Array.isArray(remote.plans) ? remote.plans : []);
       setAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+      setInternalNotes(Array.isArray(remote.internalNotes) ? remote.internalNotes : []);
+      setInternalNoteHistory(Array.isArray(remote.internalNoteHistory) ? remote.internalNoteHistory : []);
+      setAdministrativeFollowUps(Array.isArray(remote.administrativeFollowUps) ? remote.administrativeFollowUps : []);
+      setVisitHistory(Array.isArray(remote.visitHistory) ? remote.visitHistory : []);
       const centralSettings: Record<string, any> = {};
       (Array.isArray(remote.settings) ? remote.settings : []).forEach((item: any) => {
         if (!item || !item.key) return;
@@ -99,11 +112,13 @@ export default function App() {
         setTeachers([]);
         setVisits([]);
         setPlans([]);
+        setInternalNotes([]); setInternalNoteHistory([]); setAdministrativeFollowUps([]); setVisitHistory([]);
         setDataConnectionError(error instanceof Error ? error.message : 'تعذر تحميل البيانات المركزية.');
       } else {
         setTeachers([]);
         setVisits([]);
         setPlans([]);
+        setInternalNotes([]); setInternalNoteHistory([]); setAdministrativeFollowUps([]); setVisitHistory([]);
       }
     }
   };
@@ -193,6 +208,10 @@ export default function App() {
         )}
 
         {/* When Logged In: Core Educational Modules */}
+        {isLoggedIn && activeTab === 'internal-notes' && ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role) && (
+          <InternalNotesView currentUser={currentUser} teachers={teachers} visits={visits} notes={internalNotes} history={internalNoteHistory} onRefresh={() => refreshAllData(true)} />
+        )}
+
         {isLoggedIn && activeTab === 'follow-up' && ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
           <FollowUpDashboard currentUser={currentUser} visits={visits} teachers={teachers} plans={plans} onOpenVisitReport={(v) => setSelectedVisitForReport(v)} />
         )}
