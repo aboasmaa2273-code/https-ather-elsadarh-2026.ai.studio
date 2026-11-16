@@ -91,9 +91,12 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
       alert(isEn ? 'No valid WhatsApp number is registered for this teacher.' : 'لا يوجد رقم هاتف صحيح مسجل لهذا المعلم. أضف رقم الهاتف في ملف المعلم أولاً.');
       return;
     }
-    const preview = (isEn ? 'Review the message below. WhatsApp will open; you must press Send there.\n\n' : 'معاينة الرسالة قبل فتح واتساب. ستحتاج إلى الضغط على إرسال داخل واتساب بنفسك.\n\n') + message;
+    const extraMessage = window.prompt(isEn ? 'Optional additional message (leave blank to skip):' : 'رسالة إضافية اختيارية (اتركها فارغة للتخطي):', '');
+    if (extraMessage === null) return;
+    const finalMessage = extraMessage.trim() ? message + '\n\n' + (isEn ? 'Additional message:' : 'رسالة إضافية:') + '\n' + extraMessage.trim() : message;
+    const preview = (isEn ? 'Review the message below. WhatsApp will open; you must press Send there.\n\n' : 'معاينة الرسالة قبل فتح واتساب. ستحتاج إلى الضغط على إرسال داخل واتساب بنفسك.\n\n') + finalMessage;
     if (!confirm(preview)) return;
-    const opened = window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(message), '_blank', 'noopener,noreferrer');
+    const opened = window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(finalMessage), '_blank', 'noopener,noreferrer');
     if (opened && onLogWhatsAppOpen) {
       void onLogWhatsAppOpen(visit.id, message.indexOf('تقرير الزيارة الصفية') >= 0 ? 'تقرير كامل' : 'ملاحظات مختارة').catch((error) => console.error('WhatsApp open logging failed:', error));
     }
