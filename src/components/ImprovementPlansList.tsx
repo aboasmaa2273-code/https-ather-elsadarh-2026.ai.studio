@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ImprovementPlan, Teacher, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { OFFICIAL_INDICATORS } from '../data/defaultData';
 import { 
   PlusCircle, 
@@ -81,7 +82,7 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     return matchesSearch && matchesStatus;
   });
 
-  const handleCreatePlanSubmit = (e: React.FormEvent) => {
+  const handleCreatePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tch = teachers.find(t => t.id === teacherId);
     if (!tch) return;
@@ -102,6 +103,8 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     });
 
     if (res.success) {
+      try { await atharRemoteAction('savePlan', { ...res.plan, relatedIndicatorText, developmentalGoal, actionProcedure, responsiblePerson }); }
+      catch (error) { alert(error instanceof Error ? error.message : 'تعذر الحفظ المركزي.'); return; }
       setIsCreateModalOpen(false);
       onRefreshPlans();
     } else {
