@@ -78,23 +78,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [term, setTerm] = useState(editingVisit?.term || academicSettings.currentTerm);
   const [visitType, setVisitType] = useState<'full' | 'quick'>(editingVisit?.visitType || 'full');
   
-  // Teacher selection
-  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(editingVisit?.teacherId || (teachers[0]?.id || ''));
-  const [teacherName, setTeacherName] = useState(editingVisit?.teacherName || (teachers[0]?.fullName || ''));
-  const [teacherJobNumber, setTeacherJobNumber] = useState(editingVisit?.teacherJobNumber || (teachers[0]?.jobNumber || ''));
-  const [teacherSpecialization, setTeacherSpecialization] = useState(editingVisit?.teacherSpecialization || (teachers[0]?.specialization || ''));
+  // Teacher selection: require an explicit choice for every new visit.
+  const [selectedTeacherId, setSelectedTeacherId] = useState<string>(editingVisit?.teacherId || '');
+  const [teacherName, setTeacherName] = useState(editingVisit?.teacherName || '');
+  const [teacherJobNumber, setTeacherJobNumber] = useState(editingVisit?.teacherJobNumber || '');
+  const [teacherSpecialization, setTeacherSpecialization] = useState(editingVisit?.teacherSpecialization || '');
   const teacherSelectionChangedByUserRef = useRef(false);
-
-  // If the visit form opens before the central teacher list finishes loading,
-  // select the first available teacher once the list arrives.
-  useEffect(() => {
-    if (selectedTeacherId || !teachers.length) return;
-    const firstTeacher = teachers[0];
-    setSelectedTeacherId(firstTeacher.id);
-    setTeacherName(firstTeacher.fullName);
-    setTeacherJobNumber(firstTeacher.jobNumber);
-    setTeacherSpecialization(firstTeacher.specialization);
-  }, [teachers, selectedTeacherId]);
 
   // Classroom & Session Details
   const [grade, setGrade] = useState(editingVisit?.grade || academicSettings.grades[0] || (isEn ? 'Grade 7' : 'الصف السابع'));
@@ -390,6 +379,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     teacherSelectionChangedByUserRef.current = true;
     setSelectedTeacherId(teacherId);
     const tch = teachers.find(t => t.id === teacherId);
+    if (!tch) {
+      setTeacherName('');
+      setTeacherJobNumber('');
+      setTeacherSpecialization('');
+      return;
+    }
     if (tch) {
       setTeacherName(tch.fullName);
       setTeacherJobNumber(tch.jobNumber);
@@ -575,6 +570,11 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
   // Save handler
   const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
+    if (!selectedTeacherId || !teachers.some(teacher => teacher.id === selectedTeacherId)) {
+      setAutoSaveStatus('error');
+      if (isExplicitFinish) alert(isEn ? 'Please select a teacher before saving the visit.' : 'يرجى اختيار المعلم من القائمة قبل حفظ الزيارة.');
+      return;
+    }
     const visitObj = buildVisitObject(finalStatus);
     try {
       const remote = await atharRemoteAction('saveVisit', visitObj as unknown as Record<string, unknown>) as any;
@@ -760,6 +760,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                 onChange={(e) => handleTeacherChange(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-bold text-[#172C40] focus:outline-none focus:border-[#172C40]"
               >
+                <option value="">{isEn ? 'Select a teacher' : 'اختر المعلم'}</option>
                 {teachers.map(tch => (
                   <option key={tch.id} value={tch.id}>
                     {tch.fullName} ({tch.jobNumber})
