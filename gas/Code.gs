@@ -800,6 +800,13 @@ function dispatchApiAction_(action, payload, session) {
       var importSheet = ss.getSheetByName('Teachers');
       if (!importSheet || importSheet.getLastColumn() < 1) return { success: false, error: 'ورقة المعلمين غير موجودة أو لا تحتوي على عناوين.' };
       var importHeaders = importSheet.getRange(1, 1, 1, importSheet.getLastColumn()).getValues()[0].map(function(h) { return String(h).trim(); });
+      // Add a non-destructive batch marker column so an accidentally imported CSV can be rolled back later.
+      if (importHeaders.indexOf('importBatchId') < 0) {
+        var batchColumn = importHeaders.length + 1;
+        importSheet.getRange(1, batchColumn).setValue('importBatchId');
+        importHeaders.push('importBatchId');
+      }
+      var importBatchId = 'imp_' + Utilities.getUuid().replace(/-/g, '').substring(0, 16);
       var requiredHeaders = ['id', 'schoolId', 'fullName', 'jobNumber', 'specialization', 'status', 'email', 'phone', 'dateAdded'];
       if (requiredHeaders.some(function(h) { return importHeaders.indexOf(h) < 0; })) return { success: false, error: 'بنية ورقة المعلمين لا تطابق الأعمدة المطلوبة؛ لم يتم تغيير أي بيانات.' };
       var importSchoolId = String(schoolId || 'sch_alsadara_01');
@@ -839,7 +846,8 @@ function dispatchApiAction_(action, payload, session) {
           status: 'active',
           email: String(item.email || '').trim(),
           phone: String(item.phone || '').trim(),
-          dateAdded: new Date().toISOString().split('T')[0]
+          dateAdded: new Date().toISOString().split('T')[0],
+          importBatchId: importBatchId
         };
         acceptedRows.push(importHeaders.map(function(header) {
           return teacher[header] === undefined ? '' : teacher[header];
@@ -851,12 +859,41 @@ function dispatchApiAction_(action, payload, session) {
         logAuditAction(importSchoolId, session.name, 'استيراد جماعي للمعلمين', 'تم استيراد ' + acceptedRows.length + ' معلم، واستبعاد ' + rejected.length + ' سجل.', session.role);
       }
       return { success: true, importedCount: acceptedRows.length, rejectedCount: rejected.length, errors: rejected,
+        importBatchId: acceptedRows.length ? importBatchId : '',
         message: 'اكتملت مراجعة الاستيراد والحفظ المركزي.' };
     } catch (importError) {
       return { success: false, error: 'تعذر استيراد المعلمين: ' + importError.message };
     } finally {
       importLock.releaseLock();
     }
+  }
+  if (action === 'deleteTeacherImportBatch') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'التراجع عن استيراد المعلمين مقتصر على الإدارة المخولة.' };
+    var batchId = String(payload.importBatchId || '').trim();
+    if (!batchId) return { success: false, error: 'معرّف دفعة الاستيراد غير موجود.' };
+    var batchSheet = ss.getSheetByName('Teachers');
+    if (!batchSheet || batchSheet.getLastRow() < 2) return { success: true, deletedCount: 0, protectedCount: 0 };
+    var batchHeaders = batchSheet.getRange(1, 1, 1, batchSheet.getLastColumn()).getValues()[0].map(String);
+    var batchIdCol = batchHeaders.indexOf('importBatchId');
+    var batchTeacherIdCol = batchHeaders.indexOf('id');
+    var batchSchoolCol = batchHeaders.indexOf('schoolId');
+    if (batchIdCol < 0 || batchTeacherIdCol < 0 || batchSchoolCol < 0) return { success: false, error: 'لا تتوفر بيانات تتبع دفعة الاستيراد.' };
+    var batchValues = batchSheet.getRange(2, 1, batchSheet.getLastRow() - 1, batchSheet.getLastColumn()).getValues();
+    var visitTeacherIds = {};
+    rowsAsObjects_(ss.getSheetByName('Visits')).forEach(function(v) {
+      if (String(v.schoolId) === String(schoolId) && v.teacherId) visitTeacherIds[String(v.teacherId)] = true;
+    });
+    var rowsToRemove = [], protectedCount = 0;
+    batchValues.forEach(function(row, index) {
+      if (String(row[batchSchoolCol]) !== String(schoolId) || String(row[batchIdCol]) !== batchId) return;
+      var teacherId = String(row[batchTeacherIdCol] || '');
+      if (visitTeacherIds[teacherId]) { protectedCount++; return; }
+      rowsToRemove.push(index + 2);
+    });
+    for (var removeIndex = rowsToRemove.length - 1; removeIndex >= 0; removeIndex--) batchSheet.deleteRow(rowsToRemove[removeIndex]);
+    if (rowsToRemove.length) logAuditAction(schoolId, session.name, 'التراجع عن استيراد المعلمين', 'تم حذف ' + rowsToRemove.length + ' سجل من دفعة ' + batchId + (protectedCount ? ' مع الإبقاء على ' + protectedCount + ' سجل مرتبط بزيارات سابقة.' : ''), session.role);
+    return { success: true, deletedCount: rowsToRemove.length, protectedCount: protectedCount,
+      message: protectedCount ? 'تم حذف السجلات غير المرتبطة بزيارات، والإبقاء على السجلات المرتبطة بتاريخ زيارات.' : 'تم حذف دفعة الاستيراد.' };
   }
   if (action === 'saveTeacher') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة المعلمين.' };
@@ -937,6 +974,10 @@ function dispatchApiAction_(action, payload, session) {
       }
     }
     return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+  }
+  if (action === 'sendTeacherVisitNotes') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية مراسلة المعلم.' };
+    return sendTeacherVisitNotes_(payload, session, schoolId);
   }
   if (action === 'sendApprovedVisitReport') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'إرسال التقارير للمعلمين مقتصر على الإدارة المخولة.' };
@@ -1589,3 +1630,45 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
   logAuditAction(schoolId, session.name, 'إرسال تقرير زيارة للمعلم', 'تم إرسال التقرير ' + visitId + ' إلى ' + recipient, session.role);
   return { success: true, visitId: visitId, recipient: recipient, sentAt: sentAt, message: 'تم إرسال التقرير المعتمد إلى بريد المعلم بنجاح.' };
 }
+
+function sendTeacherVisitNotes_(payload, session, schoolId) {
+  var visitId = String(payload.id || '').trim();
+  var notes = String(payload.notes || '').trim().substring(0, 5000);
+  if (!visitId || !notes) return { success: false, error: 'اختر الزيارة واكتب الملاحظات المراد إرسالها.' };
+  var ss = getDatabaseSpreadsheet_();
+  var visit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+    return String(v.id) === visitId && String(v.schoolId) === String(schoolId);
+  })[0];
+  if (!visit) return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+  if (String(visit.status || '') === 'archived') return { success: false, error: 'لا يمكن مراسلة المعلم بشأن تقرير مؤرشف.' };
+  if (session.role === 'evaluator' && String(visit.evaluatorId || '') !== String(session.id)) {
+    return { success: false, error: 'يمكنك إرسال ملاحظات الزيارات التي أجريتها فقط.' };
+  }
+  var teacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+    return String(t.id) === String(visit.teacherId) && String(t.schoolId) === String(schoolId);
+  })[0];
+  if (!teacher) return { success: false, error: 'تعذر العثور على بيانات المعلم المرتبط بالزيارة.' };
+  var recipient = String(teacher.email || '').trim();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) return { success: false, error: 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم.' };
+  if (MailApp.getRemainingDailyQuota() < 1) return { success: false, error: 'تم بلوغ الحد اليومي المتاح لإرسال البريد. حاول لاحقًا.' };
+  var subject = 'ملاحظات الزيارة الصفية – ' + String(teacher.fullName || visit.teacherName || '');
+  var safeNotes = escapeMailHtml_(notes).replace(/\\n/g, '<br>');
+  var html = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;color:#172c40;line-height:1.8;direction:rtl">' +
+    '<h2>منظومة أَثَر – ملاحظات الزيارة الصفية</h2>' +
+    '<p><b>المعلم:</b> ' + escapeMailHtml_(teacher.fullName) + '</p>' +
+    '<p><b>المادة والصف:</b> ' + escapeMailHtml_(visit.subject) + ' – ' + escapeMailHtml_(visit.grade) + ' / ' + escapeMailHtml_(visit.section) + '</p>' +
+    '<p><b>تاريخ الزيارة:</b> ' + escapeMailHtml_(visit.date) + '</p>' +
+    '<p><b>المقيم:</b> ' + escapeMailHtml_(session.name) + '</p><hr><h3>الملاحظات المرسلة</h3><p>' + safeNotes + '</p>' +
+    '<hr><p>أُرسلت هذه الرسالة من منظومة أَثَر.</p></body></html>';
+  var body = 'الأستاذ/ ' + String(teacher.fullName || visit.teacherName) + ' المحترم،\\n\\n' +
+    'ملاحظات الزيارة الصفية بتاريخ ' + String(visit.date || '') + ':\\n\\n' + notes +
+    '\\n\\nمع خالص التقدير،\\n' + String(session.name) + '\\nمنظومة أَثَر';
+  MailApp.sendEmail({ to: recipient, subject: subject, body: body, htmlBody: html, name: 'منظومة أَثَر' });
+  var logSheet = ensureCommunicationLogSheet_();
+  var sentAt = new Date().toISOString();
+  logSheet.appendRow([Utilities.getUuid(), schoolId, visitId, teacher.id, teacher.fullName, recipient,
+    session.name, session.role, sentAt, 'sent', subject, notes]);
+  logAuditAction(schoolId, session.name, 'إرسال ملاحظات زيارة للمعلم', 'تم إرسال ملاحظات الزيارة ' + visitId + ' إلى ' + recipient, session.role);
+  return { success: true, visitId: visitId, recipient: recipient, sentAt: sentAt, message: 'تم إرسال الملاحظات إلى بريد المعلم بنجاح.' };
+}
+
