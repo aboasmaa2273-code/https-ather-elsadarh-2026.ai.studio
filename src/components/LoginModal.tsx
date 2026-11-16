@@ -32,7 +32,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   language = 'ar'
 }) => {
   const isEn = language === 'en';
-  const [tab, setTab] = useState<'login' | 'register'>('login');
+  const [tab] = useState<'login'>('login');
   
   // Login fields
   const [username, setUsername] = useState<string>('');
@@ -41,12 +41,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   const [errorMessage, setErrorMessage] = useState<string>('');
   const [isLoading, setIsLoading] = useState<boolean>(false);
 
-  // Register fields
-  const [regName, setRegName] = useState<string>('');
-  const [regUsername, setRegUsername] = useState<string>('');
-  const [regPassword, setRegPassword] = useState<string>('');
-  const [regSpecialization, setRegSpecialization] = useState<string>('مقيّم تربوي معتمد');
-  const [regError, setRegError] = useState<string>('');
 
   if (!isOpen) return null;
 
@@ -81,37 +75,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     })();
   };
 
-  const handleRegisterSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    setRegError('');
-
-    if (!regName.trim()) {
-      setRegError(isEn ? 'Full name is required.' : 'يرجى إدخال الاسم الكامل للمقيم.');
-      return;
-    }
-    if (!regUsername.trim()) {
-      setRegError(isEn ? 'Username is required.' : 'يرجى إدخال اسم المستخدم.');
-      return;
-    }
-    if (!regPassword || regPassword.length < 3) {
-      setRegError(isEn ? 'Password must be at least 3 characters.' : 'كلمة المرور يجب أن لا تقل عن 3 أحرف أو أرقام.');
-      return;
-    }
-
-    const res = AtharStorageService.registerEvaluator({
-      name: regName,
-      username: regUsername,
-      password: regPassword,
-      specialization: regSpecialization
-    });
-
-    if (res.success && res.user) {
-      onLoginSuccess(res.user);
-      onClose();
-    } else {
-      setRegError(res.error || (isEn ? 'Registration failed.' : 'فشل التسجيل.'));
-    }
-  };
 
   // Quick fill preset credentials
   const fillPreset = (u: string, p: string) => {
@@ -232,78 +195,9 @@ export const LoginModal: React.FC<LoginModalProps> = ({
               </div>
             </form>
           ) : (
-            <form onSubmit={handleRegisterSubmit} className="space-y-3.5">
-              {regError && (
-                <div className="p-3 rounded-lg bg-red-50 border border-red-200 text-red-700 text-xs flex items-center gap-2">
-                  <AlertCircle className="w-4 h-4 shrink-0 text-red-600" />
-                  <span>{regError}</span>
-                </div>
-              )}
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  {isEn ? 'Full Name of Evaluator' : 'الاسم الكامل للمقيّم'}
-                </label>
-                <input
-                  type="text"
-                  value={regName}
-                  onChange={(e) => setRegName(e.target.value)}
-                  placeholder={isEn ? 'e.g. Dr. Sultan Al Ali' : 'مثال: د. سلطان العلي'}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#C6A66A]"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  {isEn ? 'Chosen Username' : 'اسم المستخدم (اليوزرنيم المطلوب)'}
-                </label>
-                <input
-                  type="text"
-                  value={regUsername}
-                  onChange={(e) => setRegUsername(e.target.value)}
-                  placeholder="sultan_ali"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#C6A66A]"
-                  dir="ltr"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  {isEn ? 'Password' : 'كلمة المرور (الباسوورد)'}
-                </label>
-                <input
-                  type="password"
-                  value={regPassword}
-                  onChange={(e) => setRegPassword(e.target.value)}
-                  placeholder="••••••••"
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#C6A66A]"
-                  dir="ltr"
-                  required
-                />
-              </div>
-
-              <div className="space-y-1">
-                <label className="block text-xs font-bold text-slate-700">
-                  {isEn ? 'Specialization / Role Title' : 'المسمى / التخصص التربوي'}
-                </label>
-                <input
-                  type="text"
-                  value={regSpecialization}
-                  onChange={(e) => setRegSpecialization(e.target.value)}
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg text-sm text-slate-800 focus:outline-none focus:ring-2 focus:ring-[#C6A66A]"
-                />
-              </div>
-
-              <button
-                type="submit"
-                className="w-full py-2.5 bg-[#C6A66A] hover:bg-[#b8975b] text-[#172C40] text-sm font-bold rounded-lg transition-all shadow-md flex items-center justify-center gap-2 cursor-pointer mt-3"
-              >
-                <UserPlus className="w-4 h-4" />
-                <span>{isEn ? 'Register & Sign In Now' : 'تسجيل وتفعيل الحساب فوراً'}</span>
-              </button>
-            </form>
+            <div className="p-3 rounded-lg bg-slate-50 border border-slate-200 text-xs text-slate-600">
+              {isEn ? 'Accounts are created by the platform or school administrator.' : 'تُنشئ إدارة المنصة أو إدارة المدرسة الحسابات المعتمدة.'}
+            </div>
           )}
 
           <div className="mt-4 pt-3 border-t border-slate-100 text-[11px] text-slate-400 text-center">
