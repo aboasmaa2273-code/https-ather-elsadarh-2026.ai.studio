@@ -984,6 +984,25 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية مراسلة المعلم.' };
     return sendTeacherVisitNotes_(payload, session, schoolId);
   }
+  if (action === 'logWhatsAppOpen') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تسجيل مراسلة المعلم.' };
+    var waVisitId = String(payload.id || '').trim();
+    var waVisit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+      return String(v.id) === waVisitId && String(v.schoolId) === String(schoolId);
+    })[0];
+    if (!waVisit) return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+    if (String(waVisit.status || '') === 'archived') return { success: false, error: 'لا يمكن مراسلة المعلم بشأن تقرير مؤرشف.' };
+    if (session.role === 'evaluator' && String(waVisit.evaluatorId || '') !== String(session.id)) {
+      return { success: false, error: 'يمكنك مراسلة المعلم بشأن الزيارات التي أجريتها فقط.' };
+    }
+    var waTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+      return String(t.id) === String(waVisit.teacherId) && String(t.schoolId) === String(schoolId);
+    })[0];
+    if (!waTeacher) return { success: false, error: 'المعلم المرتبط بالزيارة غير موجود.' };
+    var waType = String(payload.messageType || 'رسالة').substring(0, 40);
+    logAuditAction(schoolId, session.name, 'فتح واتساب للمعلم', 'تم فتح محادثة واتساب للمعلم ' + String(waTeacher.fullName || waVisit.teacherName || '') + ' بشأن الزيارة ' + waVisitId + ' (' + waType + '). لا يؤكد هذا السجل إرسال الرسالة.', session.role);
+    return { success: true, status: 'opened', message: 'تم تسجيل فتح محادثة واتساب فقط؛ لا يمكن للمنصة التحقق من إرسال الرسالة.' };
+  }
   if (action === 'sendApprovedVisitReport') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إرسال تقرير الزيارة.' };
     return sendApprovedVisitReport_(payload, session, schoolId);
