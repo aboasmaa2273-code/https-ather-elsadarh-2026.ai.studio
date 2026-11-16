@@ -81,7 +81,7 @@ function initializeDatabase() {
       'Settings': ['key', 'value', 'updatedAt', 'updatedBy'],
       'AuditLog': ['id', 'schoolId', 'timestamp', 'userName', 'userRole', 'action', 'details'],
       'ReportTemplates': ['id', 'templateName', 'layoutJson', 'isDefault'],
-      'InternalNotes': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'noteText', 'createdBy', 'createdByRole', 'createdAt', 'updatedBy', 'updatedByRole', 'updatedAt'],
+      'InternalNotes': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'noteText', 'createdBy', 'createdByRole', 'createdAt', 'updatedBy', 'updatedByRole', 'updatedAt', 'status'],
       'InternalNoteHistory': ['id', 'schoolId', 'noteId', 'changedBy', 'changedByRole', 'changedAt', 'oldText', 'newText'],
       'AdministrativeFollowUps': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'followUpDate', 'action', 'notes', 'recommendations', 'result', 'nextAction', 'nextDate', 'status', 'createdBy', 'createdByRole', 'createdAt', 'updatedAt'],
       'VisitHistory': ['id', 'schoolId', 'visitId', 'changedBy', 'changedByRole', 'changedAt', 'action', 'snapshotJson']
@@ -705,8 +705,10 @@ function dispatchApiAction_(action, payload, session) {
     var internalNotes = [];
     var administrativeFollowUps = [];
     var visitHistory = [];
+    var internalNoteHistory = [];
     if (['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].indexOf(session.role) >= 0) {
       internalNotes = rowsAsObjects_(ss.getSheetByName('InternalNotes')).filter(function(x) { return String(x.schoolId) === String(schoolId) && String(x.status || 'active') !== 'archived'; });
+      var internalNoteHistory = rowsAsObjects_(ss.getSheetByName('InternalNoteHistory')).filter(function(x) { return String(x.schoolId) === String(schoolId); }).sort(function(a,b) { return String(b.changedAt).localeCompare(String(a.changedAt)); }).slice(0, 1000);
       administrativeFollowUps = rowsAsObjects_(ss.getSheetByName('AdministrativeFollowUps')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
     }
     if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
@@ -761,7 +763,7 @@ function dispatchApiAction_(action, payload, session) {
     }
     return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators,
       settings: settings, auditLogs: auditLogs, users: users, visitors: requireRole_(session, adminRoles) ? visitorRows : [],
-      internalNotes: internalNotes, administrativeFollowUps: administrativeFollowUps, visitHistory: visitHistory };
+      internalNotes: internalNotes, internalNoteHistory: internalNoteHistory, administrativeFollowUps: administrativeFollowUps, visitHistory: visitHistory };
   }
 
   if (action === 'saveTeacher') {
@@ -785,11 +787,13 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'saveVisit') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تسجيل الزيارة.' };
-    if (payload.id && session.role === 'evaluator') {
-      var existingVisit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+    var existingVisitForEdit = null;
+    if (payload.id) {
+      existingVisitForEdit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
         return String(v.id) === String(payload.id) && String(v.schoolId) === String(schoolId);
-      })[0];
-      if (existingVisit && String(existingVisit.evaluatorId) !== String(session.id)) {
+      })[0] || null;
+      if (!existingVisitForEdit) return { success: false, error: 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
+      if (session.role === 'evaluator' && String(existingVisitForEdit.evaluatorId) !== String(session.id)) {
         return { success: false, error: 'لا يمكنك تعديل زيارة سجّلها مقيم آخر.' };
       }
     }
@@ -798,9 +802,17 @@ function dispatchApiAction_(action, payload, session) {
     })[0];
     if (!teacherForVisit) return { success: false, error: 'المعلم المحدد غير موجود ضمن المدرسة.' };
     payload.schoolId = schoolId;
-    payload.evaluatorId = session.id;
-    payload.evaluatorName = session.name;
-    payload.evaluatorRole = session.role;
+    payload.actorName = session.name;
+    payload.actorRole = session.role;
+    if (existingVisitForEdit && ['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
+      payload.evaluatorId = existingVisitForEdit.evaluatorId;
+      payload.evaluatorName = existingVisitForEdit.evaluatorName;
+      payload.evaluatorRole = existingVisitForEdit.evaluatorRole || 'evaluator';
+    } else {
+      payload.evaluatorId = session.id;
+      payload.evaluatorName = session.name;
+      payload.evaluatorRole = session.role;
+    }
     payload.teacherName = teacherForVisit.fullName;
     payload.teacherJobNumber = teacherForVisit.jobNumber;
     payload.teacherSpecialization = teacherForVisit.specialization;
