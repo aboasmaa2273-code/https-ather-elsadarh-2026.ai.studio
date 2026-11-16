@@ -773,7 +773,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           title={isEn ? 'Delete Evaluator' : 'حذف المقيم أو الزائر'}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>{isEn ? 'Delete' : 'حذف'}</span>
+                          <span>{isEn ? 'Disable' : 'تعطيل'}</span>
                         </button>
                       </div>
                     )}
@@ -851,17 +851,17 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                     type="button"
                     onClick={() => void handleResetCentralCredentials(user)}
                     className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-[#172C40] text-slate-700 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
-                    title={isEn ? 'Edit Credentials & Details' : 'تعديل البيانات واليوزرنيم والباسوورد'}
+                    title={isEn ? 'Reset Password' : 'إعادة تعيين كلمة المرور'}
                   >
                     <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
-                    <span>{isEn ? 'Edit Details' : 'تعديل البيانات'}</span>
+                    <span>{isEn ? 'Reset Password' : 'إعادة تعيين كلمة المرور'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleDeleteUser(user.id, user.name)}
                     className="py-1.5 px-3 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-rose-200"
-                    title={isEn ? 'Delete Evaluator' : 'حذف المقيم'}
+                    title={isEn ? 'Disable Account' : 'تعطيل الحساب'}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>{isEn ? 'Delete' : 'حذف'}</span>
