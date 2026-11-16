@@ -1529,6 +1529,33 @@ function dispatchBridgeRequest(request) {
     var payload = request.payload || {};
     if (action === 'login') return apiLogin_(payload);
     if (action === 'health') return { success: true, service: 'athar-api', timestamp: new Date().toISOString() };
+    // Public, read-only evaluator directory. Keep the iframe bridge behavior
+    // consistent with doPost without exposing credentials or email addresses.
+    if (action === 'publicEvaluators') {
+      var publicSs = getDatabaseSpreadsheet_();
+      var publicUsers = rowsAsObjects_(publicSs.getSheetByName('Users'));
+      var publicSchoolId = 'sch_alsadara_01';
+      var publicEvaluators = publicUsers.filter(function(u) {
+        return String(u.schoolId || publicSchoolId) === publicSchoolId &&
+          String(u.role || '') === 'evaluator' &&
+          String(u.status || 'active').toLowerCase() === 'active';
+      }).map(function(u) {
+        return {
+          id: String(u.id || ''),
+          name: String(u.name || ''),
+          email: '',
+          role: 'evaluator',
+          status: 'active',
+          schoolId: publicSchoolId,
+          roleTitle: String(u.roleTitle || u.jobTitle || 'مقيّم معتمد'),
+          specialization: String(u.specialization || ''),
+          department: String(u.department || ''),
+          profileSummary: String(u.profileSummary || u.bio || ''),
+          avatarUrl: String(u.avatarUrl || '')
+        };
+      }).filter(function(u) { return u.id && u.name; });
+      return { success: true, evaluators: publicEvaluators };
+    }
     var session = validateSession_(request.token);
     if (!session) return { success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' };
     return dispatchApiAction_(action, payload, session);
