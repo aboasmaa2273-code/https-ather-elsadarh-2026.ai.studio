@@ -80,7 +80,11 @@ function initializeDatabase() {
       'PlanFollowUps': ['id', 'planId', 'followUpDate', 'evaluatorName', 'result', 'notes', 'newStatus', 'recordedAt'],
       'Settings': ['key', 'value', 'updatedAt', 'updatedBy'],
       'AuditLog': ['id', 'schoolId', 'timestamp', 'userName', 'userRole', 'action', 'details'],
-      'ReportTemplates': ['id', 'templateName', 'layoutJson', 'isDefault']
+      'ReportTemplates': ['id', 'templateName', 'layoutJson', 'isDefault'],
+      'InternalNotes': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'noteText', 'createdBy', 'createdByRole', 'createdAt', 'updatedBy', 'updatedByRole', 'updatedAt'],
+      'InternalNoteHistory': ['id', 'schoolId', 'noteId', 'changedBy', 'changedByRole', 'changedAt', 'oldText', 'newText'],
+      'AdministrativeFollowUps': ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'followUpDate', 'action', 'notes', 'recommendations', 'result', 'nextAction', 'nextDate', 'status', 'createdBy', 'createdByRole', 'createdAt', 'updatedAt'],
+      'VisitHistory': ['id', 'schoolId', 'visitId', 'changedBy', 'changedByRole', 'changedAt', 'action', 'snapshotJson']
     };
 
     var results = [];
@@ -374,6 +378,7 @@ function saveClassroomVisit(visitData) {
         throw new Error('لا يمكن تعديل زيارة لا تتبع المدرسة المرتبطة بحسابك.');
       }
       visitRow[25] = data[existingRowIndex - 1][25]; // keep original createdAt
+      recordVisitSnapshot_(ss, visitId, data[existingRowIndex - 1], data[0].map(String), String(visitData.schoolId || 'sch_alsadara_01'), visitData.actorName || visitData.evaluatorName, visitData.actorRole || visitData.evaluatorRole, 'تعديل التقرير');
       visitsSheet.getRange(existingRowIndex, 1, 1, visitRow.length).setValues([visitRow]);
     } else {
       visitsSheet.appendRow(visitRow);
@@ -410,7 +415,7 @@ function saveClassroomVisit(visitData) {
     }
 
     // تسجيل العملية في AuditLog
-    logAuditAction(visitData.schoolId || 'sch_alsadara_01', visitData.evaluatorName, 'حفظ زيارة صفية', 'حفظ زيارة للمعلم: ' + visitData.teacherName + ' بنسبة إنجاز ' + achPct + '%', visitData.evaluatorRole);
+    logAuditAction(visitData.schoolId || 'sch_alsadara_01', visitData.actorName || visitData.evaluatorName, 'حفظ زيارة صفية', 'حفظ زيارة للمعلم: ' + visitData.teacherName + ' بنسبة إنجاز ' + achPct + '%', visitData.actorRole || visitData.evaluatorRole);
 
     return {
       success: true,
@@ -697,6 +702,16 @@ function dispatchApiAction_(action, payload, session) {
     var visitIndicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators'));
     var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains'));
     var followUps = rowsAsObjects_(ss.getSheetByName('PlanFollowUps'));
+    var internalNotes = [];
+    var administrativeFollowUps = [];
+    var visitHistory = [];
+    if (['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].indexOf(session.role) >= 0) {
+      internalNotes = rowsAsObjects_(ss.getSheetByName('InternalNotes')).filter(function(x) { return String(x.schoolId) === String(schoolId) && String(x.status || 'active') !== 'archived'; });
+      administrativeFollowUps = rowsAsObjects_(ss.getSheetByName('AdministrativeFollowUps')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
+    }
+    if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
+      visitHistory = rowsAsObjects_(ss.getSheetByName('VisitHistory')).filter(function(x) { return String(x.schoolId) === String(schoolId); }).sort(function(a,b) { return String(b.changedAt).localeCompare(String(a.changedAt)); }).slice(0, 500);
+    }
     var visitorRows = rowsAsObjects_(ensureRegisteredVisitorsSheet_()).filter(function(x) { return String(x.schoolId) === String(schoolId); });
     var auditLogs = [];
     if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
@@ -745,7 +760,8 @@ function dispatchApiAction_(action, payload, session) {
       plans = plans.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
     }
     return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators,
-      settings: settings, auditLogs: auditLogs, users: users, visitors: requireRole_(session, adminRoles) ? visitorRows : [] };
+      settings: settings, auditLogs: auditLogs, users: users, visitors: requireRole_(session, adminRoles) ? visitorRows : [],
+      internalNotes: internalNotes, administrativeFollowUps: administrativeFollowUps, visitHistory: visitHistory };
   }
 
   if (action === 'saveTeacher') {
@@ -888,11 +904,24 @@ function dispatchApiAction_(action, payload, session) {
     if (deletedTeacher.success) logAuditAction(schoolId, session.name, 'حذف معلم', 'تم حذف المعلم ' + payload.id, session.role);
     return deletedTeacher;
   }
+  if (action === 'saveInternalNote') {
+    if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية الاطلاع على الملاحظات الإدارية الداخلية.' };
+    return saveInternalNote_(payload, session, schoolId);
+  }
+  if (action === 'saveAdministrativeFollowUp') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'تسجيل المتابعة الإدارية مقتصر على الإدارة المدرسية.' };
+    return saveAdministrativeFollowUp_(payload, session, schoolId);
+  }
+  if (action === 'archiveVisit') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'أرشفة التقارير مقتصرة على الإدارة المخولة.' };
+    return archiveVisit_(payload.id, session, schoolId);
+  }
+  if (action === 'unapproveVisit') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'إلغاء اعتماد التقارير مقتصر على الإدارة المخولة.' };
+    return unapproveVisit_(payload.id, session, schoolId);
+  }
   if (action === 'deleteVisit') {
-    if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف الزيارات.' };
-    var deletedVisit = deleteVisitRows_(payload.id, schoolId);
-    if (deletedVisit.success) logAuditAction(schoolId, session.name, 'حذف زيارة صفية', 'تم حذف الزيارة ' + payload.id, session.role);
-    return deletedVisit;
+    return { success: false, error: 'الحذف النهائي للتقارير غير متاح. استخدم إجراء الأرشفة للاحتفاظ بالسجل التاريخي.' };
   }
   return { success: false, error: 'عملية API غير مدعومة: ' + action };
 }
@@ -971,6 +1000,108 @@ function setUserStatus_(payload, session) {
     }
   }
   return { success: false, error: 'الحساب غير موجود في المدرسة المرتبطة بك.' };
+}
+
+function saveInternalNote_(payload, session, schoolId) {
+  var text = String(payload.noteText || '').trim();
+  if (!text) return { success: false, error: 'نص الملاحظة مطلوب.' };
+  var teacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
+    return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
+  })[0];
+  if (!teacher) return { success: false, error: 'المعلم المحدد غير موجود في المدرسة.' };
+  var now = new Date().toISOString();
+  var sheet = getDatabaseSpreadsheet_().getSheetByName('InternalNotes');
+  var noteId = String(payload.id || Utilities.getUuid());
+  var existing = rowsAsObjects_(sheet).filter(function(n) { return String(n.id) === noteId && String(n.schoolId) === String(schoolId); })[0];
+  if (payload.id && !existing) return { success: false, error: 'الملاحظة غير موجودة أو لا تتبع المدرسة.' };
+  if (existing) {
+    getDatabaseSpreadsheet_().getSheetByName('InternalNoteHistory').appendRow([
+      Utilities.getUuid(), schoolId, noteId, session.name, session.role, now, String(existing.noteText || ''), text
+    ]);
+  }
+  var note = {
+    id: noteId, schoolId: schoolId, teacherId: teacher.id, teacherName: teacher.fullName,
+    visitId: String(payload.visitId || ''), noteText: text,
+    createdBy: existing ? existing.createdBy : session.name,
+    createdByRole: existing ? existing.createdByRole : session.role,
+    createdAt: existing ? existing.createdAt : now,
+    updatedBy: session.name, updatedByRole: session.role, updatedAt: now, status: 'active'
+  };
+  var result = upsertObjectRow_('InternalNotes', note, 'id', schoolId);
+  if (result.success) logAuditAction(schoolId, session.name, existing ? 'تعديل ملاحظة إدارية داخلية' : 'إضافة ملاحظة إدارية داخلية', 'المعلم: ' + teacher.fullName, session.role);
+  return result;
+}
+
+function saveAdministrativeFollowUp_(payload, session, schoolId) {
+  var teacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
+    return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
+  })[0];
+  if (!teacher) return { success: false, error: 'المعلم المحدد غير موجود في المدرسة.' };
+  var now = new Date().toISOString();
+  var id = String(payload.id || Utilities.getUuid());
+  var sheet = getDatabaseSpreadsheet_().getSheetByName('AdministrativeFollowUps');
+  var existing = rowsAsObjects_(sheet).filter(function(x) { return String(x.id) === id && String(x.schoolId) === String(schoolId); })[0];
+  if (payload.id && !existing) return { success: false, error: 'سجل المتابعة غير موجود أو لا يتبع المدرسة.' };
+  var item = {
+    id: id, schoolId: schoolId, teacherId: teacher.id, teacherName: teacher.fullName,
+    visitId: String(payload.visitId || ''), followUpDate: String(payload.followUpDate || now.slice(0,10)),
+    action: String(payload.action || ''), notes: String(payload.notes || ''),
+    recommendations: String(payload.recommendations || ''), result: String(payload.result || ''),
+    nextAction: String(payload.nextAction || ''), nextDate: String(payload.nextDate || ''),
+    status: String(payload.status || 'in_progress'), createdBy: existing ? existing.createdBy : session.name,
+    createdByRole: existing ? existing.createdByRole : session.role,
+    createdAt: existing ? existing.createdAt : now, updatedAt: now
+  };
+  var result = upsertObjectRow_('AdministrativeFollowUps', item, 'id', schoolId);
+  if (result.success) logAuditAction(schoolId, session.name, existing ? 'تعديل متابعة إدارية' : 'إضافة متابعة إدارية', 'المعلم: ' + teacher.fullName, session.role);
+  return result;
+}
+
+function recordVisitSnapshot_(ss, visitId, oldVisitRow, visitHeaders, schoolId, actorName, actorRole, action) {
+  var visitObject = {};
+  visitHeaders.forEach(function(h, i) { visitObject[h] = oldVisitRow[i]; });
+  var indicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators')).filter(function(x) { return String(x.visitId) === String(visitId); });
+  var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains')).filter(function(x) { return String(x.visitId) === String(visitId); });
+  var snapshot = { visit: visitObject, indicators: indicators, domains: domains };
+  ss.getSheetByName('VisitHistory').appendRow([
+    Utilities.getUuid(), schoolId, visitId, actorName || '', actorRole || '', new Date().toISOString(), action || 'تعديل التقرير', JSON.stringify(snapshot)
+  ]);
+}
+
+function archiveVisit_(visitId, session, schoolId) {
+  if (!visitId) return { success: false, error: 'رقم التقرير مطلوب.' };
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('Visits');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(String);
+  var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+    recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'أرشفة التقرير');
+    sheet.getRange(i + 1, statusCol + 1).setValue('archived');
+    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
+    logAuditAction(schoolId, session.name, 'أرشفة تقرير زيارة', 'تمت أرشفة التقرير ' + visitId, session.role);
+    return { success: true, id: visitId, status: 'archived' };
+  }
+  return { success: false, error: 'التقرير غير موجود في المدرسة.' };
+}
+
+function unapproveVisit_(visitId, session, schoolId) {
+  if (!visitId) return { success: false, error: 'رقم التقرير مطلوب.' };
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('Visits');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(String);
+  var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+    recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'إلغاء اعتماد التقرير');
+    sheet.getRange(i + 1, statusCol + 1).setValue('completed');
+    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
+    logAuditAction(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
+    return { success: true, id: visitId, status: 'completed' };
+  }
+  return { success: false, error: 'التقرير غير موجود في المدرسة.' };
 }
 
 function saveVisitor_(payload, session) {
