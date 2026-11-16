@@ -1497,6 +1497,10 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
       escapeMailHtml_(ratingLabels[String(item.rating)] || item.rating) + '</td><td>' +
       escapeMailHtml_(item.notes || '—') + '</td></tr>';
   }).join('');
+  var domainRows = domains.map(function(item) {
+    return '<tr><td>' + escapeMailHtml_(item.domainName) + '</td><td>' +
+      escapeMailHtml_(ratingLabels[String(item.rating)] || item.rating) + '</td></tr>';
+  }).join('');
   var listHtml = function(items) {
     return (items || []).length ? '<ul>' + items.map(function(x) { return '<li>' + escapeMailHtml_(x) + '</li>'; }).join('') + '</ul>' : '<p>—</p>';
   };
@@ -1510,7 +1514,9 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
     '<br><b>المادة:</b> ' + escapeMailHtml_(visit.subject) + ' &nbsp; | &nbsp; <b>الصف والشعبة:</b> ' + escapeMailHtml_(visit.grade + ' / ' + visit.section) +
     '<br><b>تاريخ الزيارة:</b> ' + escapeMailHtml_(visit.date) + ' &nbsp; | &nbsp; <b>المقيم:</b> ' + escapeMailHtml_(visit.evaluatorName) +
     '<br><b>نسبة الإنجاز:</b> ' + escapeMailHtml_(visit.achievementPercentage) + '%</div>' +
+    '<h2>هدف الزيارة</h2><p>' + escapeMailHtml_(visit.visitGoal || '—') + '</p>' +
     '<h2>مؤشرات الزيارة وملاحظاتها</h2><table><thead><tr><th>المؤشر</th><th>التقدير</th><th>الملاحظة</th></tr></thead><tbody>' + indicatorRows + '</tbody></table>' +
+    '<h2>تقييم المجالات</h2><table><thead><tr><th>المجال</th><th>التقدير</th></tr></thead><tbody>' + domainRows + '</tbody></table>' +
     '<h2>جوانب التميز</h2>' + listHtml(strengths) +
     '<h2>فرص التحسين</h2>' + listHtml(improvementAreas) +
     '<h2>التوصيات العملية</h2><p>' + escapeMailHtml_(visit.recommendations || '—') + '</p>' +
