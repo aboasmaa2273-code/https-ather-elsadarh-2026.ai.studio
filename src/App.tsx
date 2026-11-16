@@ -344,6 +344,11 @@ export default function App() {
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
           canArchive={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          canManageStatus={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          onUnapproveReport={async (visitId) => {
+            try { await atharRemoteAction('unapproveVisit', { id: visitId }); await refreshAllData(true); }
+            catch (error) { alert(error instanceof Error ? error.message : 'تعذر إلغاء اعتماد التقرير.'); }
+          }}
           onArchiveReport={async (visitId) => {
             try {
               await atharRemoteAction('archiveVisit', { id: visitId });
