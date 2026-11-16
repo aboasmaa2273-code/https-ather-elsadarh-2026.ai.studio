@@ -19,7 +19,7 @@ export const TeacherImportModal: React.FC<TeacherImportModalProps> = ({
   const [selectedFileName, setSelectedFileName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [parsedRows, setParsedRows] = useState<any[]>([]);
-  const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[]; importBatchId?: string } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[]; importBatchId?: string; undoMessage?: string } | null>(null);
 
   if (!isOpen) return null;
 
@@ -153,8 +153,9 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
       setImportResult({
         imported: 0,
         rejected: importResult.rejected,
-        errors: [...importResult.errors, result.message || 'تم التراجع عن دفعة الاستيراد.'],
-        importBatchId: undefined
+        errors: importResult.errors,
+        importBatchId: undefined,
+        undoMessage: result.message || 'تم التراجع عن دفعة الاستيراد.'
       });
       onImportComplete();
       alert((isEn ? 'Deleted: ' : 'تم حذف: ') + Number(result.deletedCount || 0) +
@@ -289,6 +290,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
               <p className="font-bold">{isEn ? 'Import Outcome:' : 'نتيجة الاستيراد:'}</p>
               <p className="mt-1">{isEn ? `Saved centrally: ${importResult.imported}. Rejected: ${importResult.rejected}.` : `تم الحفظ في قاعدة البيانات المركزية: ${importResult.imported} معلماً. السجلات المستبعدة: ${importResult.rejected}.`}</p>
               {importResult.errors.length > 0 && <ul className="mt-2 list-disc pr-5 space-y-1 text-red-700">{importResult.errors.slice(0, 12).map((error, index) => <li key={index}>{error}</li>)}</ul>}
+              {importResult.undoMessage && <p className="mt-2 text-emerald-700 font-bold">{importResult.undoMessage}</p>}
               {importResult.importBatchId && importResult.imported > 0 && (
                 <button type="button" disabled={isImporting} onClick={handleUndoImportedBatch}
                   className="mt-3 px-3 py-2 rounded-lg border border-rose-300 bg-rose-50 text-rose-700 font-bold hover:bg-rose-100 disabled:opacity-50">
