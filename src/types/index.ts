@@ -18,6 +18,9 @@ export interface User {
   password?: string;
   status?: 'active' | 'inactive';
   teacherId?: string;
+  roleTitle?: string;
+  department?: string;
+  profileSummary?: string;
 }
 
 export interface School {
