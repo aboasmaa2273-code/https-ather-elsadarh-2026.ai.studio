@@ -54,7 +54,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');
   const [allUsersList, setAllUsersList] = useState<User[]>([]);
-  const [selectedUserForCredentials, setSelectedUserForCredentials] = useState<User | null>(null);
 
   // Platform Identity State
   const [platformName, setPlatformName] = useState(settings.platformName);
@@ -725,8 +724,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           <KeyRound className="w-3 h-3 text-[#C6A66A]" />
                           <span>@{vis.username}</span>
                         </span>
-                        <span className="text-[9px] text-slate-500 font-mono" dir="ltr">
-                          pass: {vis.password || '123'}
+                        <span className="text-[9px] text-slate-500 font-mono">
+                          {isEn ? 'Account credentials are stored securely.' : 'بيانات الدخول محفوظة بصورة مشفرة.'}
                         </span>
                       </div>
                     )}
@@ -799,13 +798,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                const name = prompt(isEn ? 'Enter full name for new evaluator:' : 'أدخل الاسم الكامل للمقيم الجديد:');
-                if (name && name.trim()) {
-                  const added = AtharStorageService.addCustomEvaluator(name.trim());
-                  setAllUsersList(AtharStorageService.getAllUsers());
-                  showFeedback('success', isEn ? `Evaluator ${name} created.` : `تمت إضافة المقيم: ${name}`);
-                  setSelectedUserForCredentials(added);
-                }
+                handleOpenAddVisitor();
               }}
               className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
             >
@@ -841,7 +834,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-slate-600">
                     <span className="text-[10px] text-slate-400 font-sans">{isEn ? 'Password:' : 'كلمة المرور:'}</span>
-                    <span className="font-bold text-slate-700" dir="ltr">{user.password || '123'}</span>
+                    <span className="font-bold text-slate-700">{isEn ? 'Stored securely' : 'مشفرة في قاعدة البيانات'}</span>
                   </div>
                 </div>
 
@@ -1392,8 +1385,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           </div>
         </div>
       )}
-
-}
 
     </div>
   );
