@@ -85,7 +85,7 @@ export const InternalNotesView: React.FC<InternalNotesViewProps> = ({currentUser
             </div>
             <p className="mt-3 whitespace-pre-wrap text-sm leading-7 text-slate-700">{note.noteText}</p>
             <p className="mt-2 text-[11px] text-slate-400">آخر تحديث: {note.updatedBy||note.createdBy} · {fmt(note.updatedAt||note.createdAt)}</p>
-            {expanded.includes(note.id)&&<div className="mt-3 space-y-2 border-t border-slate-100 pt-3"><h4 className="text-xs font-black text-slate-600">النسخ السابقة</h4>{noteHistory.length?noteHistory.map(h=><div key={h.id} className="rounded-lg bg-slate-50 p-3 text-xs"><p className="font-bold text-slate-600">{h.changedBy} · {fmt(h.changedAt)}</p><p className="mt-2 text-slate-500">النص السابق:</p><p className="whitespace-pre-wrap">{h.oldText}</p></div>):<p className="text-xs text-slate-500">لا توجد تعديلات سابقة.</p>}</div>}
+            {expanded.includes(note.id)&&<div className="mt-3 space-y-2 border-t border-slate-100 pt-3"><h4 className="text-xs font-black text-slate-600">النسخ السابقة</h4>{noteHistory.length?noteHistory.map(h=><div key={h.id} className="rounded-lg bg-slate-50 p-3 text-xs"><p className="font-bold text-slate-600">{h.changedBy} · {fmt(h.changedAt)}</p><p className="mt-2 text-slate-500">النص السابق:</p><p className="whitespace-pre-wrap">{h.oldText}</p><p className="mt-2 text-slate-500">النص بعد التعديل:</p><p className="whitespace-pre-wrap">{h.newText}</p></div>):<p className="text-xs text-slate-500">لا توجد تعديلات سابقة.</p>}</div>}
           </article>;
         })}
         {visibleNotes.length===0&&<p className="py-10 text-center text-sm text-slate-500">لا توجد ملاحظات مسجلة وفق التصفية الحالية.</p>}
