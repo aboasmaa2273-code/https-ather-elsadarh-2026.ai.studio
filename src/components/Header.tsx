@@ -97,6 +97,10 @@ export const Header: React.FC<HeaderProps> = ({
                   <button onClick={() => onTabChange('follow-up')} className={'px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ' + (activeTab === 'follow-up' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/85 hover:text-white hover:bg-white/10')}>متابعة أَثَر</button>
                 )}
 
+                {['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role) && (
+                  <button onClick={() => onTabChange('internal-notes')} className={'px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ' + (activeTab === 'internal-notes' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/85 hover:text-white hover:bg-white/10')}>الملاحظات الداخلية</button>
+                )}
+
                 <button
                   onClick={() => onTabChange('teachers')}
                   className={`px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${
@@ -240,6 +244,9 @@ export const Header: React.FC<HeaderProps> = ({
             </button>
             {['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
               <button onClick={() => onTabChange('follow-up')} className={'px-3 py-1.5 rounded whitespace-nowrap font-medium ' + (activeTab === 'follow-up' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/80')}>متابعة أَثَر</button>
+            )}
+            {['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role) && (
+              <button onClick={() => onTabChange('internal-notes')} className={'px-3 py-1.5 rounded whitespace-nowrap font-medium ' + (activeTab === 'internal-notes' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/80')}>الملاحظات الداخلية</button>
             )}
             <button
               onClick={() => onTabChange('teachers')}
