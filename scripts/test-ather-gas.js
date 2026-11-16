@@ -54,8 +54,8 @@ const records = {
     { id: 'visit-2', schoolId, teacherId: 'teacher-2', status: 'approved', strengths: '[]', improvementAreas: '[]' }
   ],
   ImprovementPlans: [
-    { id: 'plan-1', schoolId, teacherId: 'teacher-1', goal: 'هدف أول' },
-    { id: 'plan-2', schoolId, teacherId: 'teacher-2', goal: 'هدف ثان' }
+    { id: 'plan-1', schoolId, teacherId: 'teacher-1', evaluatorId: 'eval-1', goal: 'هدف أول' },
+    { id: 'plan-2', schoolId, teacherId: 'teacher-2', evaluatorId: 'eval-2', goal: 'هدف ثان' }
   ],
   Users: [],
   IndicatorLibrary: [],
@@ -94,6 +94,15 @@ const adminBootstrap = sandbox.dispatchApiAction_('bootstrap', {}, {
 assert.equal(adminBootstrap.success, true);
 assert.equal(adminBootstrap.visits.length, 2);
 assert.equal(adminBootstrap.plans.length, 2);
+
+const evaluatorBootstrap = sandbox.dispatchApiAction_('bootstrap', {}, {
+  id: 'eval-1',
+  schoolId,
+  role: 'evaluator',
+  name: 'المقيم الأول'
+});
+assert.equal(evaluatorBootstrap.success, true);
+assert.deepEqual(Array.from(evaluatorBootstrap.plans, (item) => item.id), ['plan-1']);
 
 const health = sandbox.getDatabaseHealth_();
 assert.equal(health.success, true);
