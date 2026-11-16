@@ -237,8 +237,8 @@ export const VisitsList: React.FC<VisitsListProps> = ({
             <tbody className="divide-y divide-slate-100">
               {visibleVisits.length > 0 ? (
                 visibleVisits.map((visit) => {
-                  const canEdit = AtharStorageService.canEditVisit(currentUser, visit);
-                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && visit.status !== 'approved';
+                  const canEdit = visit.status !== 'archived' && AtharStorageService.canEditVisit(currentUser, visit);
+                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && !['approved', 'archived'].includes(visit.status);
                   const canArchive = ['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role);
 
                   return (
