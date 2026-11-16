@@ -62,6 +62,7 @@ export default function App() {
   const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(() => AtharStorageService.getAcademicSettings());
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => AtharStorageService.getPlatformSettings());
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [dataConnectionError, setDataConnectionError] = useState<string>('');
 
   // Selected sub-views state
   const [selectedVisitForReport, setSelectedVisitForReport] = useState<ClassroomVisit | null>(null);
@@ -69,7 +70,7 @@ export default function App() {
   const [editingVisit, setEditingVisit] = useState<ClassroomVisit | null>(null);
 
   // Load initial data
-  const refreshAllData = async () => {
+  const refreshAllData = async (requireCentral = isLoggedIn) => {
     setAcademicSettings(AtharStorageService.getAcademicSettings());
     setPlatformSettings(AtharStorageService.getPlatformSettings());
     setAuditLogs(AtharStorageService.getAuditLogs());
@@ -78,12 +79,20 @@ export default function App() {
       setTeachers(Array.isArray(remote.teachers) ? remote.teachers : []);
       setVisits(Array.isArray(remote.visits) ? remote.visits : []);
       setPlans(Array.isArray(remote.plans) ? remote.plans : []);
+      setDataConnectionError('');
     } catch (error) {
       // Public landing remains usable; once authenticated, show the actual connection error.
       console.warn('Athar central data load:', error);
-      setTeachers(AtharStorageService.getTeachers());
-      setVisits(AtharStorageService.getVisits());
-      setPlans(AtharStorageService.getPlans());
+      if (requireCentral) {
+        setTeachers([]);
+        setVisits([]);
+        setPlans([]);
+        setDataConnectionError(error instanceof Error ? error.message : 'تعذر تحميل البيانات المركزية.');
+      } else {
+        setTeachers(AtharStorageService.getTeachers());
+        setVisits(AtharStorageService.getVisits());
+        setPlans(AtharStorageService.getPlans());
+      }
     }
   };
 
@@ -104,8 +113,8 @@ export default function App() {
   // Login handler
   const handleSelectRoleToLogin = (user: User) => {
     handleUserChange(user);
-    void refreshAllData();
     setIsLoggedIn(true);
+    void refreshAllData(true);
     setIsLoginModalOpen(false);
     setActiveTab('dashboard');
   };
@@ -145,7 +154,15 @@ export default function App() {
         onLanguageChange={setLanguage}
       />
 
-      {/* Main Viewport */}
+      {dataConnectionError && isLoggedIn && (
+        <div role="alert" className="mx-auto mt-3 w-full max-w-7xl px-4">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
+            تعذر الاتصال بقاعدة بيانات أَثَر المركزية. لم نعرض بيانات الجهاز المحلية بدلاً منها، حتى لا تظهر سجلات غير محدثة أو تخص مستخدمًا آخر. التفاصيل: {dataConnectionError}
+          </div>
+        </div>
+      )}
+
+            {/* Main Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
         
         {/* View 1: Public Homepage */}
