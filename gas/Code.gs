@@ -1522,7 +1522,7 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
     '<h2>التوصيات العملية</h2><p>' + escapeMailHtml_(visit.recommendations || '—') + '</p>' +
     (message ? '<h2>رسالة من الإدارة</h2><p>' + escapeMailHtml_(message).replace(/\n/g, '<br>') + '</p>' : '') +
     '<hr><p>هذا التقرير أُرسل من منظومة أَثَر بعد اعتماده من الإدارة.</p></body></html>';
-  var pdf = HtmlService.createHtmlOutput(html).getBlob().getAs(MimeType.PDF)
+  var pdf = Utilities.newBlob(html, MimeType.HTML, 'Athar_Visit_Report_' + visitId + '.html').getAs(MimeType.PDF)
     .setName('Athar_Visit_Report_' + visitId + '.pdf');
   var body = 'الأستاذ/ ' + String(teacher.fullName || visit.teacherName) + ' المحترم،\n\n' +
     'نرفق لكم تقرير الزيارة الصفية بعد اعتماده من الإدارة. نأمل الاطلاع عليه والاستفادة من جوانب التميز وفرص التحسين والتوصيات الواردة فيه.' +
