@@ -324,10 +324,10 @@ export default function App() {
           platformSettings={platformSettings}
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
-          canDelete={['school_admin', 'platform_admin'].includes(currentUser.role)}
-          onDeleteReport={async (visitId) => {
+          canArchive={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          onArchiveReport={async (visitId) => {
             try {
-              await atharRemoteAction('deleteVisit', { id: visitId });
+              await atharRemoteAction('archiveVisit', { id: visitId });
               await refreshAllData(true);
             } catch (error) {
               alert(error instanceof Error ? error.message : 'تعذر حذف الزيارة من قاعدة البيانات المركزية.');
