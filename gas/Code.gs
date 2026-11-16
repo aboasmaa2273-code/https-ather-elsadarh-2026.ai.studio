@@ -618,6 +618,7 @@ function apiLogin_(payload) {
       if (matchedTeacher) user.teacherId = String(matchedTeacher.id || '');
     }
     CacheService.getScriptCache().put('ATHAR_SESSION_' + token, JSON.stringify(user), 21600);
+    logAuditAction(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.');
     return { success: true, token: token, user: user, expiresIn: 21600 };
   }
   return { success: false, error: 'اسم المستخدم غير مسجل ضمن الحسابات المعتمدة.' };
@@ -749,6 +750,14 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'saveVisit') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تسجيل الزيارة.' };
+    if (payload.id && session.role === 'evaluator') {
+      var existingVisit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+        return String(v.id) === String(payload.id) && String(v.schoolId) === String(schoolId);
+      })[0];
+      if (existingVisit && String(existingVisit.evaluatorId) !== String(session.id)) {
+        return { success: false, error: 'لا يمكنك تعديل زيارة سجّلها مقيم آخر.' };
+      }
+    }
     var teacherForVisit = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
       return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
     })[0];
@@ -826,11 +835,15 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
-    return deleteById_('Teachers', payload.id, schoolId);
+    var deletedTeacher = deleteById_('Teachers', payload.id, schoolId);
+    if (deletedTeacher.success) logAuditAction(schoolId, session.name, 'حذف معلم', 'تم حذف المعلم ' + payload.id);
+    return deletedTeacher;
   }
   if (action === 'deleteVisit') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف الزيارات.' };
-    return deleteVisitRows_(payload.id, schoolId);
+    var deletedVisit = deleteVisitRows_(payload.id, schoolId);
+    if (deletedVisit.success) logAuditAction(schoolId, session.name, 'حذف زيارة صفية', 'تم حذف الزيارة ' + payload.id);
+    return deletedVisit;
   }
   return { success: false, error: 'عملية API غير مدعومة: ' + action };
 }
