@@ -70,7 +70,6 @@ export class AtharStorageService {
 
   static setCurrentUser(user: User): void {
     setStored(STORAGE_KEYS.CURRENT_USER, user);
-    this.logAction(user, 'تسجيل دخول / تبديل دور', `تم تفعيل حساب: ${user.name} كـ (${this.getRoleLabel(user.role)})`);
   }
 
   static getAllUsers(): User[] {
