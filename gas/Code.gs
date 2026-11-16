@@ -1461,7 +1461,7 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
   })[0];
   if (!teacher) return { success: false, error: 'تعذر العثور على بيانات المعلم المرتبط بالتقرير.' };
   var recipient = String(teacher.email || '').trim();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) {
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
     return { success: false, error: 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.' };
   }
 
@@ -1514,7 +1514,7 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
     '<h2>جوانب التميز</h2>' + listHtml(strengths) +
     '<h2>فرص التحسين</h2>' + listHtml(improvementAreas) +
     '<h2>التوصيات العملية</h2><p>' + escapeMailHtml_(visit.recommendations || '—') + '</p>' +
-    (message ? '<h2>رسالة من الإدارة</h2><p>' + escapeMailHtml_(message).replace(/\\n/g, '<br>') + '</p>' : '') +
+    (message ? '<h2>رسالة من الإدارة</h2><p>' + escapeMailHtml_(message).replace(/\n/g, '<br>') + '</p>' : '') +
     '<hr><p>هذا التقرير أُرسل من منظومة أَثَر بعد اعتماده من الإدارة.</p></body></html>';
   var pdf = HtmlService.createHtmlOutput(html).getBlob().getAs(MimeType.PDF)
     .setName('Athar_Visit_Report_' + visitId + '.pdf');
