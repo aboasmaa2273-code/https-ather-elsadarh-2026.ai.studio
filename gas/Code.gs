@@ -1398,6 +1398,7 @@ function saveInternalNote_(payload, session, schoolId) {
     id: noteId, schoolId: schoolId, teacherId: teacher.id, teacherName: teacher.fullName,
     visitId: String(payload.visitId || ''), noteText: text,
     createdBy: existing ? existing.createdBy : session.name,
+    // Stable account identity prevents collisions between users with the same display name.
     createdById: existing ? (existing.createdById || '') : session.id,
     createdByRole: existing ? existing.createdByRole : session.role,
     createdAt: existing ? existing.createdAt : now,
