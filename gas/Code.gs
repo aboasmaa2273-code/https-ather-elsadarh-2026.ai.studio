@@ -147,7 +147,7 @@ function initializeDatabase_() {
     var userMigration = migrateCentralUsersToUsers_(ss);
 
     // إدخال البيانات الأولية إذا كانت ورقة المؤشرات فارغة
-    seedInitialDataIfEmpty(ss);
+    seedInitialDataIfEmpty_(ss);
     
     return {
       success: true,
@@ -227,7 +227,7 @@ function migrateCentralUsersToUsers_(ss) {
 // 3. بذر البيانات الأولية (Seeding)
 // ==========================================
 
-function seedInitialDataIfEmpty(ss) {
+function seedInitialDataIfEmpty_(ss) {
   var indSheet = ss.getSheetByName('IndicatorLibrary');
   if (indSheet && indSheet.getLastRow() <= 1) {
     var indicators = [
@@ -274,7 +274,7 @@ function getBootstrapData() {
     }
 
     var userEmail = Session.getActiveUser().getEmail();
-    var userRole = determineUserRole(userEmail);
+    var userRole = determineUserRole_(userEmail);
     if (!userRole) {
       return { success: false, error: 'تعذر التحقق من هوية المستخدم أو لا يوجد حساب معتمد لهذا البريد. لم يتم منح أي صلاحية.' };
     }
@@ -307,7 +307,7 @@ function getBootstrapData() {
   }
 }
 
-function determineUserRole(email) {
+function determineUserRole_(email) {
   // Fail closed: an absent, unlisted, or disabled account never receives admin rights.
   if (!email || typeof email !== 'string') return null;
   var ss = getDatabaseSpreadsheet_();
@@ -333,7 +333,7 @@ function determineUserRole(email) {
 // 5. حفظ واسترجاع الزيارات (Visits Management)
 // ====================================================
 
-function saveClassroomVisit(visitData) {
+function saveClassroomVisit_(visitData) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { success: false, error: 'هناك عملية حفظ أخرى قيد التنفيذ. حاول مرة أخرى.' };
   
@@ -449,7 +449,7 @@ function saveClassroomVisit(visitData) {
     }
 
     // تسجيل العملية في AuditLog
-    logAuditAction(visitData.schoolId || 'sch_alsadara_01', visitData.actorName || visitData.evaluatorName, 'حفظ زيارة صفية', 'حفظ زيارة للمعلم: ' + visitData.teacherName + ' بنسبة إنجاز ' + achPct + '%', visitData.actorRole || visitData.evaluatorRole);
+    logAuditAction_(visitData.schoolId || 'sch_alsadara_01', visitData.actorName || visitData.evaluatorName, 'حفظ زيارة صفية', 'حفظ زيارة للمعلم: ' + visitData.teacherName + ' بنسبة إنجاز ' + achPct + '%', visitData.actorRole || visitData.evaluatorRole);
 
     return {
       success: true,
@@ -468,7 +468,7 @@ function saveClassroomVisit(visitData) {
 // 6. إضافة المعلم والتحقق من التكرار
 // ==========================================
 
-function saveTeacher(teacherData) {
+function saveTeacher_(teacherData) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(15000)) return { success: false, error: 'هناك عملية حفظ أخرى قيد التنفيذ. حاول مرة أخرى.' };
   
@@ -543,7 +543,7 @@ function saveTeacher(teacherData) {
 // 7. سجل التدقيق والأمان
 // ==========================================
 
-function logAuditAction(schoolId, userName, action, details, userRole) {
+function logAuditAction_(schoolId, userName, action, details, userRole) {
   try {
     var ss = getDatabaseSpreadsheet_();
     var sheet = ss.getSheetByName('AuditLog');
@@ -950,7 +950,7 @@ function dispatchApiAction_(action, payload, session) {
     payload.schoolId = schoolId;
     payload.actorName = session.name;
     payload.actorRole = session.role;
-    return saveTeacher(payload);
+    return saveTeacher_(payload);
   }
   if (action === 'toggleTeacherStatus') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية تغيير حالة المعلم.' };
@@ -961,7 +961,7 @@ function dispatchApiAction_(action, payload, session) {
     teacher.status = payload.status === 'active' ? 'active' : 'inactive';
     teacher.actorName = session.name;
     teacher.actorRole = session.role;
-    var saveTeacherResult = saveTeacher(teacher);
+    var saveTeacherResult = saveTeacher_(teacher);
     return saveTeacherResult.success ? { success: true, id: teacher.id, status: teacher.status } : saveTeacherResult;
   }
   if (action === 'saveVisit') {
@@ -987,6 +987,16 @@ function dispatchApiAction_(action, payload, session) {
         }
       }
     }
+    if (existingVisitForEdit && String(existingVisitForEdit.status || '') === 'approved' && session.role === 'evaluator') {
+      return { success: false, error: 'لا يمكن للمقيم تعديل تقرير معتمد من الإدارة.' };
+    }
+    // Approval and archiving are privileged workflows; never accept these states from a save payload.
+    if (existingVisitForEdit && String(existingVisitForEdit.status || '') === 'approved' &&
+        ['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
+      payload.status = 'approved';
+    } else {
+      payload.status = String(payload.status || '') === 'draft' ? 'draft' : 'completed';
+    }
     var teacherForVisit = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
       return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
     })[0];
@@ -1006,7 +1016,7 @@ function dispatchApiAction_(action, payload, session) {
     payload.teacherName = teacherForVisit.fullName;
     payload.teacherJobNumber = teacherForVisit.jobNumber;
     payload.teacherSpecialization = teacherForVisit.specialization;
-    return saveClassroomVisit(payload);
+    return saveClassroomVisit_(payload);
   }
   if (action === 'approveVisit') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'اعتماد الزيارات مقتصر على الإدارة المخولة.' };
@@ -1611,7 +1621,7 @@ function dispatchBridgeRequest(request) {
 
 // إرسال التقرير المعتمد للمعلم فقط، مع إنشاء سجل مراسلات آمن عند الحاجة.
 // تُشغّل مرة واحدة من محرر Apps Script بواسطة مالك النشر لمنح صلاحية إرسال البريد.
-function authorizeMailOnce() {
+function authorizeMailOnce_() {
   var remaining = MailApp.getRemainingDailyQuota();
   return { success: true, remainingDailyQuota: remaining, message: 'تم التحقق من صلاحية إرسال البريد.' };
 }
