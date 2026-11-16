@@ -22,6 +22,7 @@ interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: User) => void;
+  selectedEvaluator?: User | null;
   language?: Language;
 }
 
@@ -29,6 +30,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
+  selectedEvaluator = null,
   language = 'ar'
 }) => {
   const isEn = language === 'en';
@@ -63,6 +65,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         const remote = await atharRemoteLogin(username, password);
         if (remote.success && remote.user) {
           const user = remote.user as User;
+          if (selectedEvaluator && (user.id !== selectedEvaluator.id || user.role !== 'evaluator')) {
+            setErrorMessage(isEn
+              ? 'This portal belongs to a different evaluator account.'
+              : 'هذه البوابة مخصصة للمقيم المحدد فقط. تحقق من بيانات الحساب أو اختر بوابتك الصحيحة.');
+            return;
+          }
           AtharStorageService.setCurrentUser(user);
           onLoginSuccess(user);
           onClose();
@@ -95,7 +103,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             </div>
             <div>
               <h3 className="font-bold text-base font-['Tajawal'] text-white">
-                {isEn ? 'ATHAR Education Platform Login' : 'تسجيل الدخول إلى منظومة «أَثَر»'}
+                {selectedEvaluator ? (isEn ? `Evaluator Portal: ${selectedEvaluator.name}` : `بوابة المقيم: ${selectedEvaluator.name}`) : (isEn ? 'ATHAR Education Platform Login' : 'تسجيل الدخول إلى منظومة «أَثَر»')}
               </h3>
               <p className="text-[11px] text-[#C6A66A] font-medium">
                 {isEn ? 'Educational Excellence & Classroom Observation' : 'منظومة التميز والتطوير التعليمي'}
@@ -112,7 +120,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         </div>
 
         <div className="border-b border-slate-200 bg-slate-50 text-xs font-bold py-3 text-center text-[#172C40]">
-          {isEn ? 'Authorized Evaluator Sign In' : 'دخول المقيمين والزائرين المعتمدين فقط'}
+          {selectedEvaluator ? (selectedEvaluator.roleTitle || (isEn ? 'Authorized Evaluator' : 'مقيّم معتمد')) : (isEn ? 'Authorized Evaluator Sign In' : 'دخول المقيمين والزائرين المعتمدين فقط')}
         </div>
 
         {/* Body Content */}
