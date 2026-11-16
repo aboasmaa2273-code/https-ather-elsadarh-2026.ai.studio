@@ -451,12 +451,17 @@ function saveTeacher(teacherData) {
     }
 
     var data = sheet.getDataRange().getValues();
+    var targetSchoolId = String(teacherData.schoolId || 'sch_alsadara_01');
+    var existingRowIndex = -1;
     for (var i = 1; i < data.length; i++) {
-      if (data[i][3] && data[i][3].toString().trim() === jobNumber) {
-        if (!teacherData.id || data[i][0] !== teacherData.id) {
-          return { success: false, error: 'الرقم الوظيفي (' + jobNumber + ') مستخدم مسبقاً لمعلم آخر.' };
-        }
+      if (String(data[i][1]) !== targetSchoolId) continue;
+      if (teacherData.id && String(data[i][0]) === String(teacherData.id)) existingRowIndex = i + 1;
+      if (data[i][3] && String(data[i][3]).trim() === jobNumber && String(data[i][0]) !== String(teacherData.id || '')) {
+        return { success: false, error: 'الرقم الوظيفي (' + jobNumber + ') مستخدم مسبقاً لمعلم آخر في المدرسة.' };
       }
+    }
+    if (teacherData.id && existingRowIndex < 0) {
+      return { success: false, error: 'لا يمكن تعديل معلم غير موجود في المدرسة المرتبطة بالحساب.' };
     }
 
     var teacherId = teacherData.id || ('tch_' + Utilities.getUuid().substring(0, 8));
@@ -464,7 +469,7 @@ function saveTeacher(teacherData) {
 
     var newRow = [
       teacherId,
-      teacherData.schoolId || 'sch_alsadara_01',
+      targetSchoolId,
       fullName,
       jobNumber,
       specialization,
@@ -474,13 +479,8 @@ function saveTeacher(teacherData) {
       dateAdded
     ];
 
-    if (teacherData.id) {
-      for (var r = 1; r < data.length; r++) {
-        if (data[r][0] === teacherData.id) {
-          sheet.getRange(r + 1, 1, 1, newRow.length).setValues([newRow]);
-          break;
-        }
-      }
+    if (existingRowIndex > 0) {
+      sheet.getRange(existingRowIndex, 1, 1, newRow.length).setValues([newRow]);
     } else {
       sheet.appendRow(newRow);
     }
