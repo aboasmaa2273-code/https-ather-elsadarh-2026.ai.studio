@@ -95,6 +95,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [auditUserFilter, setAuditUserFilter] = useState('ALL');
   const [auditSortAsc, setAuditSortAsc] = useState(false);
   const [localAuditLogs, setLocalAuditLogs] = useState<AuditLogEntry[]>(auditLogs);
+  const [selectedAuditLogIds, setSelectedAuditLogIds] = useState<string[]>([]);
+  const [isDeletingAuditLogs, setIsDeletingAuditLogs] = useState(false);
 
   useEffect(() => {
     setLocalAuditLogs(auditLogs);
@@ -144,6 +146,31 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
     setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
     setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+  };
+
+  const handleDeleteAuditLogs = async (ids?: string[]) => {
+    const selectedIds = Array.isArray(ids) ? ids : [];
+    const deletingAll = !Array.isArray(ids);
+    if (deletingAll && !confirm(isEn ? 'Permanently delete every audit log for this school? This cannot be undone.' : 'هل تريد حذف سجل العمليات بالكامل لهذه المدرسة نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+    if (!deletingAll && selectedIds.length === 0) {
+      showFeedback('error', isEn ? 'Select at least one log entry.' : 'حدد سجلًا واحدًا على الأقل للحذف.');
+      return;
+    }
+    if (!deletingAll && !confirm(isEn ? `Delete ${selectedIds.length} selected log entries?` : `هل تريد حذف ${selectedIds.length} سجلًا محددًا؟`)) return;
+    setIsDeletingAuditLogs(true);
+    try {
+      const result: any = await atharRemoteAction('deleteAuditLogs', { ids: deletingAll ? [] : selectedIds });
+      const remote: any = await atharRemoteBootstrap();
+      const refreshed = Array.isArray(remote.auditLogs) ? remote.auditLogs : [];
+      setLocalAuditLogs(refreshed);
+      setSelectedAuditLogIds([]);
+      showFeedback('success', isEn ? `${result.deletedCount || 0} log entries deleted.` : `تم حذف ${result.deletedCount || 0} سجل من سجل العمليات.`);
+      onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Could not delete audit logs.' : 'تعذر حذف سجلات العمليات.'));
+    } finally {
+      setIsDeletingAuditLogs(false);
+    }
   };
 
   // Feedback display helper
@@ -903,7 +930,13 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 </div>
               </div>
 
-              <span className="text-[10px] text-slate-500">{isEn ? 'Central audit records are retained for accountability.' : 'تُحفَظ سجلات التدقيق المركزية لضمان المساءلة.'}</span>
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] text-slate-500">{isEn ? 'Manage central audit records.' : 'إدارة سجلات العمليات المركزية.'}</span>
+                {canEdit && <>
+                  <button type="button" disabled={isDeletingAuditLogs || localAuditLogs.length === 0} onClick={() => handleDeleteAuditLogs(selectedAuditLogIds)} className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs">{isEn ? `Delete selected (${selectedAuditLogIds.length})` : `حذف المحدد (${selectedAuditLogIds.length})`}</button>
+                  <button type="button" disabled={isDeletingAuditLogs || localAuditLogs.length === 0} onClick={() => handleDeleteAuditLogs()} className="px-3 py-2 rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs">{isEn ? 'Delete all logs' : 'حذف السجل بالكامل'}</button>
+                </>}
+              </div>
             </div>
 
             {/* Filter and Sorting Controls Toolbar */}
@@ -967,6 +1000,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
               <table className={`w-full ${isEn ? 'text-left' : 'text-right'} border-collapse text-xs`}>
                 <thead className="bg-[#F8FAFC] sticky top-0 text-[#172C40] border-b border-slate-200">
                   <tr>
+                    {canEdit && <th className="py-2.5 px-3"><input type="checkbox" aria-label={isEn ? 'Select all visible logs' : 'تحديد كل السجلات الظاهرة'} checked={filteredAuditLogs.length > 0 && filteredAuditLogs.every(log => selectedAuditLogIds.includes(log.id))} onChange={(e) => setSelectedAuditLogIds(e.target.checked ? Array.from(new Set([...selectedAuditLogIds, ...filteredAuditLogs.map(log => log.id)])) : selectedAuditLogIds.filter(id => !filteredAuditLogs.some(log => log.id === id)))} /></th>}
                     <th className="py-2.5 px-4 font-bold">{isEn ? 'Timestamp' : 'الوقت والتاريخ'}</th>
                     <th className="py-2.5 px-4 font-bold">{isEn ? 'User' : 'المستخدم'}</th>
                     <th className="py-2.5 px-4 font-bold">{isEn ? 'Role' : 'الدور'}</th>
@@ -977,13 +1011,14 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {filteredAuditLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                      <td colSpan={canEdit ? 6 : 5} className="py-8 text-center text-slate-400">
                         {isEn ? 'No log entries match your filter.' : 'لا توجد عمليات مطابقة لخيارات الفرز الحالية.'}
                       </td>
                     </tr>
                   ) : (
                     filteredAuditLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-slate-50/70">
+                        {canEdit && <td className="py-2.5 px-3"><input type="checkbox" aria-label={isEn ? `Select log by ${log.userName}` : `تحديد سجل ${log.userName}`} checked={selectedAuditLogIds.includes(log.id)} onChange={(e) => setSelectedAuditLogIds(e.target.checked ? [...selectedAuditLogIds, log.id] : selectedAuditLogIds.filter(id => id !== log.id))} /></td>}
                         <td className="py-2.5 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">{log.timestamp}</td>
                         <td className="py-2.5 px-4 font-bold text-[#172C40] whitespace-nowrap">{log.userName}</td>
                         <td className="py-2.5 px-4 text-slate-600 whitespace-nowrap">{log.userRole}</td>
