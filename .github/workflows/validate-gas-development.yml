@@ -53,6 +53,11 @@ jobs:
           test "$(grep -c "getPublicEvaluators_()" gas/Code.gs)" -ge 3
           grep -q "sendApprovedVisitReport" gas/Code.gs
           grep -q "ATHAR_DATABASE_SPREADSHEET_ID" gas/Code.gs
+          # Sensitive administrative/setup functions must remain private to the Apps Script editor.
+          grep -q "function initializeDatabase_()" gas/Code.gs
+          grep -q "function migrateUserPasswordColumns_()" gas/Code.gs
+          grep -q "function setUserPassword_(identifier, password)" gas/Code.gs
+          ! grep -qE "function (initializeDatabase|migrateUserPasswordColumns|setUserPassword)\\(" gas/Code.gs
 
       - name: Package Apps Script source files
         run: |
