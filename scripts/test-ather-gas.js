@@ -318,3 +318,37 @@ assert.equal(unauthorizedPlanSave.success, false);
 assert.equal(unauthorizedMigrationAttempted, false);
 sandbox.ensureImprovementPlanOwnershipColumns_ = originalOwnershipMigration;
 console.log('PASS: unauthorized roles are rejected before any improvement-plan schema migration');
+
+const noteHeaders = ['id', 'schoolId', 'teacherId', 'teacherName', 'visitId', 'noteText', 'createdBy', 'createdByRole', 'createdAt', 'updatedBy', 'updatedByRole', 'updatedAt', 'status'];
+const noteRecords = [
+  { id: 'note-owned-by-other', schoolId, teacherId: 'teacher-1', noteText: 'ملاحظة خاصة', createdBy: 'المقيم نفسه بالاسم', createdById: 'different-account-id', createdByRole: 'evaluator', createdAt: '2026-01-01' }
+];
+const noteSheet = makeMutableSheet(noteHeaders, noteRecords);
+const noteTeacherSheet = sheet([{ id: 'teacher-1', schoolId, fullName: 'المعلم الأول' }]);
+const noteHistorySheet = { appendRow: () => {} };
+const noteSheets = { InternalNotes: noteSheet, Teachers: noteTeacherSheet, InternalNoteHistory: noteHistorySheet, Visits: sheet([]) };
+sandbox.getDatabaseSpreadsheet_ = () => ({ getSheetByName: (name) => noteSheets[name] || null });
+sandbox.rowsAsObjects_ = (value) => value && Array.isArray(value.records) ? value.records : [];
+sandbox.requireRole_ = (session, roles) => roles.includes(session.role);
+sandbox.Utilities = { getUuid: () => 'new-note-id' };
+sandbox.logAuditAction = () => {};
+sandbox.upsertObjectRow_ = (sheetName, object, idKey, targetSchoolId) => {
+  const target = noteSheets[sheetName];
+  const existing = target.records.find((item) => String(item[idKey]) === String(object[idKey]));
+  if (existing && String(existing.schoolId) !== String(targetSchoolId)) return { success: false };
+  if (existing) Object.assign(existing, object);
+  else target.records.push({ ...object });
+  return { success: true, id: object[idKey] };
+};
+const sameDisplayNameDifferentAccount = sandbox.dispatchApiAction_('saveInternalNote', {
+  id: 'note-owned-by-other', teacherId: 'teacher-1', noteText: 'محاولة تعديل باسم مطابق'
+}, { id: 'attacker-account-id', schoolId, role: 'evaluator', name: 'المقيم نفسه بالاسم' });
+assert.equal(sameDisplayNameDifferentAccount.success, false);
+assert.equal(noteRecords[0].noteText, 'ملاحظة خاصة');
+const ownNoteSave = sandbox.dispatchApiAction_('saveInternalNote', {
+  teacherId: 'teacher-1', noteText: 'ملاحظة جديدة'
+}, { id: 'note-owner-id', schoolId, role: 'evaluator', name: 'مقيم جديد' });
+assert.equal(ownNoteSave.success, true);
+assert.equal(noteRecords.find((item) => item.id === 'new-note-id').createdById, 'note-owner-id');
+assert.equal(noteHeaders.includes('createdById'), true);
+console.log('PASS: internal note ownership uses immutable account IDs, not display names');
