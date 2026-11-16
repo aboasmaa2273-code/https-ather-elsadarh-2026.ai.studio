@@ -213,7 +213,7 @@ export default function App() {
         )}
 
         {isLoggedIn && activeTab === 'follow-up' && ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
-          <FollowUpDashboard currentUser={currentUser} visits={visits} teachers={teachers} plans={plans} onOpenVisitReport={(v) => setSelectedVisitForReport(v)} />
+          <FollowUpDashboard currentUser={currentUser} visits={visits} teachers={teachers} plans={plans} followUps={administrativeFollowUps} onRefresh={() => refreshAllData(true)} onOpenVisitReport={(v) => setSelectedVisitForReport(v)} />
         )}
 
         {isLoggedIn && activeTab === 'dashboard' && (
