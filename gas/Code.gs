@@ -848,6 +848,10 @@ function dispatchApiAction_(action, payload, session) {
       }
       return p;
     });
+    if (session.role === 'evaluator') {
+      // Evaluators may see only improvement plans they personally created.
+      plans = plans.filter(function(x) { return String(x.evaluatorId || '') === String(session.id); });
+    }
     if (session.role === 'teacher') {
       teachers = teachers.filter(function(x) { return String(x.id) === String(session.teacherId); });
       visits = visits.filter(function(x) { return String(x.teacherId) === String(session.teacherId) && String(x.status || '') !== 'archived'; });
