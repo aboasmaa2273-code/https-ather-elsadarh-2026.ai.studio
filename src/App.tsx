@@ -9,7 +9,7 @@ import {
   AuditLogEntry
 } from './types';
 import { AtharStorageService } from './services/storageService';
-import { atharRemoteBootstrap, clearAtharRemoteSession } from './services/gasBridgeClient';
+import { atharRemoteBootstrap, atharRemoteAction, clearAtharRemoteSession } from './services/gasBridgeClient';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -313,12 +313,12 @@ export default function App() {
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
           canDelete={currentUser.role !== 'teacher'}
-          onDeleteReport={(visitId) => {
-            const res = AtharStorageService.deleteVisit(visitId);
-            if (res.success) {
-              refreshAllData();
-            } else {
-              alert(res.error);
+          onDeleteReport={async (visitId) => {
+            try {
+              await atharRemoteAction('deleteVisit', { id: visitId });
+              await refreshAllData(true);
+            } catch (error) {
+              alert(error instanceof Error ? error.message : 'تعذر حذف الزيارة من قاعدة البيانات المركزية.');
             }
           }}
         />
