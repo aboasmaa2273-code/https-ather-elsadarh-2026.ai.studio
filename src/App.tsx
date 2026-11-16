@@ -335,7 +335,7 @@ export default function App() {
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(user) => {
             handleUserChange(user);
-            void refreshAllData();
+            void refreshAllData(true);
             setIsLoggedIn(true);
             setIsLoginModalOpen(false);
             setActiveTab('dashboard');
