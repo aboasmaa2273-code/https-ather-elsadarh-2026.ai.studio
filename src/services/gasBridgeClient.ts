@@ -191,6 +191,13 @@ export function configureAtharBridge(): boolean {
   atharGasBridge.configure(url);
   return true;
 }
+export async function atharPublicEvaluators() {
+  if (!configureAtharBridge()) return [];
+  const result = await atharGasBridge.request<{ evaluators?: User[] }>({ action: 'publicEvaluators' });
+  if (!result.success) throw new Error(result.error || 'تعذر تحميل دليل المقيمين.');
+  return Array.isArray(result.evaluators) ? result.evaluators : [];
+}
+
 export async function atharRemoteLogin(username: string, password: string) {
   if (!configureAtharBridge()) return { success: false, error: 'لم يتم إعداد رابط قاعدة بيانات أَثَر بعد. افتح مركز الربط وأدخل رابط Apps Script المنشور.' };
   const result = await atharGasBridge.request<User>({ action: 'login', payload: { username, password } });
