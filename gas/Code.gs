@@ -873,7 +873,8 @@ function saveUserAccount_(payload, session) {
   if (allowedRoles.indexOf(role) < 0) return { success: false, error: 'الدور المطلوب غير مسموح لهذا الحساب الإداري.' };
   var existing = rows.filter(function(x) { return String(x.id) === id && String(x.schoolId) === String(session.schoolId); })[0];
   if (payload.id && !existing) return { success: false, error: 'الحساب غير موجود في المدرسة المرتبطة بك.' };
-  if (rows.some(function(x) { return String(x.schoolId) === String(session.schoolId) && String(x.username || '').toLowerCase() === username && String(x.id) !== id; })) {
+  // Usernames are global login identifiers, so they must be unique across all schools.
+  if (rows.some(function(x) { return String(x.username || '').toLowerCase() === username && String(x.id) !== id; })) {
     return { success: false, error: 'اسم المستخدم مستخدم بالفعل في هذه المدرسة.' };
   }
   var password = String(payload.password || '');
