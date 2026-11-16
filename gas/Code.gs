@@ -561,7 +561,9 @@ function doPost(e) {
         return {
           id: String(u.id || ''),
           name: String(u.name || ''),
+          email: '',
           role: 'evaluator',
+          status: 'active',
           schoolId: publicSchoolId,
           roleTitle: String(u.roleTitle || u.jobTitle || 'مقيّم معتمد'),
           specialization: String(u.specialization || ''),
