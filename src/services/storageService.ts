@@ -815,6 +815,10 @@ export class AtharStorageService {
   }
 
   // Registered Visitors Management (دليل الزائرين والمقيمين المعتمدين)
+  static clearRegisteredVisitorsLocal(): void {
+    setStored(STORAGE_KEYS.REGISTERED_VISITORS, []);
+  }
+
   static getRegisteredVisitors(): RegisteredVisitor[] {
     const list = getStored<RegisteredVisitor[]>(STORAGE_KEYS.REGISTERED_VISITORS, DEFAULT_REGISTERED_VISITORS);
     return list.map(v => {
