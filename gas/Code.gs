@@ -312,24 +312,18 @@ function saveClassroomVisit(visitData) {
 
     // حساب نسبة الإنجاز مع استبعاد "لم يُشاهد" تماماً
     var indicators = visitData.indicators || [];
-    var yesCount = 0;
-    var needsImpCount = 0;
-    var noCount = 0;
-    var notObservedCount = 0;
-
+    var scoreTotal = 0;
+    var observedCount = 0;
+    var ratingScores = { outstanding: 5, very_good: 4, good: 3, acceptable: 2, needs_improvement: 2, weak: 1, no: 1, yes: 5 };
     for (var i = 0; i < indicators.length; i++) {
-      var r = indicators[i].rating;
-      if (r === 'yes') yesCount++;
-      else if (r === 'needs_improvement') needsImpCount++;
-      else if (r === 'no') noCount++;
-      else if (r === 'not_observed') notObservedCount++;
+      var rating = String(indicators[i].rating || '');
+      if (rating === 'not_observed') continue;
+      if (Object.prototype.hasOwnProperty.call(ratingScores, rating)) {
+        scoreTotal += ratingScores[rating];
+        observedCount++;
+      }
     }
-
-    var observedCount = yesCount + needsImpCount + noCount;
-    var achPct = 0;
-    if (observedCount > 0) {
-      achPct = Math.round(((yesCount * 1.0 + needsImpCount * 0.5) / observedCount) * 1000) / 10;
-    }
+    var achPct = observedCount > 0 ? Math.round((scoreTotal / (observedCount * 5)) * 1000) / 10 : 0;
 
     var visitId = visitData.id || ('VST-' + new Date().getFullYear() + '-' + Utilities.getUuid().substring(0, 5).toUpperCase());
     var timestamp = new Date().toISOString();
@@ -675,58 +669,92 @@ function dispatchApiAction_(action, payload, session) {
   var ss = getDatabaseSpreadsheet_();
   if (!ss) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
   var schoolId = session.schoolId || 'sch_alsadara_01';
+  var adminRoles = ['platform_admin', 'school_admin'];
+  var managementRoles = ['platform_admin', 'school_admin', 'vice_principal'];
+  var evaluatorRoles = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'];
 
   if (action === 'bootstrap') {
-    var teachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(x) { return x.schoolId === schoolId; });
-    var visits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(x) { return x.schoolId === schoolId; });
-    var plans = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(x) { return x.schoolId === schoolId; }).map(function(p) {
-      p.relatedIndicatorText = p.relatedIndicator || '';
-      p.developmentalGoal = p.goal || '';
-      p.actionProcedure = p.procedure || '';
-      p.responsiblePerson = p.responsible || '';
-      return p;
-    });
-    if (session.role === 'teacher') {
-      teachers = teachers.filter(function(x) { return x.id === session.teacherId; });
-      visits = visits.filter(function(x) { return x.teacherId === session.teacherId; });
-      plans = plans.filter(function(x) { return x.teacherId === session.teacherId; });
-    }
+    var teachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
+    var visits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
+    var plans = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
     var indicators = rowsAsObjects_(ss.getSheetByName('IndicatorLibrary'));
     var settings = rowsAsObjects_(ss.getSheetByName('Settings'));
     var visitIndicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators'));
     var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains'));
+    var followUps = rowsAsObjects_(ss.getSheetByName('PlanFollowUps'));
     visits = visits.map(function(v) {
-      v.indicators = visitIndicators.filter(function(x) { return x.visitId === v.id; }).map(function(x) {
+      v.indicators = visitIndicators.filter(function(x) { return String(x.visitId) === String(v.id); }).map(function(x) {
         return { indicatorId: x.indicatorId, indicatorText: x.indicatorText, indicatorGroup: x.group, rating: x.rating, notes: x.notes };
       });
-      v.domains = domains.filter(function(x) { return x.visitId === v.id; }).map(function(x) {
+      v.domains = domains.filter(function(x) { return String(x.visitId) === String(v.id); }).map(function(x) {
         return { domainId: x.domainId, domainName: x.domainName, rating: x.rating };
       });
       try { v.strengths = JSON.parse(v.strengths || '[]'); } catch (e) { v.strengths = []; }
       try { v.improvementAreas = JSON.parse(v.improvementAreas || '[]'); } catch (e) { v.improvementAreas = []; }
       return v;
     });
+    plans = plans.map(function(p) {
+      p.relatedIndicatorText = p.relatedIndicator || '';
+      p.developmentalGoal = p.goal || '';
+      p.actionProcedure = p.procedure || '';
+      p.responsiblePerson = p.responsible || '';
+      var latest = followUps.filter(function(x) { return String(x.planId) === String(p.id); }).sort(function(a,b) { return String(b.recordedAt).localeCompare(String(a.recordedAt)); })[0];
+      if (latest) {
+        p.followUpResult = latest.result || '';
+        p.followUpNotes = latest.notes || '';
+        p.status = latest.newStatus || p.status;
+      }
+      return p;
+    });
+    if (session.role === 'teacher') {
+      teachers = teachers.filter(function(x) { return String(x.id) === String(session.teacherId); });
+      visits = visits.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
+      plans = plans.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
+    }
     return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators, settings: settings };
   }
 
   if (action === 'saveTeacher') {
-    if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal'])) return { success: false, error: 'ليست لديك صلاحية إدارة المعلمين.' };
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة المعلمين.' };
     payload.schoolId = schoolId;
     return saveTeacher(payload);
   }
+  if (action === 'toggleTeacherStatus') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية تغيير حالة المعلم.' };
+    var teacherSheet = ss.getSheetByName('Teachers');
+    var teacherRows = rowsAsObjects_(teacherSheet);
+    var teacher = teacherRows.filter(function(t) { return String(t.id) === String(payload.id) && String(t.schoolId) === String(schoolId); })[0];
+    if (!teacher) return { success: false, error: 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
+    teacher.status = payload.status === 'active' ? 'active' : 'inactive';
+    var saveTeacherResult = saveTeacher(teacher);
+    return saveTeacherResult.success ? { success: true, id: teacher.id, status: teacher.status } : saveTeacherResult;
+  }
   if (action === 'saveVisit') {
-    if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية تسجيل الزيارة.' };
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تسجيل الزيارة.' };
+    var teacherForVisit = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+      return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
+    })[0];
+    if (!teacherForVisit) return { success: false, error: 'المعلم المحدد غير موجود ضمن المدرسة.' };
     payload.schoolId = schoolId;
-    if (session.role === 'teacher') return { success: false, error: 'لا يحق للمعلم إنشاء زيارة.' };
+    payload.evaluatorId = session.id;
+    payload.evaluatorName = session.name;
+    payload.teacherName = teacherForVisit.fullName;
+    payload.teacherJobNumber = teacherForVisit.jobNumber;
+    payload.teacherSpecialization = teacherForVisit.specialization;
     return saveClassroomVisit(payload);
   }
   if (action === 'savePlan') {
-    if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
+    var planTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+      return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
+    })[0];
+    if (!planTeacher) return { success: false, error: 'المعلم المحدد غير موجود ضمن المدرسة.' };
     var planRow = {
-      id: payload.id,
-      teacherId: payload.teacherId,
-      teacherName: payload.teacherName,
-      teacherJobNumber: payload.teacherJobNumber,
+      id: payload.id || Utilities.getUuid(),
+      schoolId: schoolId,
+      teacherId: planTeacher.id,
+      teacherName: planTeacher.fullName,
+      teacherJobNumber: planTeacher.jobNumber,
       improvementArea: payload.improvementArea,
       relatedIndicator: payload.relatedIndicatorText || payload.relatedIndicator,
       goal: payload.developmentalGoal || payload.goal,
@@ -734,21 +762,42 @@ function dispatchApiAction_(action, payload, session) {
       responsible: payload.responsiblePerson || payload.responsible,
       duration: payload.duration,
       followUpDate: payload.followUpDate,
-      status: payload.status,
+      status: payload.status || 'in_progress',
       createdAt: payload.createdAt || new Date().toISOString()
     };
     return upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
   }
+  if (action === 'savePlanFollowUp') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية متابعة خطط التطوير.' };
+    var planSheet = ss.getSheetByName('ImprovementPlans');
+    var planData = planSheet.getDataRange().getValues();
+    var planHeaders = planData[0].map(String);
+    var planIndex = -1;
+    for (var pi = 1; pi < planData.length; pi++) {
+      if (String(planData[pi][0]) === String(payload.planId) && String(planData[pi][1]) === String(schoolId)) { planIndex = pi + 1; break; }
+    }
+    if (planIndex < 0) return { success: false, error: 'خطة التطوير غير موجودة في المدرسة.' };
+    var followSheet = ss.getSheetByName('PlanFollowUps');
+    if (!followSheet) return { success: false, error: 'ورقة متابعة الخطط غير موجودة.' };
+    var followId = Utilities.getUuid();
+    followSheet.appendRow([followId, payload.planId, payload.followUpDate || new Date().toISOString(), session.name, payload.followUpResult || '', payload.followUpNotes || '', payload.status || 'in_progress', new Date().toISOString()]);
+    var statusCol = planHeaders.indexOf('status');
+    var dateCol = planHeaders.indexOf('followUpDate');
+    if (statusCol >= 0) planSheet.getRange(planIndex, statusCol + 1).setValue(payload.status || 'in_progress');
+    if (dateCol >= 0) planSheet.getRange(planIndex, dateCol + 1).setValue(payload.followUpDate || new Date().toISOString());
+    logAuditAction(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId);
+    return { success: true, id: followId };
+  }
   if (action === 'saveSettings') {
-    if (!requireRole_(session, ['platform_admin', 'school_admin'])) return { success: false, error: 'تعديل الإعدادات مقتصر على إدارة المنصة والمدرسة.' };
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'تعديل الإعدادات مقتصر على إدارة المنصة والمدرسة.' };
     return saveSettingsRows_(payload, session.name);
   }
   if (action === 'deleteTeacher') {
-    if (!requireRole_(session, ['platform_admin', 'school_admin'])) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
     return deleteById_('Teachers', payload.id, schoolId);
   }
   if (action === 'deleteVisit') {
-    if (!requireRole_(session, ['platform_admin', 'school_admin'])) return { success: false, error: 'ليست لديك صلاحية حذف الزيارات.' };
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف الزيارات.' };
     return deleteVisitRows_(payload.id, schoolId);
   }
   return { success: false, error: 'عملية API غير مدعومة: ' + action };
