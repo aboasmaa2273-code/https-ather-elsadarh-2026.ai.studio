@@ -47,6 +47,7 @@ interface VisitReportModalProps {
   onSendApprovedReport?: (visitId: string, message: string) => Promise<void>;
   canSendTeacherNotes?: boolean;
   onSendTeacherNotes?: (visitId: string, notes: string) => Promise<void>;
+  onLogWhatsAppOpen?: (visitId: string, messageType: string) => Promise<void>;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -64,7 +65,8 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   teacherPhone = '',
   onSendApprovedReport,
   canSendTeacherNotes = false,
-  onSendTeacherNotes
+  onSendTeacherNotes,
+  onLogWhatsAppOpen
 }) => {
   if (!visit) return null;
 
@@ -89,8 +91,12 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
       alert(isEn ? 'No valid WhatsApp number is registered for this teacher.' : 'لا يوجد رقم هاتف صحيح مسجل لهذا المعلم. أضف رقم الهاتف في ملف المعلم أولاً.');
       return;
     }
-    if (!confirm(isEn ? 'Open WhatsApp with this message ready to send?' : 'سيتم فتح واتساب مع تجهيز الرسالة. هل تريد المتابعة؟')) return;
-    window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(message), '_blank', 'noopener,noreferrer');
+    const preview = (isEn ? 'Review the message below. WhatsApp will open; you must press Send there.\n\n' : 'معاينة الرسالة قبل فتح واتساب. ستحتاج إلى الضغط على إرسال داخل واتساب بنفسك.\n\n') + message;
+    if (!confirm(preview)) return;
+    const opened = window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(message), '_blank', 'noopener,noreferrer');
+    if (opened && onLogWhatsAppOpen) {
+      void onLogWhatsAppOpen(visit.id, message.indexOf('تقرير الزيارة الصفية') >= 0 ? 'تقرير كامل' : 'ملاحظات مختارة').catch((error) => console.error('WhatsApp open logging failed:', error));
+    }
   };
 
   const buildVisitWhatsAppMessage = () => {
