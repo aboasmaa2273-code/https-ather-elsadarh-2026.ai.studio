@@ -958,6 +958,43 @@ function dispatchApiAction_(action, payload, session) {
     if (savedPlan.success) logAuditAction(schoolId, session.name, 'حفظ خطة تطوير', 'تم حفظ خطة تطوير للمعلم: ' + planTeacher.fullName, session.role);
     return savedPlan;
   }
+  if (action === 'deletePlans') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'حذف خطط التطوير مقتصر على الإدارة والمقيمين المخولين.' };
+    var plansSheet = ss.getSheetByName('ImprovementPlans');
+    if (!plansSheet || plansSheet.getLastRow() < 2) return { success: true, deletedCount: 0 };
+    var planValues = plansSheet.getDataRange().getValues();
+    var planHeaders = planValues[0].map(String);
+    var planIdCol = planHeaders.indexOf('id');
+    var planSchoolCol = planHeaders.indexOf('schoolId');
+    if (planIdCol < 0 || planSchoolCol < 0) return { success: false, error: 'تعذر تحديد أعمدة خطط التطوير.' };
+    var requestedPlanIds = Array.isArray(payload.ids) ? payload.ids.map(String) : [];
+    var deleteAllPlans = requestedPlanIds.length === 0;
+    var planIdsToDelete = [];
+    var planRowsToDelete = [];
+    for (var planRow = 1; planRow < planValues.length; planRow++) {
+      var belongsToCurrentSchool = String(planValues[planRow][planSchoolCol]) === String(schoolId);
+      var isRequestedPlan = deleteAllPlans || requestedPlanIds.indexOf(String(planValues[planRow][planIdCol])) >= 0;
+      if (belongsToCurrentSchool && isRequestedPlan) {
+        planIdsToDelete.push(String(planValues[planRow][planIdCol]));
+        planRowsToDelete.push(planRow + 1);
+      }
+    }
+    if (!deleteAllPlans && planIdsToDelete.length !== requestedPlanIds.length) {
+      return { success: false, error: 'بعض الخطط المحددة غير موجودة أو لا تتبع المدرسة الحالية. لم يُحذف أي سجل.' };
+    }
+    var followSheet = ss.getSheetByName('PlanFollowUps');
+    if (followSheet && followSheet.getLastRow() > 1 && planIdsToDelete.length) {
+      var followValues = followSheet.getDataRange().getValues();
+      var followRowsToDelete = [];
+      for (var followRow = 1; followRow < followValues.length; followRow++) {
+        if (planIdsToDelete.indexOf(String(followValues[followRow][1])) >= 0) followRowsToDelete.push(followRow + 1);
+      }
+      for (var followDeleteIndex = followRowsToDelete.length - 1; followDeleteIndex >= 0; followDeleteIndex--) followSheet.deleteRow(followRowsToDelete[followDeleteIndex]);
+    }
+    for (var planDeleteIndex = planRowsToDelete.length - 1; planDeleteIndex >= 0; planDeleteIndex--) plansSheet.deleteRow(planRowsToDelete[planDeleteIndex]);
+    if (planRowsToDelete.length) logAuditAction(schoolId, session.name, 'حذف خطط تطوير', 'تم حذف ' + planRowsToDelete.length + ' خطة تطوير.', session.role);
+    return { success: true, deletedCount: planRowsToDelete.length };
+  }
   if (action === 'savePlanFollowUp') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية متابعة خطط التطوير.' };
     var planSheet = ss.getSheetByName('ImprovementPlans');
