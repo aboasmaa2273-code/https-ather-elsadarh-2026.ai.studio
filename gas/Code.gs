@@ -1003,6 +1003,26 @@ function dispatchApiAction_(action, payload, session) {
     if (deletedVisitor.success) logAuditAction(schoolId, session.name, 'حذف زائر', 'تم حذف سجل الزائر ' + payload.id, session.role);
     return deletedVisitor;
   }
+  if (action === 'deleteAuditLogs') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف سجل العمليات مقتصر على مسؤول المنصة أو إدارة المدرسة.' };
+    var auditSheet = ss.getSheetByName('AuditLog');
+    if (!auditSheet || auditSheet.getLastRow() < 2) return { success: true, deletedCount: 0 };
+    var auditValues = auditSheet.getDataRange().getValues();
+    var auditHeaders = auditValues[0].map(String);
+    var auditSchoolCol = auditHeaders.indexOf('schoolId');
+    var auditIdCol = auditHeaders.indexOf('id');
+    if (auditSchoolCol < 0 || auditIdCol < 0) return { success: false, error: 'تعذر تحديد أعمدة سجل العمليات.' };
+    var requestedAuditIds = Array.isArray(payload.ids) ? payload.ids.map(String) : [];
+    var deleteAllAuditLogs = requestedAuditIds.length === 0;
+    var auditRowsToDelete = [];
+    for (var auditRow = 1; auditRow < auditValues.length; auditRow++) {
+      var belongsToSchool = String(auditValues[auditRow][auditSchoolCol]) === String(schoolId);
+      var isRequested = deleteAllAuditLogs || requestedAuditIds.indexOf(String(auditValues[auditRow][auditIdCol])) >= 0;
+      if (belongsToSchool && isRequested) auditRowsToDelete.push(auditRow + 1);
+    }
+    for (var deleteIndex = auditRowsToDelete.length - 1; deleteIndex >= 0; deleteIndex--) auditSheet.deleteRow(auditRowsToDelete[deleteIndex]);
+    return { success: true, deletedCount: auditRowsToDelete.length };
+  }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
     var deletedTeacher = deleteById_('Teachers', payload.id, schoolId);
