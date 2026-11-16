@@ -38,15 +38,12 @@ function include(filename) {
 function getDatabaseSpreadsheet_() {
   var properties = PropertiesService.getScriptProperties();
   var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
-  if (spreadsheetId) {
-    return SpreadsheetApp.openById(spreadsheetId);
+  if (!spreadsheetId) {
+    // Use the existing school database rather than silently creating a second database.
+    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMriL9b8AwcYLM';
+    properties.setProperty('ATHAR_DATABASE_SPREADSHEET_ID', spreadsheetId);
   }
-  var active = SpreadsheetApp.getActiveSpreadsheet();
-  if (active) {
-    properties.setProperty('ATHAR_DATABASE_SPREADSHEET_ID', active.getId());
-    return active;
-  }
-  return null;
+  return SpreadsheetApp.openById(spreadsheetId);
 }
 
 // ====================================================
@@ -104,12 +101,16 @@ function initializeDatabase() {
       }
     }
     
+    // Import existing central users once, without deleting or modifying the source sheet.
+    var userMigration = migrateCentralUsersToUsers_(ss);
+
     // إدخال البيانات الأولية إذا كانت ورقة المؤشرات فارغة
     seedInitialDataIfEmpty(ss);
     
     return {
       success: true,
       message: "تمت تهيئة قاعدة البيانات بنجاح (18 ورقة عمل).",
+      userMigration: userMigration,
       spreadsheetUrl: ss.getUrl(),
       details: results
     };
@@ -121,6 +122,66 @@ function initializeDatabase() {
 }
 
 // ==========================================
+/**
+ * Copies existing CentralUsers accounts into the normalized Users table.
+ * Source rows are preserved. Unknown roles are skipped and reported.
+ * Password hashes are copied only when both hash and salt exist.
+ */
+function migrateCentralUsersToUsers_(ss) {
+  var source = ss.getSheetByName('CentralUsers');
+  var target = ss.getSheetByName('Users');
+  if (!source || !target || source.getLastRow() < 2) return { imported: 0, skipped: 0, reason: 'لا توجد حسابات مصدر للترحيل.' };
+  var src = source.getDataRange().getValues();
+  var sh = src[0].map(function(x) { return String(x).trim(); });
+  var dst = target.getDataRange().getValues();
+  var dh = dst[0].map(function(x) { return String(x).trim(); });
+  function ix(headers, name) { return headers.indexOf(name); }
+  var required = ['userId', 'username', 'name', 'role', 'schoolId'];
+  if (required.some(function(k) { return ix(sh, k) < 0; })) {
+    return { imported: 0, skipped: src.length - 1, reason: 'أعمدة CentralUsers لا تطابق مخطط الترحيل المتوقع.' };
+  }
+  var known = {
+    platform_admin: 'platform_admin', admin: 'platform_admin',
+    school_admin: 'school_admin', principal: 'school_admin',
+    vice_principal: 'vice_principal', assistant_principal: 'vice_principal',
+    evaluator: 'evaluator', observer: 'evaluator', teacher: 'teacher'
+  };
+  var existing = {};
+  dst.slice(1).forEach(function(row) {
+    var u = String(row[ix(dh, 'username')] || '').trim().toLowerCase();
+    if (u) existing[u] = true;
+  });
+  var imported = 0, skipped = 0, rows = [];
+  for (var i = 1; i < src.length; i++) {
+    var row = src[i];
+    var username = String(row[ix(sh, 'username')] || '').trim();
+    if (!username || existing[username.toLowerCase()]) { skipped++; continue; }
+    var rawRole = String(row[ix(sh, 'role')] || '').trim().toLowerCase();
+    var role = known[rawRole];
+    if (!role) { skipped++; continue; }
+    var obj = {
+      id: String(row[ix(sh, 'userId')] || Utilities.getUuid()),
+      schoolId: String(row[ix(sh, 'schoolId')] || 'sch_alsadara_01'),
+      name: String(row[ix(sh, 'name')] || ''),
+      email: '',
+      role: role,
+      jobNumber: ix(sh, 'jobNumber') >= 0 ? String(row[ix(sh, 'jobNumber')] || '') : '',
+      specialization: '',
+      status: 'active',
+      createdAt: new Date().toISOString(),
+      username: username,
+      teacherId: '',
+      passwordSalt: ix(sh, 'salt') >= 0 ? String(row[ix(sh, 'salt')] || '') : '',
+      passwordHash: ix(sh, 'passwordHash') >= 0 ? String(row[ix(sh, 'passwordHash')] || '') : ''
+    };
+    rows.push(dh.map(function(h) { return Object.prototype.hasOwnProperty.call(obj, h) ? obj[h] : ''; }));
+    existing[username.toLowerCase()] = true;
+    imported++;
+  }
+  if (rows.length) target.getRange(target.getLastRow() + 1, 1, rows.length, dh.length).setValues(rows);
+  return { imported: imported, skipped: skipped, source: 'CentralUsers' };
+}
+
 // 3. بذر البيانات الأولية (Seeding)
 // ==========================================
 
