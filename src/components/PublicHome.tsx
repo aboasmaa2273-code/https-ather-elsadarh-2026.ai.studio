@@ -40,10 +40,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   const t = translations[language];
   const isEn = language === 'en';
 
-  // Evaluators list from storage
-  const [evaluators, setEvaluators] = useState<User[]>(() => {
-    return AtharStorageService.getAllUsers();
-  });
+  // Public visitors do not receive the internal staff/account directory.
+  const evaluators: User[] = [];
 
 
   const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
@@ -243,6 +241,16 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
         {/* Evaluators Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
+          {evaluators.length === 0 && (
+            <div className="col-span-full rounded-2xl border border-slate-200 bg-white p-6 text-center space-y-3">
+              <p className="text-sm font-bold text-[#172C40]">
+                {isEn ? 'Authorized staff sign in with their assigned account.' : 'يسجل المقيمون والموظفون المعتمدون الدخول باستخدام الحسابات التي تخصصها إدارة المنصة.'}
+              </p>
+              <button type="button" onClick={onLoginClick} className="px-5 py-2.5 bg-[#172C40] text-white rounded-lg text-xs font-bold">
+                {isEn ? 'Authorized Sign In' : 'دخول الحسابات المعتمدة'}
+              </button>
+            </div>
+          )}
           {evaluators.map((user) => {
             const isAisha = user.id === 'user_cluster_director_aisha' || user.name.includes('عائشة الغفلي');
             const isHeadArabic = user.id === 'user_head_arabic' || user.name.includes('المواد العربية');
