@@ -183,9 +183,9 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
         </div>
 
         <div className="flex flex-wrap items-center gap-2">
-          {!isTeacher && visiblePlans.length > 0 && (
+          {!isTeacher && plans.length > 0 && (
             <>
-              <button onClick={toggleSelectAllVisible} className="px-3 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50">
+              <button onClick={toggleSelectAllVisible} disabled={visiblePlans.length === 0} className="px-3 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50">
                 {visiblePlans.every((plan) => selectedPlanIds.includes(plan.id))
                   ? (isEn ? 'Deselect visible' : 'إلغاء تحديد الظاهر')
                   : (isEn ? 'Select all visible' : 'تحديد كل الظاهر')}
