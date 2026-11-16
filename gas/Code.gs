@@ -1649,10 +1649,10 @@ function sendTeacherVisitNotes_(payload, session, schoolId) {
   })[0];
   if (!teacher) return { success: false, error: 'تعذر العثور على بيانات المعلم المرتبط بالزيارة.' };
   var recipient = String(teacher.email || '').trim();
-  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) return { success: false, error: 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم.' };
+  if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return { success: false, error: 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم.' };
   if (MailApp.getRemainingDailyQuota() < 1) return { success: false, error: 'تم بلوغ الحد اليومي المتاح لإرسال البريد. حاول لاحقًا.' };
   var subject = 'ملاحظات الزيارة الصفية – ' + String(teacher.fullName || visit.teacherName || '');
-  var safeNotes = escapeMailHtml_(notes).replace(/\\n/g, '<br>');
+  var safeNotes = escapeMailHtml_(notes).replace(/\n/g, '<br>');
   var html = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"></head><body style="font-family:Arial,sans-serif;color:#172c40;line-height:1.8;direction:rtl">' +
     '<h2>منظومة أَثَر – ملاحظات الزيارة الصفية</h2>' +
     '<p><b>المعلم:</b> ' + escapeMailHtml_(teacher.fullName) + '</p>' +
@@ -1660,9 +1660,9 @@ function sendTeacherVisitNotes_(payload, session, schoolId) {
     '<p><b>تاريخ الزيارة:</b> ' + escapeMailHtml_(visit.date) + '</p>' +
     '<p><b>المقيم:</b> ' + escapeMailHtml_(session.name) + '</p><hr><h3>الملاحظات المرسلة</h3><p>' + safeNotes + '</p>' +
     '<hr><p>أُرسلت هذه الرسالة من منظومة أَثَر.</p></body></html>';
-  var body = 'الأستاذ/ ' + String(teacher.fullName || visit.teacherName) + ' المحترم،\\n\\n' +
-    'ملاحظات الزيارة الصفية بتاريخ ' + String(visit.date || '') + ':\\n\\n' + notes +
-    '\\n\\nمع خالص التقدير،\\n' + String(session.name) + '\\nمنظومة أَثَر';
+  var body = 'الأستاذ/ ' + String(teacher.fullName || visit.teacherName) + ' المحترم،\n\n' +
+    'ملاحظات الزيارة الصفية بتاريخ ' + String(visit.date || '') + ':\n\n' + notes +
+    '\n\nمع خالص التقدير،\n' + String(session.name) + '\nمنظومة أَثَر';
   MailApp.sendEmail({ to: recipient, subject: subject, body: body, htmlBody: html, name: 'منظومة أَثَر' });
   var logSheet = ensureCommunicationLogSheet_();
   var sentAt = new Date().toISOString();
