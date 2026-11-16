@@ -84,6 +84,17 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [teacherJobNumber, setTeacherJobNumber] = useState(editingVisit?.teacherJobNumber || (teachers[0]?.jobNumber || ''));
   const [teacherSpecialization, setTeacherSpecialization] = useState(editingVisit?.teacherSpecialization || (teachers[0]?.specialization || ''));
 
+  // If the visit form opens before the central teacher list finishes loading,
+  // select the first available teacher once the list arrives.
+  useEffect(() => {
+    if (selectedTeacherId || !teachers.length) return;
+    const firstTeacher = teachers[0];
+    setSelectedTeacherId(firstTeacher.id);
+    setTeacherName(firstTeacher.fullName);
+    setTeacherJobNumber(firstTeacher.jobNumber);
+    setTeacherSpecialization(firstTeacher.specialization);
+  }, [teachers, selectedTeacherId]);
+
   // Classroom & Session Details
   const [grade, setGrade] = useState(editingVisit?.grade || academicSettings.grades[0] || (isEn ? 'Grade 7' : 'الصف السابع'));
   const [section, setSection] = useState(editingVisit?.section || (isEn ? 'Section 1' : 'الشعبة 1'));
