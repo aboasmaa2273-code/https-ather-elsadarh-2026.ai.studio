@@ -766,6 +766,72 @@ function dispatchApiAction_(action, payload, session) {
       internalNotes: internalNotes, internalNoteHistory: internalNoteHistory, administrativeFollowUps: administrativeFollowUps, visitHistory: visitHistory };
   }
 
+  if (action === 'importTeachers') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية استيراد المعلمين.' };
+    var importLock = LockService.getScriptLock();
+    if (!importLock.tryLock(20000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. أعد المحاولة بعد قليل.' };
+    try {
+      var importSheet = ss.getSheetByName('Teachers');
+      if (!importSheet || importSheet.getLastColumn() < 1) return { success: false, error: 'ورقة المعلمين غير موجودة أو لا تحتوي على عناوين.' };
+      var importHeaders = importSheet.getRange(1, 1, 1, importSheet.getLastColumn()).getValues()[0].map(function(h) { return String(h).trim(); });
+      var requiredHeaders = ['id', 'schoolId', 'fullName', 'jobNumber', 'specialization', 'status', 'email', 'phone', 'dateAdded'];
+      if (requiredHeaders.some(function(h) { return importHeaders.indexOf(h) < 0; })) return { success: false, error: 'بنية ورقة المعلمين لا تطابق الأعمدة المطلوبة؛ لم يتم تغيير أي بيانات.' };
+      var importSchoolId = String(schoolId || 'sch_alsadara_01');
+      var currentRows = importSheet.getLastRow() > 1 ? importSheet.getRange(2, 1, importSheet.getLastRow() - 1, importSheet.getLastColumn()).getValues() : [];
+      var jobCol = importHeaders.indexOf('jobNumber'), schoolCol = importHeaders.indexOf('schoolId');
+      var existingNumbers = {};
+      currentRows.forEach(function(row) {
+        if (String(row[schoolCol]) === importSchoolId) {
+          var number = String(row[jobCol] || '').trim();
+          if (number) existingNumbers[number] = true;
+        }
+      });
+      var batchNumbers = {};
+      var incoming = Array.isArray(payload.teachers) ? payload.teachers : [];
+      var acceptedRows = [], rejected = [];
+      incoming.forEach(function(item, index) {
+        var fullName = String(item.fullName || '').trim();
+        var jobNumber = String(item.jobNumber || '').trim();
+        var specialization = String(item.specialization || '').trim();
+        var reasons = [];
+        if (!fullName) reasons.push('الاسم الكامل مفقود');
+        if (!jobNumber) reasons.push('الرقم الوظيفي مفقود');
+        if (!specialization) reasons.push('التخصص مفقود');
+        if (jobNumber && existingNumbers[jobNumber]) reasons.push('الرقم الوظيفي مسجل مسبقاً في قاعدة البيانات');
+        if (jobNumber && batchNumbers[jobNumber]) reasons.push('الرقم الوظيفي مكرر داخل ملف الاستيراد');
+        if (jobNumber) batchNumbers[jobNumber] = true;
+        if (reasons.length) {
+          rejected.push({ lineNum: Number(item.lineNum || index + 2), jobNumber: jobNumber, reasons: reasons });
+          return;
+        }
+        var teacher = {
+          id: 'tch_' + Utilities.getUuid().substring(0, 12),
+          schoolId: importSchoolId,
+          fullName: fullName,
+          jobNumber: jobNumber,
+          specialization: specialization,
+          status: 'active',
+          email: String(item.email || '').trim(),
+          phone: String(item.phone || '').trim(),
+          dateAdded: new Date().toISOString().split('T')[0]
+        };
+        acceptedRows.push(importHeaders.map(function(header) {
+          return teacher[header] === undefined ? '' : teacher[header];
+        }));
+        existingNumbers[jobNumber] = true;
+      });
+      if (acceptedRows.length) {
+        importSheet.getRange(importSheet.getLastRow() + 1, 1, acceptedRows.length, importHeaders.length).setValues(acceptedRows);
+        logAuditAction(importSchoolId, session.name, 'استيراد جماعي للمعلمين', 'تم استيراد ' + acceptedRows.length + ' معلم، واستبعاد ' + rejected.length + ' سجل.', session.role);
+      }
+      return { success: true, importedCount: acceptedRows.length, rejectedCount: rejected.length, errors: rejected,
+        message: 'اكتملت مراجعة الاستيراد والحفظ المركزي.' };
+    } catch (importError) {
+      return { success: false, error: 'تعذر استيراد المعلمين: ' + importError.message };
+    } finally {
+      importLock.releaseLock();
+    }
+  }
   if (action === 'saveTeacher') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة المعلمين.' };
     payload.schoolId = schoolId;
