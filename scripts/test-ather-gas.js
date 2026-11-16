@@ -136,11 +136,14 @@ function makeMutableSheet(headers, records) {
   return {
     records,
     getLastRow: () => records.length + 1,
+    getLastColumn: () => headers.length,
     getDataRange: () => ({ getValues: values }),
     appendRow: (row) => records.push(Object.fromEntries(headers.map((header, index) => [header, row[index]]))),
     deleteRow: (rowNumber) => records.splice(rowNumber - 2, 1),
-    getRange: (rowNumber, columnNumber) => ({
+    getRange: (rowNumber, columnNumber, numRows, numColumns) => ({
+      getValues: () => rowNumber === 1 ? [headers.slice(columnNumber - 1, columnNumber - 1 + (numColumns || 1))] : [],
       setValue: (value) => {
+        if (rowNumber === 1 && columnNumber > headers.length) { headers.push(String(value)); return; }
         const record = records[rowNumber - 2];
         if (record) record[headers[columnNumber - 1]] = value;
       }
@@ -218,6 +221,18 @@ const adminDeleteAll = sandbox.dispatchApiAction_('deletePlans', {
 assert.equal(adminDeleteAll.success, true);
 assert.equal(planRecords.length, 0);
 
+// Existing school sheets may predate ownership fields. Verify a safe additive migration.
+const legacyPlanHeaders = ['id', 'schoolId', 'teacherId', 'goal', 'status'];
+const legacyPlanSheet = makeMutableSheet(legacyPlanHeaders, [
+  { id: 'legacy-existing', schoolId, teacherId: 'teacher-1', goal: 'سجل محفوظ', status: 'in_progress' }
+]);
+const migrationResult = sandbox.ensureImprovementPlanOwnershipColumns_(legacyPlanSheet);
+assert.equal(migrationResult.success, true);
+assert.deepEqual(Array.from(migrationResult.added), ['evaluatorId', 'evaluatorName']);
+assert.deepEqual(Array.from(legacyPlanSheet.records, (item) => item.goal), ['سجل محفوظ']);
+assert.equal(legacyPlanHeaders.includes('evaluatorId'), true);
+assert.equal(legacyPlanHeaders.includes('evaluatorName'), true);
+
 console.log('PASS: evaluators can edit only plans they own; legacy plans remain management-editable');
 console.log('PASS: evaluator plan creation records the authenticated owner, not a client-supplied owner');
 console.log('PASS: evaluators can follow up only their own plans');
@@ -280,3 +295,17 @@ console.log('PASS: login fails closed for inactive, pending, suspended, and unkn
 
 
 
+
+let unauthorizedMigrationAttempted = false;
+const originalOwnershipMigration = sandbox.ensureImprovementPlanOwnershipColumns_;
+sandbox.ensureImprovementPlanOwnershipColumns_ = (sheet) => {
+  unauthorizedMigrationAttempted = true;
+  return originalOwnershipMigration(sheet);
+};
+const unauthorizedPlanSave = sandbox.dispatchApiAction_('savePlan', {
+  teacherId: 'teacher-1', goal: 'محاولة غير مصرح بها'
+}, { id: 'teacher-user', schoolId, role: 'teacher', name: 'معلم اختبار' });
+assert.equal(unauthorizedPlanSave.success, false);
+assert.equal(unauthorizedMigrationAttempted, false);
+sandbox.ensureImprovementPlanOwnershipColumns_ = originalOwnershipMigration;
+console.log('PASS: unauthorized roles are rejected before any improvement-plan schema migration');

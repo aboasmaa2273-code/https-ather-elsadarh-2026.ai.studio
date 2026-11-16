@@ -110,7 +110,7 @@ function initializeDatabase_() {
       'Sections': ['id', 'schoolId', 'name', 'isActive'],
       'AcademicYears': ['id', 'schoolId', 'yearLabel', 'isCurrent'],
       'Terms': ['id', 'schoolId', 'termName', 'isCurrent'],
-      'ImprovementPlans': ['id', 'schoolId', 'teacherId', 'teacherName', 'teacherJobNumber', 'improvementArea', 'relatedIndicator', 'goal', 'procedure', 'responsible', 'duration', 'followUpDate', 'status', 'createdAt'],
+      'ImprovementPlans': ['id', 'schoolId', 'teacherId', 'teacherName', 'teacherJobNumber', 'improvementArea', 'relatedIndicator', 'goal', 'procedure', 'responsible', 'duration', 'followUpDate', 'status', 'createdAt', 'evaluatorId', 'evaluatorName'],
       'PlanFollowUps': ['id', 'planId', 'followUpDate', 'evaluatorName', 'result', 'notes', 'newStatus', 'recordedAt'],
       'Settings': ['key', 'value', 'updatedAt', 'updatedBy'],
       'AuditLog': ['id', 'schoolId', 'timestamp', 'userName', 'userRole', 'action', 'details'],
@@ -169,6 +169,27 @@ function initializeDatabase_() {
  * Source rows are preserved. Unknown roles are skipped and reported.
  * Password hashes are copied only when both hash and salt exist.
  */
+/**
+ * Adds evaluator ownership columns to an existing ImprovementPlans sheet.
+ * This is an additive, non-destructive migration: existing rows and values are preserved.
+ */
+function ensureImprovementPlanOwnershipColumns_(sheet) {
+  if (!sheet) return { success: false, error: 'ورقة خطط التطوير غير موجودة.' };
+  var lastColumn = sheet.getLastColumn();
+  if (lastColumn < 1) return { success: false, error: 'مخطط ورقة خطط التطوير غير صالح.' };
+  var headers = sheet.getRange(1, 1, 1, lastColumn).getValues()[0].map(function(value) { return String(value).trim(); });
+  var required = ['evaluatorId', 'evaluatorName'];
+  var added = [];
+  required.forEach(function(name) {
+    if (headers.indexOf(name) >= 0) return;
+    var nextColumn = sheet.getLastColumn() + 1;
+    sheet.getRange(1, nextColumn).setValue(name);
+    headers.push(name);
+    added.push(name);
+  });
+  return { success: true, added: added };
+}
+
 function migrateCentralUsersToUsers_(ss) {
   var source = ss.getSheetByName('CentralUsers');
   var target = ss.getSheetByName('Users');
@@ -1064,6 +1085,8 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'savePlan') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
+    var ownershipMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
+    if (!ownershipMigration.success) return ownershipMigration;
     var planTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
       return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
     })[0];
@@ -1100,6 +1123,8 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'deletePlans') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'حذف خطط التطوير مقتصر على الإدارة والمقيمين المخولين.' };
+    var deletePlanMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
+    if (!deletePlanMigration.success) return deletePlanMigration;
     var plansSheet = ss.getSheetByName('ImprovementPlans');
     if (!plansSheet || plansSheet.getLastRow() < 2) return { success: true, deletedCount: 0 };
     var planValues = plansSheet.getDataRange().getValues();
@@ -1142,6 +1167,8 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'savePlanFollowUp') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية متابعة خطط التطوير.' };
+    var followPlanMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
+    if (!followPlanMigration.success) return followPlanMigration;
     var planSheet = ss.getSheetByName('ImprovementPlans');
     var planData = planSheet.getDataRange().getValues();
     var planHeaders = planData[0].map(String);
