@@ -31,6 +31,11 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
   const [status, setStatus] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [indicatorId, setIndicatorId] = useState('all');
+  const [indicatorRating, setIndicatorRating] = useState('all');
+  const [strengthFilter, setStrengthFilter] = useState('all');
+  const [improvementFilter, setImprovementFilter] = useState('all');
+  const [followUpStatus, setFollowUpStatus] = useState('all');
   const [expandedHistory, setExpandedHistory] = useState<string[]>([]);
 
   const options = (values: string[]) => Array.from(new Set(values.filter(Boolean))).sort((a,b) => a.localeCompare(b, 'ar'));
@@ -39,6 +44,9 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
   const subjects = options(visits.map(v => v.subject || ''));
   const grades = options(visits.map(v => v.grade || ''));
   const sections = options(visits.map(v => v.section || ''));
+  const indicators = Array.from(new Map(visits.flatMap(v => (v.indicators || []).map(i => [String(i.indicatorId), i.indicatorText]))).entries());
+  const strengths = options(visits.flatMap(v => v.strengths || []));
+  const improvementAreas = options(visits.flatMap(v => v.improvementAreas || []));
 
   const filteredVisits = useMemo(() => {
     const q = search.trim().toLocaleLowerCase('ar');
@@ -57,9 +65,13 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
         && (status === 'all' || v.status === status)
         && (!fromDate || v.date >= fromDate)
         && (!toDate || v.date <= toDate)
-;
+        && (indicatorId === 'all' || (v.indicators || []).some(i => String(i.indicatorId) === indicatorId))
+        && (indicatorRating === 'all' || (v.indicators || []).some(i => (indicatorId === 'all' || String(i.indicatorId) === indicatorId) && i.rating === indicatorRating))
+        && (strengthFilter === 'all' || (v.strengths || []).includes(strengthFilter))
+        && (improvementFilter === 'all' || (v.improvementAreas || []).includes(improvementFilter))
+        && (followUpStatus === 'all' || followUps.some(f => f.visitId === v.id && f.status === followUpStatus));
     }).sort((a,b) => String(b.date).localeCompare(String(a.date)));
-  }, [visits, teachers, search, teacherId, evaluator, academicYear, term, visitType, subject, grade, section, status, fromDate, toDate]);
+  }, [visits, teachers, search, teacherId, evaluator, academicYear, term, visitType, subject, grade, section, status, fromDate, toDate, indicatorId, indicatorRating, strengthFilter, improvementFilter, followUpStatus, followUps]);
 
   const matchingTeacherIds = new Set(filteredVisits.map(v => v.teacherId));
   const filteredPlans = plans.filter(p => teacherId !== 'all' ? p.teacherId === teacherId : matchingTeacherIds.has(p.teacherId));
@@ -68,7 +80,7 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
   const reset = () => {
     setSearch(''); setTeacherId('all'); setEvaluator('all'); setAcademicYear('all'); setTerm('all');
     setVisitType('all'); setSubject('all'); setGrade('all'); setSection('all'); setStatus('all');
-    setFromDate(''); setToDate('');
+    setFromDate(''); setToDate(''); setIndicatorId('all'); setIndicatorRating('all'); setStrengthFilter('all'); setImprovementFilter('all'); setFollowUpStatus('all');
   };
   const statusLabel = (value: string) => ({
     draft: 'مسودة', in_progress: 'قيد التنفيذ', completed: 'مكتمل', approved: 'معتمد', archived: 'مؤرشف'
@@ -126,6 +138,11 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
         <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">حالة التقرير</span><select className={fieldClass} value={status} onChange={e=>setStatus(e.target.value)}><option value="all">الكل</option><option value="draft">مسودة</option><option value="in_progress">قيد التنفيذ</option><option value="completed">مكتمل</option><option value="approved">معتمد</option><option value="archived">مؤرشف</option></select></label>
         <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">من تاريخ</span><input type="date" className={fieldClass} value={fromDate} onChange={e=>setFromDate(e.target.value)}/></label>
         <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">إلى تاريخ</span><input type="date" className={fieldClass} value={toDate} onChange={e=>setToDate(e.target.value)}/></label>
+        <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">المؤشر</span><select className={fieldClass} value={indicatorId} onChange={e=>setIndicatorId(e.target.value)}><option value="all">جميع المؤشرات</option>{indicators.map(([id,label])=><option key={id} value={id}>{id} — {label}</option>)}</select></label>
+        <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">نتيجة المؤشر</span><select className={fieldClass} value={indicatorRating} onChange={e=>setIndicatorRating(e.target.value)}><option value="all">جميع النتائج</option><option value="yes">متحقق</option><option value="needs_improvement">يحتاج إلى تحسين</option><option value="no">غير متحقق</option><option value="not_observed">لم يُشاهد</option><option value="outstanding">متميز</option><option value="very_good">جيد جدًا</option><option value="good">جيد</option><option value="acceptable">مقبول</option><option value="weak">ضعيف</option></select></label>
+        {selectFilter('نقطة القوة',strengthFilter,setStrengthFilter,strengths)}
+        {selectFilter('مجال التحسين',improvementFilter,setImprovementFilter,improvementAreas)}
+        <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">حالة المتابعة الإدارية</span><select className={fieldClass} value={followUpStatus} onChange={e=>setFollowUpStatus(e.target.value)}><option value="all">جميع الحالات</option><option value="not_started">لم تبدأ</option><option value="in_progress">قيد التنفيذ</option><option value="completed">مكتملة</option><option value="needs_follow_up">تحتاج متابعة</option></select></label>
       </div>
       <p className="text-xs text-slate-500">تُطبّق جميع الفلاتر معًا على النتائج المعروضة. عدد النتائج: <strong className="text-[#172C40]">{filteredVisits.length}</strong></p>
     </div>
