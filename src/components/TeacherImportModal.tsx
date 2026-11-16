@@ -19,7 +19,7 @@ export const TeacherImportModal: React.FC<TeacherImportModalProps> = ({
   const [selectedFileName, setSelectedFileName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [parsedRows, setParsedRows] = useState<any[]>([]);
-  const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[] } | null>(null);
+  const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[]; importBatchId?: string } | null>(null);
 
   if (!isOpen) return null;
 
@@ -132,14 +132,38 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
     try {
       const result = await atharRemoteAction('importTeachers', {
         teachers: validRows.map(r => ({ lineNum: r.lineNum, fullName: r.fullName, jobNumber: r.jobNumber, specialization: r.specialization, email: r.email, phone: r.phone }))
-      }) as { importedCount?: number; rejectedCount?: number; errors?: Array<{lineNum:number;jobNumber:string;reasons:string[]}> };
+      }) as { importedCount?: number; rejectedCount?: number; importBatchId?: string; errors?: Array<{lineNum:number;jobNumber:string;reasons:string[]}> };
       const serverErrors = (result.errors || []).map(item => 'السطر ' + item.lineNum + ': ' + item.reasons.join('، '));
       const previewErrors = parsedRows.filter(r => !r.isValid).map(r => 'السطر ' + r.lineNum + ': ' + r.reasons.join('، '));
-      setImportResult({ imported: Number(result.importedCount || 0), rejected: Number(result.rejectedCount || 0) + previewErrors.length, errors: [...previewErrors, ...serverErrors] });
+      setImportResult({ imported: Number(result.importedCount || 0), rejected: Number(result.rejectedCount || 0) + previewErrors.length, errors: [...previewErrors, ...serverErrors], importBatchId: result.importBatchId || undefined });
       if (Number(result.importedCount || 0) > 0) onImportComplete();
     } catch (error) {
       setImportResult({ imported: 0, rejected: validRows.length, errors: [error instanceof Error ? error.message : 'تعذر إتمام الاستيراد المركزي.'] });
     } finally { setIsImporting(false); }
+  };
+
+  const handleUndoImportedBatch = async () => {
+    if (!importResult?.importBatchId) return;
+    if (!confirm(isEn
+      ? 'Undo this CSV import? Teachers already linked to classroom visits will be retained to protect historical records.'
+      : 'هل تريد التراجع عن استيراد هذا الملف؟ ستُحفظ سجلات المعلمين المرتبطة بزيارات سابقة حمايةً للتاريخ المسجل.')) return;
+    setIsImporting(true);
+    try {
+      const result = await atharRemoteAction('deleteTeacherImportBatch', { importBatchId: importResult.importBatchId }) as { deletedCount?: number; protectedCount?: number; message?: string };
+      setImportResult({
+        imported: 0,
+        rejected: importResult.rejected,
+        errors: [...importResult.errors, result.message || 'تم التراجع عن دفعة الاستيراد.'],
+        importBatchId: undefined
+      });
+      onImportComplete();
+      alert((isEn ? 'Deleted: ' : 'تم حذف: ') + Number(result.deletedCount || 0) +
+        (isEn ? '; retained because of visit history: ' : '؛ أُبقي عليها لارتباطها بزيارات سابقة: ') + Number(result.protectedCount || 0));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر التراجع عن دفعة الاستيراد.');
+    } finally {
+      setIsImporting(false);
+    }
   };
 
   const clearSelectedFile = () => {
@@ -265,6 +289,12 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
               <p className="font-bold">{isEn ? 'Import Outcome:' : 'نتيجة الاستيراد:'}</p>
               <p className="mt-1">{isEn ? `Saved centrally: ${importResult.imported}. Rejected: ${importResult.rejected}.` : `تم الحفظ في قاعدة البيانات المركزية: ${importResult.imported} معلماً. السجلات المستبعدة: ${importResult.rejected}.`}</p>
               {importResult.errors.length > 0 && <ul className="mt-2 list-disc pr-5 space-y-1 text-red-700">{importResult.errors.slice(0, 12).map((error, index) => <li key={index}>{error}</li>)}</ul>}
+              {importResult.importBatchId && importResult.imported > 0 && (
+                <button type="button" disabled={isImporting} onClick={handleUndoImportedBatch}
+                  className="mt-3 px-3 py-2 rounded-lg border border-rose-300 bg-rose-50 text-rose-700 font-bold hover:bg-rose-100 disabled:opacity-50">
+                  {isImporting ? 'جارٍ التراجع...' : (isEn ? 'Undo this imported file' : 'حذف الملف المستورد والتراجع عن إضافته')}
+                </button>
+              )}
             </div>
           )}
 
