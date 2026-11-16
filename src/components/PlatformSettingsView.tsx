@@ -49,7 +49,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = AtharStorageService.canEditSettings(currentUser) || currentUser?.role !== 'teacher';
+  const canEdit = ['platform_admin', 'school_admin'].includes(currentUser?.role || '');
 
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');
