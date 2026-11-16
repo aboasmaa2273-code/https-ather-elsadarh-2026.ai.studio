@@ -295,3 +295,17 @@ console.log('PASS: login fails closed for inactive, pending, suspended, and unkn
 
 
 
+
+let unauthorizedMigrationAttempted = false;
+const originalOwnershipMigration = sandbox.ensureImprovementPlanOwnershipColumns_;
+sandbox.ensureImprovementPlanOwnershipColumns_ = (sheet) => {
+  unauthorizedMigrationAttempted = true;
+  return originalOwnershipMigration(sheet);
+};
+const unauthorizedPlanSave = sandbox.dispatchApiAction_('savePlan', {
+  teacherId: 'teacher-1', goal: 'محاولة غير مصرح بها'
+}, { id: 'teacher-user', schoolId, role: 'teacher', name: 'معلم اختبار' });
+assert.equal(unauthorizedPlanSave.success, false);
+assert.equal(unauthorizedMigrationAttempted, false);
+sandbox.ensureImprovementPlanOwnershipColumns_ = originalOwnershipMigration;
+console.log('PASS: unauthorized roles are rejected before any improvement-plan schema migration');
