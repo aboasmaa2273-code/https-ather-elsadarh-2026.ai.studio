@@ -50,7 +50,7 @@ function getDatabaseSpreadsheet_() {
 // 2. تهيئة قاعدة البيانات وأوراق العمل (19 ورقة عمل)
 // ====================================================
 
-function initializeDatabase() {
+function initializeDatabase_() {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(30000)) return { success: false, error: 'قاعدة البيانات مشغولة حالياً. حاول مرة أخرى.' }; // 30 seconds wait
   
@@ -107,7 +107,7 @@ function initializeDatabase() {
     }
     
     // Ensure the destination has password columns before importing legacy account hashes.
-    migrateUserPasswordColumns();
+    migrateUserPasswordColumns_();
 
     // Import existing central users once, without deleting or modifying the source sheet.
     var userMigration = migrateCentralUsersToUsers_(ss);
@@ -1486,7 +1486,7 @@ function deleteVisitRows_(visitId, schoolId) {
 
 // تُشغّل مرة واحدة من محرر Apps Script بواسطة مسؤول النظام لتوسيع أعمدة Users.
 // لا تنشئ كلمة مرور افتراضية ولا تمنح صلاحية تلقائية لأي مستخدم.
-function migrateUserPasswordColumns() {
+function migrateUserPasswordColumns_() {
   var ss = getDatabaseSpreadsheet_();
   if (!ss) throw new Error('شغّل initializeDatabase() أولاً.');
   var sheet = ss.getSheetByName('Users');
@@ -1502,7 +1502,7 @@ function migrateUserPasswordColumns() {
 }
 
 // تعيين كلمة مرور لحساب موجود فقط؛ لا تنشئ مستخدمين ولا تغيّر أدوارهم.
-function setUserPassword(identifier, password) {
+function setUserPassword_(identifier, password) {
   if (!identifier || !password || String(password).length < 10) throw new Error('أدخل اسم المستخدم أو البريد وكلمة مرور لا تقل عن 10 أحرف.');
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss && ss.getSheetByName('Users');
@@ -1513,7 +1513,7 @@ function setUserPassword(identifier, password) {
   var usernameCol = headers.indexOf('username');
   var saltCol = headers.indexOf('passwordSalt');
   var hashCol = headers.indexOf('passwordHash');
-  if (emailCol < 0 || usernameCol < 0 || saltCol < 0 || hashCol < 0) throw new Error('نفّذ migrateUserPasswordColumns() أولاً.');
+  if (emailCol < 0 || usernameCol < 0 || saltCol < 0 || hashCol < 0) throw new Error('نفّذ migrateUserPasswordColumns_() من محرر Apps Script أولاً.');
   var normalized = String(identifier).trim().toLowerCase();
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][emailCol] || '').trim().toLowerCase() === normalized || String(data[i][usernameCol] || '').trim().toLowerCase() === normalized) {
