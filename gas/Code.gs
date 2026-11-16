@@ -63,6 +63,7 @@ function initializeDatabase() {
     
     var sheetsSchema = {
       'Users': ['id', 'schoolId', 'name', 'email', 'role', 'jobNumber', 'specialization', 'status', 'createdAt', 'username', 'teacherId'],
+      'RegisteredVisitors': ['id', 'schoolId', 'name', 'role', 'roleTitle', 'department', 'jobNumber', 'email', 'phone', 'username', 'status', 'createdAt'],
       'Schools': ['id', 'name', 'code', 'stage', 'welcomeMessage', 'primaryColor', 'secondaryColor', 'contactEmail', 'contactPhone'],
       'Teachers': ['id', 'schoolId', 'fullName', 'jobNumber', 'specialization', 'status', 'email', 'phone', 'dateAdded'],
       'Visits': ['id', 'schoolId', 'academicYear', 'term', 'visitType', 'teacherId', 'teacherName', 'teacherJobNumber', 'teacherSpecialization', 'grade', 'section', 'subject', 'evaluatorId', 'evaluatorName', 'date', 'time', 'visitGoal', 'status', 'achievementPercentage', 'observedCount', 'totalCount', 'eLearningMaturity', 'strengths', 'improvementAreas', 'recommendations', 'createdAt', 'updatedAt'],
@@ -655,6 +656,19 @@ function requireRole_(session, roles) {
   return !!session && roles.indexOf(session.role) >= 0;
 }
 
+function ensureRegisteredVisitorsSheet_() {
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('RegisteredVisitors');
+  if (!sheet) {
+    sheet = ss.insertSheet('RegisteredVisitors');
+    var headers = ['id', 'schoolId', 'name', 'role', 'roleTitle', 'department', 'jobNumber', 'email', 'phone', 'username', 'status', 'createdAt'];
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length).setBackground('#172C40').setFontColor('#FFFFFF').setFontWeight('bold');
+  }
+  return sheet;
+}
+
 function rowsAsObjects_(sheet) {
   if (!sheet || sheet.getLastRow() < 2) return [];
   var values = sheet.getDataRange().getValues();
@@ -683,6 +697,7 @@ function dispatchApiAction_(action, payload, session) {
     var visitIndicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators'));
     var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains'));
     var followUps = rowsAsObjects_(ss.getSheetByName('PlanFollowUps'));
+    var visitorRows = rowsAsObjects_(ensureRegisteredVisitorsSheet_()).filter(function(x) { return String(x.schoolId) === String(schoolId); });
     var auditLogs = [];
     if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
       auditLogs = rowsAsObjects_(ss.getSheetByName('AuditLog'))
@@ -730,7 +745,7 @@ function dispatchApiAction_(action, payload, session) {
       plans = plans.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
     }
     return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators,
-      settings: settings, auditLogs: auditLogs, users: users };
+      settings: settings, auditLogs: auditLogs, users: users, visitors: requireRole_(session, adminRoles) ? visitorRows : [] };
   }
 
   if (action === 'saveTeacher') {
@@ -857,6 +872,16 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'تغيير حالة الحساب مقتصر على الإدارة.' };
     return setUserStatus_(payload, session);
   }
+  if (action === 'saveVisitor') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة دليل الزائرين مقتصرة على الإدارة.' };
+    return saveVisitor_(payload, session);
+  }
+  if (action === 'deleteVisitor') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف بيانات الزائرين مقتصر على الإدارة.' };
+    var deletedVisitor = deleteById_('RegisteredVisitors', payload.id, schoolId);
+    if (deletedVisitor.success) logAuditAction(schoolId, session.name, 'حذف زائر', 'تم حذف سجل الزائر ' + payload.id, session.role);
+    return deletedVisitor;
+  }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
     var deletedTeacher = deleteById_('Teachers', payload.id, schoolId);
@@ -946,6 +971,29 @@ function setUserStatus_(payload, session) {
     }
   }
   return { success: false, error: 'الحساب غير موجود في المدرسة المرتبطة بك.' };
+}
+
+function saveVisitor_(payload, session) {
+  var sheet = ensureRegisteredVisitorsSheet_();
+  var name = String(payload.name || '').trim();
+  if (!name) return { success: false, error: 'اسم الزائر مطلوب.' };
+  var visitor = {
+    id: String(payload.id || Utilities.getUuid()),
+    schoolId: session.schoolId || 'sch_alsadara_01',
+    name: name,
+    role: String(payload.role || 'evaluator'),
+    roleTitle: String(payload.roleTitle || ''),
+    department: String(payload.department || ''),
+    jobNumber: String(payload.jobNumber || ''),
+    email: String(payload.email || ''),
+    phone: String(payload.phone || ''),
+    username: String(payload.username || '').trim().toLowerCase(),
+    status: String(payload.status || 'active'),
+    createdAt: String(payload.createdAt || new Date().toISOString())
+  };
+  var result = upsertObjectRow_('RegisteredVisitors', visitor, 'id', visitor.schoolId);
+  if (result.success) logAuditAction(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role);
+  return result;
 }
 
 function upsertObjectRow_(sheetName, obj, idKey, schoolId) {
