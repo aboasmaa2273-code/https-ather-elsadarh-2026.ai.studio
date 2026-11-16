@@ -283,7 +283,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         name: visitorFormName.trim(), role: visitorFormRole,
         roleTitle: visitorFormTitle.trim() || undefined, department: visitorFormDept.trim() || undefined,
         jobNumber: visitorFormJobNumber.trim() || undefined, email: visitorFormEmail.trim() || undefined,
-        phone: visitorFormPhone.trim() || undefined, username: visitorFormUsername.trim().toLowerCase()
+        phone: visitorFormPhone.trim() || undefined
       };
       const localResult = AtharStorageService.saveRegisteredVisitor(visitorPayload);
       if (!localResult.success) throw new Error(localResult.error || 'تعذر تحديث دليل الزائرين المحلي.');
