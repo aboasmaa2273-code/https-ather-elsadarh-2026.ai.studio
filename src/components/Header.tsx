@@ -93,6 +93,10 @@ export const Header: React.FC<HeaderProps> = ({
                   {t.nav.dashboard}
                 </button>
 
+                {['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+                  <button onClick={() => onTabChange('follow-up')} className={'px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ' + (activeTab === 'follow-up' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/85 hover:text-white hover:bg-white/10')}>متابعة أَثَر</button>
+                )}
+
                 <button
                   onClick={() => onTabChange('teachers')}
                   className={`px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${
@@ -234,6 +238,9 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {t.nav.dashboard}
             </button>
+            {['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+              <button onClick={() => onTabChange('follow-up')} className={'px-3 py-1.5 rounded whitespace-nowrap font-medium ' + (activeTab === 'follow-up' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/80')}>متابعة أَثَر</button>
+            )}
             <button
               onClick={() => onTabChange('teachers')}
               className={`px-3 py-1.5 rounded whitespace-nowrap font-medium ${activeTab === 'teachers' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/80'}`}
