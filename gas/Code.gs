@@ -775,6 +775,23 @@ function dispatchApiAction_(action, payload, session) {
     payload.teacherSpecialization = teacherForVisit.specialization;
     return saveClassroomVisit(payload);
   }
+  if (action === 'approveVisit') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'اعتماد الزيارات مقتصر على الإدارة المخولة.' };
+    var visitSheet = ss.getSheetByName('Visits');
+    if (!visitSheet) return { success: false, error: 'ورقة الزيارات غير موجودة.' };
+    var visitRows = visitSheet.getDataRange().getValues();
+    var visitHeaders = visitRows[0].map(String);
+    var visitStatusCol = visitHeaders.indexOf('status');
+    for (var vi = 1; vi < visitRows.length; vi++) {
+      if (String(visitRows[vi][0]) === String(payload.id) && String(visitRows[vi][1]) === String(schoolId)) {
+        if (visitStatusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
+        visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
+        logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+        return { success: true, id: payload.id, status: 'approved' };
+      }
+    }
+    return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+  }
   if (action === 'savePlan') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
     var planTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
