@@ -363,6 +363,16 @@ export default function App() {
               alert(error instanceof Error ? error.message : 'تعذر إرسال التقرير إلى بريد المعلم.');
             }
           }}
+          canSendTeacherNotes={['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)}
+          onSendTeacherNotes={async (visitId, notes) => {
+            try {
+              const result = await atharRemoteAction('sendTeacherVisitNotes', { id: visitId, notes });
+              alert(String(result.message || 'تم إرسال الملاحظات إلى بريد المعلم.'));
+              await refreshAllData(true);
+            } catch (error) {
+              alert(error instanceof Error ? error.message : 'تعذر إرسال الملاحظات إلى بريد المعلم.');
+            }
+          }}
           onRestoreReport={async (visitId) => {
             try { await atharRemoteAction('restoreVisit', { id: visitId }); await refreshAllData(true); }
             catch (error) { alert(error instanceof Error ? error.message : 'تعذر استعادة التقرير من الأرشيف.'); }
