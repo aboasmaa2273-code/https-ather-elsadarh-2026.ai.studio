@@ -79,6 +79,7 @@ export default function App() {
       setTeachers(Array.isArray(remote.teachers) ? remote.teachers : []);
       setVisits(Array.isArray(remote.visits) ? remote.visits : []);
       setPlans(Array.isArray(remote.plans) ? remote.plans : []);
+      setAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
       const centralSettings: Record<string, any> = {};
       (Array.isArray(remote.settings) ? remote.settings : []).forEach((item: any) => {
         if (!item || !item.key) return;
@@ -178,15 +179,10 @@ export default function App() {
           <PublicHome
             platformSettings={platformSettings}
             onLoginClick={() => setIsLoginModalOpen(true)}
-            onSelectEvaluator={(user, destination) => {
-              handleUserChange(user);
-              setIsLoggedIn(true);
-              if (destination === 'new-visit') {
-                setEditingVisit(null);
-                setActiveTab('new-visit');
-              } else {
-                setActiveTab('dashboard');
-              }
+            onSelectEvaluator={() => {
+              // Public evaluator cards are directory information only; authentication
+              // must always be completed against the central Users table.
+              setIsLoginModalOpen(true);
             }}
             language={language}
           />
