@@ -168,7 +168,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
       {/* ============================================================== */}
       {/* 2. DEDICATED PANEL: مقيِّم الزيارة الصفية (Evaluator Observation Panel) */}
       {/* ============================================================== */}
-      <section id="evaluator-panel" className="scroll-mt-24 space-y-6">
+      <section id="evaluators-portal" className="scroll-mt-24 space-y-6">
         
         {/* Executive VIP Panel for Classroom Observation Evaluator */}
         <div className="rounded-3xl bg-gradient-to-r from-[#172C40] via-[#122434] to-[#172C40] border-2 border-[#C6A66A] p-6 sm:p-8 text-white shadow-2xl relative overflow-hidden group">
