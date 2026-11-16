@@ -914,8 +914,13 @@ function setUserStatus_(payload, session) {
   if (!sheet) return { success: false, error: 'ورقة الحسابات غير موجودة.' };
   var data = sheet.getDataRange().getValues(), headers = data[0].map(String);
   var schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status'), idCol = headers.indexOf('id');
+  var roleCol = headers.indexOf('role');
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) === id && String(data[i][schoolCol]) === String(session.schoolId)) {
+      var targetRole = String(data[i][roleCol] || '');
+      if (session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
+        return { success: false, error: 'لا يمكن لإدارة المدرسة تعطيل حساب مسؤول المنصة أو حساب إدارة المدرسة.' };
+      }
       var next = payload.status === 'active' ? 'active' : 'inactive';
       sheet.getRange(i + 1, statusCol + 1).setValue(next);
       logAuditAction(session.schoolId, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
