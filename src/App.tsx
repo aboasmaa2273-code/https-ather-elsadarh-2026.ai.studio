@@ -352,6 +352,17 @@ export default function App() {
           language={language}
           canArchive={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
           canManageStatus={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          canSendApprovedReport={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          teacherEmail={teachers.find((teacher) => teacher.id === selectedVisitForReport.teacherId)?.email || ''}
+          onSendApprovedReport={async (visitId, message) => {
+            try {
+              const result = await atharRemoteAction('sendApprovedVisitReport', { id: visitId, message, confirmResend: true });
+              alert(String(result.message || 'تم إرسال التقرير المعتمد إلى بريد المعلم.'));
+              await refreshAllData(true);
+            } catch (error) {
+              alert(error instanceof Error ? error.message : 'تعذر إرسال التقرير إلى بريد المعلم.');
+            }
+          }}
           onRestoreReport={async (visitId) => {
             try { await atharRemoteAction('restoreVisit', { id: visitId }); await refreshAllData(true); }
             catch (error) { alert(error instanceof Error ? error.message : 'تعذر استعادة التقرير من الأرشيف.'); }
