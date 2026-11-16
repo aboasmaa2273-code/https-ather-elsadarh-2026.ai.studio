@@ -316,7 +316,7 @@ export default function App() {
           platformSettings={platformSettings}
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
-          canDelete={currentUser.role !== 'teacher'}
+          canDelete={['school_admin', 'platform_admin'].includes(currentUser.role)}
           onDeleteReport={async (visitId) => {
             try {
               await atharRemoteAction('deleteVisit', { id: visitId });
