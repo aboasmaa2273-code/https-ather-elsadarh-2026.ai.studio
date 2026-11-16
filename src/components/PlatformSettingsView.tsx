@@ -446,6 +446,19 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
         <button
           type="button"
+          onClick={() => setActiveSubTab('data')}
+          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+            activeSubTab === 'data'
+              ? 'bg-[#172C40] text-white shadow-xs'
+              : 'text-slate-600 hover:bg-slate-100'
+          }`}
+        >
+          <Database className="w-4 h-4 text-[#C6A66A]" />
+          <span>{t.settings.tabData}</span>
+        </button>
+
+        <button
+          type="button"
           onClick={() => setActiveSubTab('audit')}
           className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeSubTab === 'audit'
