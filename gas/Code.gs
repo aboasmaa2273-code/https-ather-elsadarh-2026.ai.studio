@@ -35,6 +35,40 @@ function include(filename) {
  * Web apps do not reliably have an active spreadsheet, so the created spreadsheet ID
  * must be stored in Script Properties and reopened by ID on every request.
  */
+function getDatabaseHealth_() {
+  try {
+    // Read-only check: opening the configured spreadsheet and checking existing tabs.
+    // Do not create sheets, initialize data, or modify Script Properties here.
+    var properties = PropertiesService.getScriptProperties();
+    var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID') ||
+      '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L9b8AwcYLM';
+    var ss = SpreadsheetApp.openById(spreadsheetId);
+    var usersSheet = !!ss.getSheetByName('Users');
+    var teachersSheet = !!ss.getSheetByName('Teachers');
+    if (!usersSheet || !teachersSheet) {
+      return {
+        success: false,
+        service: 'athar-api',
+        databaseReady: false,
+        error: 'تم الوصول إلى ملف قاعدة البيانات، لكن أوراق Users أو Teachers المطلوبة غير موجودة.'
+      };
+    }
+    return {
+      success: true,
+      service: 'athar-api',
+      databaseReady: true,
+      timestamp: new Date().toISOString()
+    };
+  } catch (err) {
+    return {
+      success: false,
+      service: 'athar-api',
+      databaseReady: false,
+      error: 'تعذر الوصول إلى قاعدة بيانات أَثَر. تحقق من معرّف الملف وصلاحية حساب مالك تطبيق Apps Script.'
+    };
+  }
+}
+
 function getDatabaseSpreadsheet_() {
   var properties = PropertiesService.getScriptProperties();
   var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
@@ -596,7 +630,7 @@ function doPost(e) {
     var payload = request.payload || {};
 
     if (action === 'login') return jsonResponse_(apiLogin_(payload));
-    if (action === 'health') return jsonResponse_({ success: true, service: 'athar-api', timestamp: new Date().toISOString() });
+    if (action === 'health') return jsonResponse_(getDatabaseHealth_());
     // Public, read-only evaluator directory. Never expose usernames, emails, passwords, or account identifiers.
     if (action === 'publicEvaluators') {
       return jsonResponse_(getPublicEvaluators_());
@@ -1555,7 +1589,7 @@ function dispatchBridgeRequest(request) {
     var action = String(request.action || '');
     var payload = request.payload || {};
     if (action === 'login') return apiLogin_(payload);
-    if (action === 'health') return { success: true, service: 'athar-api', timestamp: new Date().toISOString() };
+    if (action === 'health') return getDatabaseHealth_();
     // Public, read-only evaluator directory. Keep the iframe bridge behavior
     // consistent with doPost without exposing credentials or email addresses.
     if (action === 'publicEvaluators') {
