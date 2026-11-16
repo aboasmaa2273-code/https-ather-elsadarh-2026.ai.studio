@@ -71,7 +71,6 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
     }
 
     const rows: any[] = [];
-    const errors: string[] = [];
     const seenBatchJobNumbers = new Set<string>();
 
     for (let i = 1; i < lines.length; i++) {
@@ -118,13 +117,9 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
         reasons: rowStatus.reasons
       });
 
-      if (!rowStatus.valid) {
-        errors.push(`${isEn ? 'Line' : 'السطر'} ${i + 1}: ${rowStatus.reasons.join('، ')}`);
-      }
     }
 
     setParsedRows(rows);
-    setValidationErrors(errors);
   };
 
   const handleExecuteImport = async () => {
