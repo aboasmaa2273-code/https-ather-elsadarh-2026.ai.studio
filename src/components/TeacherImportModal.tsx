@@ -16,11 +16,9 @@ export const TeacherImportModal: React.FC<TeacherImportModalProps> = ({
   onImportComplete,
   language = 'ar'
 }) => {
-  const [csvText, setCsvText] = useState('');
   const [selectedFileName, setSelectedFileName] = useState('');
   const [isImporting, setIsImporting] = useState(false);
   const [parsedRows, setParsedRows] = useState<any[]>([]);
-  const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[] } | null>(null);
 
   if (!isOpen) return null;
@@ -58,7 +56,6 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
     const reader = new FileReader();
     reader.onload = (event) => {
       const content = event.target?.result as string;
-      setCsvText(content);
       setSelectedFileName(file.name);
       setImportResult(null);
       parseAndValidateCsv(content);
@@ -69,7 +66,6 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
   const parseAndValidateCsv = (text: string) => {
     const lines = text.trim().split(/\r?\n/);
     if (lines.length < 2) {
-      setValidationErrors([isEn ? 'File is empty or contains no data rows.' : 'الملف فارغ أو لا يحتوي على صفوف بيانات بعد الترويسة.']);
       setParsedRows([]);
       return;
     }
@@ -152,7 +148,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
   };
 
   const clearSelectedFile = () => {
-    setCsvText(''); setSelectedFileName(''); setParsedRows([]); setValidationErrors([]); setImportResult(null);
+    setSelectedFileName(''); setParsedRows([]); setImportResult(null);
     const input = document.getElementById('csvFileInput') as HTMLInputElement | null;
     if (input) input.value = '';
   };
@@ -166,7 +162,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
           <div className="flex items-center gap-2">
             <Upload className="w-5 h-5 text-[#C6A66A]" />
             <h3 className="font-bold text-base font-['Tajawal']">
-              {isEn ? 'Bulk Teacher Data Import (CSV / Excel)' : 'الاستيراد الجماعي للمعلمين (CSV / Excel)'}
+              {isEn ? 'Bulk Teacher Data Import (CSV)' : 'الاستيراد الجماعي للمعلمين (CSV)'}
             </h3>
           </div>
           <button onClick={onClose} className="p-1 hover:bg-white/10 rounded-lg text-white/80 cursor-pointer">
