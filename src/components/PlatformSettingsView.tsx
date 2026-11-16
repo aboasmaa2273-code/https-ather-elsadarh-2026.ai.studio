@@ -300,16 +300,22 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     }
   };
 
-  const handleDeleteVisitor = (id: string) => {
-    if (confirm(t.visitorsManagement.deleteConfirm)) {
-      const res = AtharStorageService.deleteRegisteredVisitor(id);
-      if (res.success) {
-        setVisitorsList(AtharStorageService.getRegisteredVisitors());
-        showFeedback('success', isEn ? 'Observer deleted successfully.' : 'تم حذف الزائر بنجاح.');
-        onRefreshSettings();
-      } else {
-        showFeedback('error', res.error || (isEn ? 'Failed to delete.' : 'تعذر حذف الزائر.'));
+  const handleDeleteVisitor = async (id: string) => {
+    if (!confirm(t.visitorsManagement.deleteConfirm)) return;
+    const visitor = visitorsList.find(v => v.id === id);
+    try {
+      if (visitor?.username) {
+        const account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        if (account) await atharRemoteAction('setUserStatus', { id: account.id, status: 'inactive' });
       }
+      const res = AtharStorageService.deleteRegisteredVisitor(id);
+      if (!res.success) throw new Error(res.error || 'تعذر حذف سجل الزائر.');
+      setVisitorsList(AtharStorageService.getRegisteredVisitors());
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Observer removed and linked account disabled.' : 'تم حذف سجل الزائر وتعطيل حسابه المرتبط.');
+      onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to delete.' : 'تعذر حذف الزائر.'));
     }
   };
 
