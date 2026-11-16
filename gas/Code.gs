@@ -879,15 +879,20 @@ function dispatchApiAction_(action, payload, session) {
     var batchSchoolCol = batchHeaders.indexOf('schoolId');
     if (batchIdCol < 0 || batchTeacherIdCol < 0 || batchSchoolCol < 0) return { success: false, error: 'لا تتوفر بيانات تتبع دفعة الاستيراد.' };
     var batchValues = batchSheet.getRange(2, 1, batchSheet.getLastRow() - 1, batchSheet.getLastColumn()).getValues();
-    var visitTeacherIds = {};
-    rowsAsObjects_(ss.getSheetByName('Visits')).forEach(function(v) {
-      if (String(v.schoolId) === String(schoolId) && v.teacherId) visitTeacherIds[String(v.teacherId)] = true;
+    // Preserve imported teacher records referenced by any historical or active school data.
+    var referencedTeacherIds = {};
+    ['Visits', 'ImprovementPlans', 'InternalNotes', 'AdministrativeFollowUps', 'Users'].forEach(function(sheetName) {
+      rowsAsObjects_(ss.getSheetByName(sheetName)).forEach(function(record) {
+        if (String(record.schoolId || schoolId) === String(schoolId) && record.teacherId) {
+          referencedTeacherIds[String(record.teacherId)] = true;
+        }
+      });
     });
     var rowsToRemove = [], protectedCount = 0;
     batchValues.forEach(function(row, index) {
       if (String(row[batchSchoolCol]) !== String(schoolId) || String(row[batchIdCol]) !== batchId) return;
       var teacherId = String(row[batchTeacherIdCol] || '');
-      if (visitTeacherIds[teacherId]) { protectedCount++; return; }
+      if (referencedTeacherIds[teacherId]) { protectedCount++; return; }
       rowsToRemove.push(index + 2);
     });
     for (var removeIndex = rowsToRemove.length - 1; removeIndex >= 0; removeIndex--) batchSheet.deleteRow(rowsToRemove[removeIndex]);
