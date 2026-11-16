@@ -57,7 +57,6 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
     }).sort((a,b) => String(b.date).localeCompare(String(a.date)));
   }, [visits, teachers, search, teacherId, evaluator, academicYear, term, visitType, subject, grade, section, status, fromDate, toDate]);
 
-  const filteredIds = new Set(filteredVisits.map(v => v.id));
   const filteredPlans = plans.filter(p => teacherId === 'all' || p.teacherId === teacherId);
   const completed = filteredVisits.filter(v => ['completed','approved'].includes(v.status)).length;
   const openPlans = filteredPlans.filter(p => ['not_started','in_progress','needs_follow_up'].includes(p.status)).length;
@@ -111,7 +110,7 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
         <div className="relative"><Search className="absolute right-3 top-3 h-4 w-4 text-slate-400"/><input className={fieldClass+' pr-10'} value={search} onChange={e=>setSearch(e.target.value)} placeholder="ابحث باسم المعلم أو رقمه الوظيفي أو رقم الزيارة أو المقيم..."/></div>
       </label>
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-4">
-        {selectFilter('المعلم',teacherId,setTeacherId,teachers.map(t=>t.id).map(id=>{const t=teachers.find(x=>x.id===id);return t? t.fullName+' — '+t.jobNumber : ''}).filter(Boolean).map(label=>{const t=teachers.find(x=>label.startsWith(x.fullName));return t?.id||''}).filter(Boolean))}
+        <label className="block space-y-1"><span className="text-xs font-bold text-slate-600">المعلم</span><select className={fieldClass} value={teacherId} onChange={e=>setTeacherId(e.target.value)}><option value="all">الكل</option>{teachers.map(t=><option key={t.id} value={t.id}>{t.fullName} — {t.jobNumber}</option>)}</select></label>
         {selectFilter('المقيم',evaluator,setEvaluator,evaluators)}
         {selectFilter('العام الدراسي',academicYear,setAcademicYear,years)}
         {selectFilter('الفصل الدراسي',term,setTerm,options(visits.map(v=>v.term||'')))}
