@@ -1,7 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
-import { atharRemoteAction } from '../services/gasBridgeClient';
+import { atharRemoteAction, atharRemoteBootstrap } from '../services/gasBridgeClient';
 import { 
   Sliders, 
   Check, 
@@ -31,7 +31,6 @@ import {
   Search
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
-import { UserProfileModal } from './UserProfileModal';
 
 interface PlatformSettingsViewProps {
   settings: PlatformSettings;
@@ -54,7 +53,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');
-  const [allUsersList, setAllUsersList] = useState<User[]>(() => AtharStorageService.getAllUsers());
+  const [allUsersList, setAllUsersList] = useState<User[]>([]);
   const [selectedUserForCredentials, setSelectedUserForCredentials] = useState<User | null>(null);
 
   // Platform Identity State
@@ -87,7 +86,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [visitorFormEmail, setVisitorFormEmail] = useState('');
   const [visitorFormPhone, setVisitorFormPhone] = useState('');
   const [visitorFormUsername, setVisitorFormUsername] = useState('');
-  const [visitorFormPassword, setVisitorFormPassword] = useState('123');
+  const [visitorFormPassword, setVisitorFormPassword] = useState('');
 
   // Demo Data Management & Cleanup State
   const [purgeTarget, setPurgeTarget] = useState<'visits' | 'plans' | 'teachers' | 'all' | null>(null);
@@ -103,6 +102,25 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   useEffect(() => {
     setLocalAuditLogs(auditLogs);
   }, [auditLogs]);
+
+  useEffect(() => {
+    let active = true;
+    atharRemoteBootstrap().then((remote: any) => {
+      if (!active) return;
+      setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
+      if (Array.isArray(remote.auditLogs)) setLocalAuditLogs(remote.auditLogs);
+    }).catch((error) => {
+      console.warn('Could not load central users:', error);
+      if (active) setAllUsersList([]);
+    });
+    return () => { active = false; };
+  }, []);
+
+  const refreshCentralUsers = async () => {
+    const remote: any = await atharRemoteBootstrap();
+    setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
+    setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+  };
 
   // Feedback display helper
   const showFeedback = (type: 'success' | 'error', text: string) => {
@@ -132,19 +150,37 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     reader.readAsDataURL(file);
   };
 
-  // Delete Evaluator Account
-  const handleDeleteUser = (userId: string, userName: string) => {
-    if (!confirm(isEn ? `Are you sure you want to delete evaluator "${userName}"?` : `هل أنت متأكد من رغبتك في حذف حساب المقيم "${userName}" نهائياً من المنظومة؟`)) {
+  // Disable central account without deleting historical ownership references.
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(isEn ? `Disable account "${userName}"?` : `هل تريد تعطيل حساب "${userName}" ومنع تسجيل الدخول به؟`)) return;
+    try {
+      await atharRemoteAction('setUserStatus', { id: userId, status: 'inactive' });
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Account disabled.' : 'تم تعطيل الحساب مركزيًا.');
+      onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'تعذر تغيير حالة الحساب.');
+    }
+  };
+
+  const handleResetCentralCredentials = async (user: User) => {
+    const password = prompt(isEn ? 'Enter a new password (at least 10 characters):' : 'أدخل كلمة مرور جديدة (10 أحرف على الأقل):');
+    if (!password) return;
+    if (password.length < 10) {
+      showFeedback('error', isEn ? 'Password must be at least 10 characters.' : 'كلمة المرور يجب ألا تقل عن 10 أحرف.');
       return;
     }
-    const res = AtharStorageService.deleteUser(userId);
-    if (res.success) {
-      setAllUsersList(AtharStorageService.getAllUsers());
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      showFeedback('success', isEn ? `Evaluator ${userName} deleted successfully.` : `تم حذف حساب المقيم (${userName}) بنجاح.`);
-      onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to delete evaluator.' : 'تعذر حذف المقيم.'));
+    try {
+      await atharRemoteAction('saveUserAccount', {
+        id: user.id, name: user.name, username: user.username, password,
+        role: user.role, email: user.email || '', jobNumber: user.jobNumber || '',
+        specialization: user.specialization || '', status: user.status || 'active',
+        teacherId: user.teacherId || ''
+      });
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Password updated securely.' : 'تم تحديث كلمة المرور المشفرة مركزيًا.');
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث كلمة المرور.');
     }
   };
 
@@ -201,7 +237,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormEmail('');
     setVisitorFormPhone('');
     setVisitorFormUsername('');
-    setVisitorFormPassword('123');
+    setVisitorFormPassword('');
     setIsVisitorModalOpen(true);
   };
 
@@ -215,39 +251,51 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormEmail(vis.email || '');
     setVisitorFormPhone(vis.phone || '');
     setVisitorFormUsername(vis.username || '');
-    setVisitorFormPassword(vis.password || '123');
+    setVisitorFormPassword('');
     setIsVisitorModalOpen(true);
   };
 
-  const handleSaveVisitorSubmit = (e: React.FormEvent) => {
+  const handleSaveVisitorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!visitorFormName.trim()) {
-      showFeedback('error', isEn ? 'Visitor name is required.' : 'اسم الزائر مطلوب.');
+    if (!visitorFormName.trim() || !visitorFormUsername.trim()) {
+      showFeedback('error', isEn ? 'Name and username are required.' : 'الاسم واسم المستخدم مطلوبان.');
       return;
     }
-
-    const payload: RegisteredVisitor = {
-      id: editingVisitor ? editingVisitor.id : `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      name: visitorFormName.trim(),
-      role: visitorFormRole,
-      roleTitle: visitorFormTitle.trim() || undefined,
-      department: visitorFormDept.trim() || undefined,
-      jobNumber: visitorFormJobNumber.trim() || undefined,
-      email: visitorFormEmail.trim() || undefined,
-      phone: visitorFormPhone.trim() || undefined,
-      username: visitorFormUsername.trim() || undefined,
-      password: visitorFormPassword.trim() || undefined
-    };
-
-    const res = AtharStorageService.saveRegisteredVisitor(payload);
-    if (res.success) {
+    const linkedUser = allUsersList.find(u => (u.username || '').toLowerCase() === visitorFormUsername.trim().toLowerCase());
+    const accountId = linkedUser?.id;
+    if (!accountId && visitorFormPassword.length < 10) {
+      showFeedback('error', isEn ? 'Initial password must be at least 10 characters.' : 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.');
+      return;
+    }
+    try {
+      await atharRemoteAction('saveUserAccount', {
+        id: accountId,
+        name: visitorFormName.trim(),
+        username: visitorFormUsername.trim().toLowerCase(),
+        password: visitorFormPassword,
+        role: visitorFormRole === 'principal' ? 'school_admin' : visitorFormRole === 'vice_principal' ? 'vice_principal' : 'evaluator',
+        specialization: visitorFormTitle.trim(),
+        jobNumber: visitorFormJobNumber.trim(),
+        email: visitorFormEmail.trim(),
+        status: 'active'
+      });
+      const visitorPayload: RegisteredVisitor = {
+        id: editingVisitor ? editingVisitor.id : `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: visitorFormName.trim(), role: visitorFormRole,
+        roleTitle: visitorFormTitle.trim() || undefined, department: visitorFormDept.trim() || undefined,
+        jobNumber: visitorFormJobNumber.trim() || undefined, email: visitorFormEmail.trim() || undefined,
+        phone: visitorFormPhone.trim() || undefined, username: visitorFormUsername.trim().toLowerCase()
+      };
+      const localResult = AtharStorageService.saveRegisteredVisitor(visitorPayload);
+      if (!localResult.success) throw new Error(localResult.error || 'تعذر تحديث دليل الزائرين المحلي.');
       setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      setAllUsersList(AtharStorageService.getAllUsers());
+      await refreshCentralUsers();
+      setVisitorFormPassword('');
       setIsVisitorModalOpen(false);
-      showFeedback('success', isEn ? 'Observer & credentials saved successfully.' : 'تم حفظ بيانات المقيم وبيانات الدخول (اليوزرنيم والباسوورد) بنجاح.');
+      showFeedback('success', isEn ? 'Central account saved successfully.' : 'تم حفظ حساب المستخدم مركزيًا بنجاح.');
       onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to save observer.' : 'تعذر حفظ بيانات الزائر.'));
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Could not save account.' : 'تعذر حفظ الحساب.'));
     }
   };
 
@@ -800,7 +848,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedUserForCredentials(user)}
+                    onClick={() => void handleResetCentralCredentials(user)}
                     className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-[#172C40] text-slate-700 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
                     title={isEn ? 'Edit Credentials & Details' : 'تعديل البيانات واليوزرنيم والباسوورد'}
                   >
@@ -1345,21 +1393,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         </div>
       )}
 
-      {/* Modal: Change Username & Password for Selected User */}
-      {selectedUserForCredentials && (
-        <UserProfileModal
-          isOpen={!!selectedUserForCredentials}
-          onClose={() => setSelectedUserForCredentials(null)}
-          currentUser={selectedUserForCredentials}
-          onUserUpdated={(updated) => {
-            setAllUsersList(AtharStorageService.getAllUsers());
-            setSelectedUserForCredentials(null);
-            showFeedback('success', isEn ? `Credentials updated for ${updated.name}` : `تم تحديث اسم المستخدم وكلمة المرور للمستخدم: ${updated.name}`);
-            onRefreshSettings();
-          }}
-          language={language}
-        />
-      )}
+}
 
     </div>
   );
