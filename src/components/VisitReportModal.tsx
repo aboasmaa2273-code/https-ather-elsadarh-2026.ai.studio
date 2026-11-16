@@ -43,6 +43,8 @@ interface VisitReportModalProps {
   canSendApprovedReport?: boolean;
   teacherEmail?: string;
   onSendApprovedReport?: (visitId: string, message: string) => Promise<void>;
+  canSendTeacherNotes?: boolean;
+  onSendTeacherNotes?: (visitId: string, notes: string) => Promise<void>;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -57,7 +59,9 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   onRestoreReport,
   canSendApprovedReport = false,
   teacherEmail = '',
-  onSendApprovedReport
+  onSendApprovedReport,
+  canSendTeacherNotes = false,
+  onSendTeacherNotes
 }) => {
   if (!visit) return null;
 
@@ -195,6 +199,31 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                 title={teacherEmail || (isEn ? 'Teacher email is missing' : 'البريد الإلكتروني للمعلم غير مسجل')}
               >
                 <span>{isEn ? 'Send to teacher' : 'إرسال التقرير للمعلم'}</span>
+              </button>
+            )}
+            {canSendTeacherNotes && onSendTeacherNotes && (
+              <button
+                onClick={() => {
+                  if (!teacherEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(teacherEmail)) {
+                    alert(isEn ? 'No valid teacher email is registered.' : 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.');
+                    return;
+                  }
+                  const notes = window.prompt(
+                    isEn ? 'Write the specific visit notes you want to send to the teacher:' : 'اكتب الملاحظات المحددة التي تريد إرسالها إلى المعلم:',
+                    ''
+                  );
+                  if (notes === null || !notes.trim()) return;
+                  const confirmed = confirm(
+                    (isEn ? 'Send these notes to ' : 'تأكيد إرسال هذه الملاحظات إلى ') +
+                    teacherEmail + (isEn ? '?' : '؟')
+                  );
+                  if (confirmed) void onSendTeacherNotes(visit.id, notes.trim());
+                }}
+                disabled={!teacherEmail}
+                className="px-3 py-1.5 bg-[#172C40] text-white rounded-lg font-bold text-xs hover:bg-[#101F2D] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                title={teacherEmail || (isEn ? 'Teacher email is missing' : 'البريد الإلكتروني للمعلم غير مسجل')}
+              >
+                <span>{isEn ? 'Send selected notes' : 'إرسال ملاحظات للمعلم'}</span>
               </button>
             )}
             {canManageStatus && visit.status === 'approved' && onUnapproveReport && (
