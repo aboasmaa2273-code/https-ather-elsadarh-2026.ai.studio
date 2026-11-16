@@ -311,6 +311,9 @@ function saveClassroomVisit(visitData) {
     }
 
     if (existingRowIndex > 0) {
+      if (String(data[existingRowIndex - 1][1]) !== String(visitData.schoolId || 'sch_alsadara_01')) {
+        throw new Error('لا يمكن تعديل زيارة لا تتبع المدرسة المرتبطة بحسابك.');
+      }
       visitRow[25] = data[existingRowIndex - 1][25]; // keep original createdAt
       visitsSheet.getRange(existingRowIndex, 1, 1, visitRow.length).setValues([visitRow]);
     } else {
@@ -336,6 +339,10 @@ function saveClassroomVisit(visitData) {
 
     // حفظ تقييمات المجالات العشرة المرتبطة بالزيارة.
     var domainsSheet = ss.getSheetByName('VisitDomains');
+    if (domainsSheet && existingRowIndex > 0 && domainsSheet.getLastRow() > 1) {
+      var oldDomainRows = domainsSheet.getDataRange().getValues();
+      for (var di = oldDomainRows.length - 1; di >= 1; di--) if (String(oldDomainRows[di][1]) === String(visitId)) domainsSheet.deleteRow(di + 1);
+    }
     if (domainsSheet && visitData.domains && visitData.domains.length) {
       var domainRows = visitData.domains.map(function(domain) {
         return [Utilities.getUuid(), visitId, domain.domainId, domain.domainName, domain.rating];
