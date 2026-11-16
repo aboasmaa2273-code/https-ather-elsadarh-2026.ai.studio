@@ -225,7 +225,7 @@ console.log('PASS: evaluators cannot delete other plans or invoke bulk school-wi
 console.log('PASS: administrators retain school-wide plan deletion');
 
 const declaredPublicFunctions = Array.from(
-  fs.readFileSync('gas/Code.gs', 'utf8').matchAll(/^function\\s+([A-Za-z0-9_$]+)\\s*\\(/gm),
+  fs.readFileSync('gas/Code.gs', 'utf8').matchAll(/^function\s+([A-Za-z0-9_$]+)\s*\(/gm),
   (match) => match[1]
 ).filter((name) => !name.endsWith('_'));
 for (const privateHelper of ['saveClassroomVisit', 'saveTeacher', 'logAuditAction', 'determineUserRole', 'authorizeMailOnce']) {
