@@ -47,7 +47,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
 
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = currentUser?.role !== 'teacher';
+  const canEdit = ['platform_admin', 'school_admin'].includes(currentUser?.role || '');
 
   const persistAcademicSettings = async (updated: AcademicSettings) => {
     setSaveError('');
