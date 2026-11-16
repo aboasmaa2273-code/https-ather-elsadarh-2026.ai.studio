@@ -803,16 +803,16 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                handleOpenAddVisitor();
-              }}
-              className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
-            >
-              <UserPlus className="w-4 h-4 text-[#C6A66A]" />
-              <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleOpenAddVisitor}
+                className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
+              >
+                <UserPlus className="w-4 h-4 text-[#C6A66A]" />
+                <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
