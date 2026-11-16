@@ -59,6 +59,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User>(() => AtharStorageService.getCurrentUser());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [selectedEvaluatorForLogin, setSelectedEvaluatorForLogin] = useState<User | null>(null);
 
   // Active Navigation Tab - Starts on the Home page with the hero picture
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -204,10 +205,9 @@ export default function App() {
           <PublicHome
             platformSettings={platformSettings}
             evaluators={publicEvaluators}
-            onLoginClick={() => setIsLoginModalOpen(true)}
-            onSelectEvaluator={() => {
-              // Public evaluator cards are directory information only; authentication
-              // must always be completed against the central Users table.
+            onLoginClick={() => { setSelectedEvaluatorForLogin(null); setIsLoginModalOpen(true); }}
+            onSelectEvaluator={(user) => {
+              setSelectedEvaluatorForLogin(user);
               setIsLoginModalOpen(true);
             }}
             language={language}
@@ -375,12 +375,14 @@ export default function App() {
       {isLoginModalOpen && (
         <LoginModal
           isOpen={isLoginModalOpen}
-          onClose={() => setIsLoginModalOpen(false)}
+          onClose={() => { setIsLoginModalOpen(false); setSelectedEvaluatorForLogin(null); }}
+          selectedEvaluator={selectedEvaluatorForLogin}
           onLoginSuccess={(user) => {
             handleUserChange(user);
             void refreshAllData(true);
             setIsLoggedIn(true);
             setIsLoginModalOpen(false);
+            setSelectedEvaluatorForLogin(null);
             setActiveTab('dashboard');
           }}
           language={language}
