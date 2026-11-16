@@ -708,10 +708,10 @@ function dispatchApiAction_(action, payload, session) {
     var internalNoteHistory = [];
     if (['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].indexOf(session.role) >= 0) {
       internalNotes = rowsAsObjects_(ss.getSheetByName('InternalNotes')).filter(function(x) { return String(x.schoolId) === String(schoolId) && String(x.status || 'active') !== 'archived'; });
-      var internalNoteHistory = rowsAsObjects_(ss.getSheetByName('InternalNoteHistory')).filter(function(x) { return String(x.schoolId) === String(schoolId); }).sort(function(a,b) { return String(b.changedAt).localeCompare(String(a.changedAt)); }).slice(0, 1000);
-      administrativeFollowUps = rowsAsObjects_(ss.getSheetByName('AdministrativeFollowUps')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
+      internalNoteHistory = rowsAsObjects_(ss.getSheetByName('InternalNoteHistory')).filter(function(x) { return String(x.schoolId) === String(schoolId); }).sort(function(a,b) { return String(b.changedAt).localeCompare(String(a.changedAt)); }).slice(0, 1000);
     }
     if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
+      administrativeFollowUps = rowsAsObjects_(ss.getSheetByName('AdministrativeFollowUps')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
       visitHistory = rowsAsObjects_(ss.getSheetByName('VisitHistory')).filter(function(x) { return String(x.schoolId) === String(schoolId); }).sort(function(a,b) { return String(b.changedAt).localeCompare(String(a.changedAt)); }).slice(0, 500);
     }
     var visitorRows = rowsAsObjects_(ensureRegisteredVisitorsSheet_()).filter(function(x) { return String(x.schoolId) === String(schoolId); });
