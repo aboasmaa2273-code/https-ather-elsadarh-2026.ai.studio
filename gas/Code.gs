@@ -69,6 +69,11 @@ function getDatabaseHealth_() {
   }
 }
 
+// Safe, read-only helper that can be run manually from the Apps Script editor.
+function runDatabaseHealthCheck_() {
+  return getDatabaseHealth_();
+}
+
 function getDatabaseSpreadsheet_() {
   var properties = PropertiesService.getScriptProperties();
   var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');

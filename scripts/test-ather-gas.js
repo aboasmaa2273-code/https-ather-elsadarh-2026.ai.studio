@@ -252,7 +252,7 @@ const declaredPublicFunctions = Array.from(
   fs.readFileSync('gas/Code.gs', 'utf8').matchAll(/^function\s+([A-Za-z0-9_$]+)\s*\(/gm),
   (match) => match[1]
 ).filter((name) => !name.endsWith('_'));
-for (const privateHelper of ['saveClassroomVisit', 'saveTeacher', 'logAuditAction', 'determineUserRole', 'authorizeMailOnce']) {
+for (const privateHelper of ['saveClassroomVisit', 'saveTeacher', 'logAuditAction', 'determineUserRole', 'authorizeMailOnce', 'runDatabaseHealthCheck']) {
   assert.equal(declaredPublicFunctions.includes(privateHelper), false, `Sensitive helper ${privateHelper} must not be callable directly from google.script.run`);
 }
 
