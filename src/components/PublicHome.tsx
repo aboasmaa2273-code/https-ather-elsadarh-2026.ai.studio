@@ -54,40 +54,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
   const handleCreateEvaluator = (e: React.FormEvent) => {
     e.preventDefault();
-    if (!newEvaluatorName.trim()) return;
-
-    const chosenUsername = newEvaluatorUsername.trim() || newEvaluatorName.trim().toLowerCase().replace(/\s+/g, '_');
-    const chosenPassword = newEvaluatorPassword.trim() || '123';
-
-    const res = AtharStorageService.registerEvaluator({
-      name: newEvaluatorName.trim(),
-      username: chosenUsername,
-      password: chosenPassword,
-      specialization: newEvaluatorTitle.trim() || 'مقيّم تربوي معتمد'
-    });
-
-    if (res.success && res.user) {
-      // Also register in RegisteredVisitors directory
-      AtharStorageService.saveRegisteredVisitor({
-        id: `vis_${Date.now()}`,
-        name: res.user.name,
-        role: 'evaluator',
-        roleTitle: res.user.specialization,
-        username: res.user.username,
-        password: res.user.password
-      });
-
-      setEvaluators(AtharStorageService.getAllUsers());
-      setIsAddModalOpen(false);
-      setNewEvaluatorName('');
-      setNewEvaluatorTitle('');
-      setNewEvaluatorUsername('');
-      setNewEvaluatorPassword('123');
-
-      if (onSelectEvaluator) {
-        onSelectEvaluator(res.user, 'new-visit');
-      }
-    }
+    setIsAddModalOpen(false);
+    onLoginClick();
   };
 
   const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
