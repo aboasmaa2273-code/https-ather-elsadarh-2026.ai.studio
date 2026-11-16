@@ -255,4 +255,28 @@ assert.equal(capturedVisitPayload.status, 'completed');
 console.log('PASS: sensitive Apps Script write helpers are private from direct google.script.run calls');
 console.log('PASS: evaluators cannot edit approved visits or approve a visit by forging the save status');
 
+function loginWithStatus(status) {
+  const headers = ['id', 'schoolId', 'name', 'email', 'username', 'role', 'jobNumber', 'specialization', 'status', 'passwordSalt', 'passwordHash', 'teacherId'];
+  const row = ['login-user', schoolId, 'مستخدم اختبار', '', 'test.user', 'evaluator', '', '', status, 'salt', 'expected-hash', ''];
+  const usersSheet = {
+    getLastRow: () => 2,
+    getDataRange: () => ({ getValues: () => [headers, row] })
+  };
+  sandbox.getDatabaseSpreadsheet_ = () => ({ getSheetByName: (name) => name === 'Users' ? usersSheet : null });
+  sandbox.passwordHash_ = () => 'expected-hash';
+  sandbox.logAuditAction_ = () => {};
+  sandbox.Utilities = { getUuid: () => 'test-token' };
+  sandbox.CacheService = { getScriptCache: () => ({ put: () => {} }) };
+  return sandbox.apiLogin_({ username: 'test.user', password: 'valid-password' });
+}
+assert.equal(loginWithStatus(' INACTIVE ').success, false);
+assert.equal(loginWithStatus('disabled').success, false);
+assert.equal(loginWithStatus('pending').success, false);
+assert.equal(loginWithStatus('suspended').success, false);
+assert.equal(loginWithStatus('active').success, true);
+assert.equal(loginWithStatus('').success, true);
+
+console.log('PASS: login fails closed for inactive, pending, suspended, and unknown account states');
+
+
 
