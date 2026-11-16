@@ -51,6 +51,34 @@ class AtharGasBridgeClient {
     }
   }
 
+  /**
+   * Apps Script HtmlService nests user HTML inside Google-owned frames.
+   * Collect the outer web-app frame and its descendants so messages can
+   * reach the actual Bridge.html sandbox and replies can be authenticated
+   * against a window belonging to this exact iframe tree.
+   */
+  private getFrameWindows(root: Window): Window[] {
+    const result: Window[] = [];
+    const seen = new Set<Window>();
+
+    const visit = (current: Window, depth: number) => {
+      if (!current || seen.has(current) || depth > 10) return;
+      seen.add(current);
+      result.push(current);
+      try {
+        for (let i = 0; i < current.frames.length; i++) {
+          visit(current.frames[i], depth + 1);
+        }
+      } catch {
+        // Cross-origin frame enumeration may be restricted; retain all
+        // windows successfully discovered so far.
+      }
+    };
+
+    visit(root, 0);
+    return result;
+  }
+
   private ensureFrame(): Promise<void> {
     if (this.ready && this.frame?.contentWindow) return Promise.resolve();
     if (this.loading) return this.loading;
@@ -69,11 +97,16 @@ class AtharGasBridgeClient {
       const timer = window.setTimeout(() => {
         this.loading = null;
         frame.remove();
+        window.removeEventListener('message', onMessage);
         reject(new Error('تعذر فتح جسر Google Apps Script. تحقق من رابط النشر وإتاحته.'));
       }, 20000);
 
       const onMessage = (event: MessageEvent) => {
-        if (event.source !== frame.contentWindow || !event.data) return;
+        const root = frame.contentWindow;
+        if (!root || !event.data) return;
+        const frameWindows = this.getFrameWindows(root);
+        if (!frameWindows.some((candidate) => candidate === event.source)) return;
+
         if (event.data.channel === CHANNEL_READY) {
           window.clearTimeout(timer);
           this.ready = true;
@@ -105,7 +138,8 @@ class AtharGasBridgeClient {
 
   async request<T = unknown>(request: BridgeRequest): Promise<BridgeResponse<T>> {
     await this.ensureFrame();
-    if (!this.frame?.contentWindow) throw new Error('اتصال قاعدة البيانات غير متاح.');
+    const root = this.frame?.contentWindow;
+    if (!root) throw new Error('اتصال قاعدة البيانات غير متاح.');
     const id = `athar_${Date.now()}_${++this.sequence}`;
     return new Promise<BridgeResponse<T>>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
@@ -117,11 +151,18 @@ class AtharGasBridgeClient {
         reject,
         timeout
       });
-      this.frame?.contentWindow?.postMessage({
-        channel: CHANNEL_REQUEST,
-        id,
-        request
-      }, '*');
+
+      const message = { channel: CHANNEL_REQUEST, id, request };
+      // The actual Apps Script HTML runs in a nested sandbox frame, not
+      // necessarily in the outer iframe's contentWindow. Send to the
+      // discovered frame tree; only Bridge.html handles this channel.
+      this.getFrameWindows(root).forEach((target) => {
+        try {
+          target.postMessage(message, '*');
+        } catch {
+          // Continue sending to the remaining discovered frames.
+        }
+      });
     });
   }
 
