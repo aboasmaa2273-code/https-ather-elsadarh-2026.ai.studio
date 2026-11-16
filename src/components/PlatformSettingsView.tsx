@@ -1021,7 +1021,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             return matchesSearch && matchesAction && matchesUser;
           })
           .sort((a, b) => {
-            return auditSortAsc ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
+            return auditSortAsc ? a.timestamp.localeCompare(b.timestamp) : b.timestamp.localeCompare(a.timestamp);
           });
 
         return (
