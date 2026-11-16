@@ -141,8 +141,8 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   };
 
   const handleAddAcademicYear = () => {
-    const value = newAcademicYear.trim().replace(/\\s+/g, ' ');
-    if (!/^\\d{4}\\s-\\s\\d{4}$/.test(value)) {
+    const value = newAcademicYear.trim().replace(/\s+/g, ' ');
+    if (!/^\d{4}\s-\s\d{4}$/.test(value)) {
       setSaveError(isEn ? 'Enter the year in YYYY - YYYY format.' : 'أدخل العام الدراسي بالصيغة 2027 - 2028.');
       return;
     }
