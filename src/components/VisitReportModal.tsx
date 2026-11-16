@@ -14,7 +14,7 @@ import {
   Compass,
   Users,
   GraduationCap,
-  Trash2
+  Archive
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 import { 
@@ -34,8 +34,8 @@ interface VisitReportModalProps {
   platformSettings: PlatformSettings;
   onClose: () => void;
   language?: Language;
-  canDelete?: boolean;
-  onDeleteReport?: (visitId: string) => void;
+  canArchive?: boolean;
+  onArchiveReport?: (visitId: string) => void;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -43,8 +43,8 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   platformSettings,
   onClose,
   language = 'ar',
-  canDelete = false,
-  onDeleteReport
+  canArchive = false,
+  onArchiveReport
 }) => {
   if (!visit) return null;
 
@@ -156,19 +156,19 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <Printer className="w-4 h-4" />
               <span>{t.visitReportModal.printBtn}</span>
             </button>
-            {canDelete && onDeleteReport && (
+            {canArchive && onArchiveReport && (
               <button
                 onClick={() => {
-                  if (confirm(isEn ? 'Are you sure you want to delete this report permanently?' : 'هل أنت متأكد من رغبتك في حذف هذا التقرير نهائياً؟')) {
-                    onDeleteReport(visit.id);
+                  if (confirm(isEn ? 'Archive this report? It will remain in the historical record.' : 'هل تريد أرشفة هذا التقرير؟ سيظل محفوظًا في السجل التاريخي.')) {
+                    onArchiveReport(visit.id);
                     onClose();
                   }
                 }}
-                className="px-3 py-1.5 bg-rose-600/90 text-white rounded-lg font-bold text-xs hover:bg-rose-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs border border-rose-400/40"
-                title={isEn ? 'Delete Report' : 'حذف التقرير'}
+                className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title={isEn ? 'Archive Report' : 'أرشفة التقرير'}
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{isEn ? 'Delete Report' : 'حذف التقرير'}</span>
+                <Archive className="w-3.5 h-3.5" />
+                <span>{isEn ? 'Archive Report' : 'أرشفة التقرير'}</span>
               </button>
             )}
             <button
