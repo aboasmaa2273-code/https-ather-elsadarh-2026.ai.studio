@@ -928,6 +928,10 @@ function dispatchApiAction_(action, payload, session) {
     }
     return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
   }
+  if (action === 'sendApprovedVisitReport') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'إرسال التقارير للمعلمين مقتصر على الإدارة المخولة.' };
+    return sendApprovedVisitReport_(payload, session, schoolId);
+  }
   if (action === 'savePlan') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
     var planTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
@@ -1419,4 +1423,110 @@ function dispatchBridgeRequest(request) {
   } catch (err) {
     return { success: false, error: 'تعذر تنفيذ الطلب: ' + err.message };
   }
+}
+
+
+// إرسال التقرير المعتمد للمعلم فقط، مع إنشاء سجل مراسلات آمن عند الحاجة.
+function ensureCommunicationLogSheet_() {
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('CommunicationLog');
+  if (!sheet) {
+    sheet = ss.insertSheet('CommunicationLog');
+    var headers = ['id', 'schoolId', 'visitId', 'teacherId', 'teacherName', 'recipientEmail', 'sentBy', 'sentByRole', 'sentAt', 'status', 'subject', 'message'];
+    sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
+    sheet.setFrozenRows(1);
+    sheet.getRange(1, 1, 1, headers.length).setBackground('#172C40').setFontColor('#FFFFFF').setFontWeight('bold');
+  }
+  return sheet;
+}
+
+function escapeMailHtml_(value) {
+  return String(value === undefined || value === null ? '' : value)
+    .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
+    .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
+}
+
+function sendApprovedVisitReport_(payload, session, schoolId) {
+  var visitId = String(payload.id || '');
+  if (!visitId) return { success: false, error: 'رقم تقرير الزيارة مطلوب.' };
+  var ss = getDatabaseSpreadsheet_();
+  var visit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+    return String(v.id) === visitId && String(v.schoolId) === String(schoolId);
+  })[0];
+  if (!visit) return { success: false, error: 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
+  if (String(visit.status || '') !== 'approved') return { success: false, error: 'لا يمكن إرسال التقرير قبل اعتماده من الإدارة.' };
+
+  var teacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+    return String(t.id) === String(visit.teacherId) && String(t.schoolId) === String(schoolId);
+  })[0];
+  if (!teacher) return { success: false, error: 'تعذر العثور على بيانات المعلم المرتبط بالتقرير.' };
+  var recipient = String(teacher.email || '').trim();
+  if (!/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(recipient)) {
+    return { success: false, error: 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.' };
+  }
+
+  var logSheet = ensureCommunicationLogSheet_();
+  var logRows = rowsAsObjects_(logSheet);
+  var previousSent = logRows.some(function(row) {
+    return String(row.schoolId) === String(schoolId) && String(row.visitId) === visitId && String(row.status) === 'sent';
+  });
+  if (previousSent && payload.confirmResend !== true) {
+    return { success: false, error: 'سبق إرسال هذا التقرير. أكّد إعادة الإرسال إذا رغبت في إرساله مرة أخرى.' };
+  }
+  if (MailApp.getRemainingDailyQuota() < 1) {
+    return { success: false, error: 'تم بلوغ الحد اليومي المتاح لإرسال البريد. حاول في يوم عمل لاحق.' };
+  }
+
+  var indicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators')).filter(function(x) {
+    return String(x.visitId) === visitId;
+  });
+  var domainsSheet = ss.getSheetByName('VisitDomains');
+  var domains = rowsAsObjects_(domainsSheet).filter(function(x) { return String(x.visitId) === visitId; });
+  var strengths = [], improvementAreas = [];
+  try { strengths = JSON.parse(visit.strengths || '[]'); } catch (e) {}
+  try { improvementAreas = JSON.parse(visit.improvementAreas || '[]'); } catch (e) {}
+  var message = String(payload.message || '').trim().substring(0, 2000);
+  var subject = 'تقرير الزيارة الصفية المعتمد – ' + String(visit.teacherName || teacher.fullName || '');
+  var ratingLabels = {
+    outstanding: 'متميز', very_good: 'جيد جدًا', good: 'جيد', acceptable: 'مقبول',
+    weak: 'ضعيف', not_observed: 'لم يُشاهد', yes: 'متحقق', no: 'غير متحقق',
+    needs_improvement: 'يحتاج إلى تحسين'
+  };
+  var indicatorRows = indicators.map(function(item) {
+    return '<tr><td>' + escapeMailHtml_(item.indicatorText) + '</td><td>' +
+      escapeMailHtml_(ratingLabels[String(item.rating)] || item.rating) + '</td><td>' +
+      escapeMailHtml_(item.notes || '—') + '</td></tr>';
+  }).join('');
+  var listHtml = function(items) {
+    return (items || []).length ? '<ul>' + items.map(function(x) { return '<li>' + escapeMailHtml_(x) + '</li>'; }).join('') + '</ul>' : '<p>—</p>';
+  };
+  var html = '<!doctype html><html lang="ar" dir="rtl"><head><meta charset="UTF-8"><style>' +
+    'body{font-family:Arial,sans-serif;color:#172c40;line-height:1.7;direction:rtl}h1,h2{color:#172c40}' +
+    'table{width:100%;border-collapse:collapse;margin:12px 0}th,td{border:1px solid #ccd3da;padding:7px;text-align:right}' +
+    'th{background:#f2ebdd}.meta{background:#f7f8fa;padding:12px;border:1px solid #e2e8f0}' +
+    '</style></head><body><h1>منظومة أَثَر للتميز والتطوير التعليمي</h1>' +
+    '<h2>تقرير زيارة صفية معتمد</h2><div class="meta">' +
+    '<b>المعلم:</b> ' + escapeMailHtml_(visit.teacherName) + ' &nbsp; | &nbsp; <b>الرقم الوظيفي:</b> ' + escapeMailHtml_(visit.teacherJobNumber) +
+    '<br><b>المادة:</b> ' + escapeMailHtml_(visit.subject) + ' &nbsp; | &nbsp; <b>الصف والشعبة:</b> ' + escapeMailHtml_(visit.grade + ' / ' + visit.section) +
+    '<br><b>تاريخ الزيارة:</b> ' + escapeMailHtml_(visit.date) + ' &nbsp; | &nbsp; <b>المقيم:</b> ' + escapeMailHtml_(visit.evaluatorName) +
+    '<br><b>نسبة الإنجاز:</b> ' + escapeMailHtml_(visit.achievementPercentage) + '%</div>' +
+    '<h2>مؤشرات الزيارة وملاحظاتها</h2><table><thead><tr><th>المؤشر</th><th>التقدير</th><th>الملاحظة</th></tr></thead><tbody>' + indicatorRows + '</tbody></table>' +
+    '<h2>جوانب التميز</h2>' + listHtml(strengths) +
+    '<h2>فرص التحسين</h2>' + listHtml(improvementAreas) +
+    '<h2>التوصيات العملية</h2><p>' + escapeMailHtml_(visit.recommendations || '—') + '</p>' +
+    (message ? '<h2>رسالة من الإدارة</h2><p>' + escapeMailHtml_(message).replace(/\\n/g, '<br>') + '</p>' : '') +
+    '<hr><p>هذا التقرير أُرسل من منظومة أَثَر بعد اعتماده من الإدارة.</p></body></html>';
+  var pdf = HtmlService.createHtmlOutput(html).getBlob().getAs(MimeType.PDF)
+    .setName('Athar_Visit_Report_' + visitId + '.pdf');
+  var body = 'الأستاذ/ ' + String(teacher.fullName || visit.teacherName) + ' المحترم،\n\n' +
+    'نرفق لكم تقرير الزيارة الصفية بعد اعتماده من الإدارة. نأمل الاطلاع عليه والاستفادة من جوانب التميز وفرص التحسين والتوصيات الواردة فيه.' +
+    (message ? '\n\nرسالة الإدارة:\n' + message : '') +
+    '\n\nمع خالص التقدير،\nإدارة المدرسة – منظومة أَثَر';
+  MailApp.sendEmail({ to: recipient, subject: subject, body: body, htmlBody: html, attachments: [pdf], name: 'منظومة أَثَر' });
+
+  var sentAt = new Date().toISOString();
+  logSheet.appendRow([Utilities.getUuid(), schoolId, visitId, teacher.id, teacher.fullName, recipient,
+    session.name, session.role, sentAt, 'sent', subject, message]);
+  logAuditAction(schoolId, session.name, 'إرسال تقرير زيارة للمعلم', 'تم إرسال التقرير ' + visitId + ' إلى ' + recipient, session.role);
+  return { success: true, visitId: visitId, recipient: recipient, sentAt: sentAt, message: 'تم إرسال التقرير المعتمد إلى بريد المعلم بنجاح.' };
 }
