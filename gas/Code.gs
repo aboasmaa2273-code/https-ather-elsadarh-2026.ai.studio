@@ -409,7 +409,7 @@ function saveClassroomVisit(visitData) {
     }
 
     // تسجيل العملية في AuditLog
-    logAuditAction(visitData.schoolId || 'sch_alsadara_01', visitData.evaluatorName, 'حفظ زيارة صفية', 'حفظ زيارة للمعلم: ' + visitData.teacherName + ' بنسبة إنجاز ' + achPct + '%');
+    logAuditAction(visitData.schoolId || 'sch_alsadara_01', visitData.evaluatorName, 'حفظ زيارة صفية', 'حفظ زيارة للمعلم: ' + visitData.teacherName + ' بنسبة إنجاز ' + achPct + '%', visitData.evaluatorRole);
 
     return {
       success: true,
@@ -485,7 +485,7 @@ function saveTeacher(teacherData) {
       sheet.appendRow(newRow);
     }
 
-    logAuditAction(teacherData.schoolId || 'sch_alsadara_01', 'مسؤول النظام', 'حفظ بيانات معلم', 'تم حفظ المعلم: ' + fullName + ' (' + jobNumber + ')');
+    logAuditAction(teacherData.schoolId || 'sch_alsadara_01', teacherData.actorName || 'مسؤول النظام', 'حفظ بيانات معلم', 'تم حفظ المعلم: ' + fullName + ' (' + jobNumber + ')', teacherData.actorRole);
 
     return {
       success: true,
@@ -503,7 +503,7 @@ function saveTeacher(teacherData) {
 // 7. سجل التدقيق والأمان
 // ==========================================
 
-function logAuditAction(schoolId, userName, action, details) {
+function logAuditAction(schoolId, userName, action, details, userRole) {
   try {
     var ss = getDatabaseSpreadsheet_();
     var sheet = ss.getSheetByName('AuditLog');
@@ -513,7 +513,7 @@ function logAuditAction(schoolId, userName, action, details) {
         schoolId,
         new Date().toLocaleString('ar-AE'),
         userName,
-        'نظام أَثَر',
+        userRole || 'مستخدم المنصة',
         action,
         details
       ];
@@ -618,7 +618,7 @@ function apiLogin_(payload) {
       if (matchedTeacher) user.teacherId = String(matchedTeacher.id || '');
     }
     CacheService.getScriptCache().put('ATHAR_SESSION_' + token, JSON.stringify(user), 21600);
-    logAuditAction(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.');
+    logAuditAction(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.', user.role);
     return { success: true, token: token, user: user, expiresIn: 21600 };
   }
   return { success: false, error: 'اسم المستخدم غير مسجل ضمن الحسابات المعتمدة.' };
@@ -736,6 +736,8 @@ function dispatchApiAction_(action, payload, session) {
   if (action === 'saveTeacher') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة المعلمين.' };
     payload.schoolId = schoolId;
+    payload.actorName = session.name;
+    payload.actorRole = session.role;
     return saveTeacher(payload);
   }
   if (action === 'toggleTeacherStatus') {
@@ -745,6 +747,8 @@ function dispatchApiAction_(action, payload, session) {
     var teacher = teacherRows.filter(function(t) { return String(t.id) === String(payload.id) && String(t.schoolId) === String(schoolId); })[0];
     if (!teacher) return { success: false, error: 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
     teacher.status = payload.status === 'active' ? 'active' : 'inactive';
+    teacher.actorName = session.name;
+    teacher.actorRole = session.role;
     var saveTeacherResult = saveTeacher(teacher);
     return saveTeacherResult.success ? { success: true, id: teacher.id, status: teacher.status } : saveTeacherResult;
   }
@@ -765,6 +769,7 @@ function dispatchApiAction_(action, payload, session) {
     payload.schoolId = schoolId;
     payload.evaluatorId = session.id;
     payload.evaluatorName = session.name;
+    payload.evaluatorRole = session.role;
     payload.teacherName = teacherForVisit.fullName;
     payload.teacherJobNumber = teacherForVisit.jobNumber;
     payload.teacherSpecialization = teacherForVisit.specialization;
@@ -792,7 +797,9 @@ function dispatchApiAction_(action, payload, session) {
       status: payload.status || 'in_progress',
       createdAt: payload.createdAt || new Date().toISOString()
     };
-    return upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
+    var savedPlan = upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
+    if (savedPlan.success) logAuditAction(schoolId, session.name, 'حفظ خطة تطوير', 'تم حفظ خطة تطوير للمعلم: ' + planTeacher.fullName, session.role);
+    return savedPlan;
   }
   if (action === 'savePlanFollowUp') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية متابعة خطط التطوير.' };
@@ -812,7 +819,7 @@ function dispatchApiAction_(action, payload, session) {
     var dateCol = planHeaders.indexOf('followUpDate');
     if (statusCol >= 0) planSheet.getRange(planIndex, statusCol + 1).setValue(payload.status || 'in_progress');
     if (dateCol >= 0) planSheet.getRange(planIndex, dateCol + 1).setValue(payload.followUpDate || new Date().toISOString());
-    logAuditAction(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId);
+    logAuditAction(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId, session.role);
     return { success: true, id: followId };
   }
   if (action === 'saveSettings') {
@@ -822,7 +829,7 @@ function dispatchApiAction_(action, payload, session) {
     if (payload.academicSettings) settingsPayload.academicSettings = payload.academicSettings;
     if (Object.keys(settingsPayload).length === 0) return { success: false, error: 'لا توجد إعدادات صالحة للحفظ.' };
     var settingsResult = saveSettingsRows_(settingsPayload, session.name);
-    if (settingsResult.success) logAuditAction(schoolId, session.name, 'تحديث إعدادات المنصة', 'تم تحديث إعدادات المنصة أو الإعدادات الأكاديمية.');
+    if (settingsResult.success) logAuditAction(schoolId, session.name, 'تحديث إعدادات المنصة', 'تم تحديث إعدادات المنصة أو الإعدادات الأكاديمية.', session.role);
     return settingsResult;
   }
   if (action === 'saveUserAccount') {
@@ -836,13 +843,13 @@ function dispatchApiAction_(action, payload, session) {
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
     var deletedTeacher = deleteById_('Teachers', payload.id, schoolId);
-    if (deletedTeacher.success) logAuditAction(schoolId, session.name, 'حذف معلم', 'تم حذف المعلم ' + payload.id);
+    if (deletedTeacher.success) logAuditAction(schoolId, session.name, 'حذف معلم', 'تم حذف المعلم ' + payload.id, session.role);
     return deletedTeacher;
   }
   if (action === 'deleteVisit') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف الزيارات.' };
     var deletedVisit = deleteVisitRows_(payload.id, schoolId);
-    if (deletedVisit.success) logAuditAction(schoolId, session.name, 'حذف زيارة صفية', 'تم حذف الزيارة ' + payload.id);
+    if (deletedVisit.success) logAuditAction(schoolId, session.name, 'حذف زيارة صفية', 'تم حذف الزيارة ' + payload.id, session.role);
     return deletedVisit;
   }
   return { success: false, error: 'عملية API غير مدعومة: ' + action };
@@ -895,7 +902,7 @@ function saveUserAccount_(payload, session) {
     sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
     sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
   }
-  logAuditAction(obj.schoolId, session.name, existing ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')');
+  logAuditAction(obj.schoolId, session.name, existing ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')', session.role);
   return { success: true, user: { id: id, schoolId: obj.schoolId, name: name, username: username, email: obj.email,
     role: role, jobNumber: obj.jobNumber, specialization: obj.specialization, status: obj.status, teacherId: obj.teacherId } };
 }
@@ -911,7 +918,7 @@ function setUserStatus_(payload, session) {
     if (String(data[i][idCol]) === id && String(data[i][schoolCol]) === String(session.schoolId)) {
       var next = payload.status === 'active' ? 'active' : 'inactive';
       sheet.getRange(i + 1, statusCol + 1).setValue(next);
-      logAuditAction(session.schoolId, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next);
+      logAuditAction(session.schoolId, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
       return { success: true, id: id, status: next };
     }
   }
