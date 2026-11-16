@@ -1,5 +1,6 @@
 import React, { useMemo, useState } from 'react';
-import { ClassroomVisit, Teacher, ImprovementPlan, User } from '../types';
+import { ClassroomVisit, Teacher, ImprovementPlan, User, AdministrativeFollowUp } from '../types';
+import { AdministrativeFollowUpsPanel } from './AdministrativeFollowUpsPanel';
 import { Search, Filter, RotateCcw, ClipboardList, Users, CheckCircle2, Clock3, CalendarDays, Eye } from 'lucide-react';
 
 interface FollowUpDashboardProps {
@@ -7,13 +8,15 @@ interface FollowUpDashboardProps {
   visits: ClassroomVisit[];
   teachers: Teacher[];
   plans: ImprovementPlan[];
+  followUps: AdministrativeFollowUp[];
+  onRefresh: () => void;
   onOpenVisitReport: (visit: ClassroomVisit) => void;
 }
 
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#172C40] outline-none focus:border-[#C6A66A] focus:ring-2 focus:ring-[#C6A66A]/20";
 
 export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
-  currentUser, visits, teachers, plans, onOpenVisitReport
+  currentUser, visits, teachers, plans, followUps, onRefresh, onOpenVisitReport
 }) => {
   const [search, setSearch] = useState('');
   const [teacherId, setTeacherId] = useState('all');
@@ -143,5 +146,7 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
         </table>
       </div>
     </div>
+
+    <AdministrativeFollowUpsPanel currentUser={currentUser} teachers={teachers} visits={visits} followUps={followUps} onRefresh={onRefresh} />
   </section>;
 };
