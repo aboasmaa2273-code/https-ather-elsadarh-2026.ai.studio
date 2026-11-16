@@ -175,7 +175,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             {canSendApprovedReport && visit.status === 'approved' && onSendApprovedReport && (
               <button
                 onClick={() => {
-                  if (!teacherEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(teacherEmail)) {
+                  if (!teacherEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(teacherEmail)) {
                     alert(isEn ? 'No valid teacher email is registered.' : 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.');
                     return;
                   }
