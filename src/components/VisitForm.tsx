@@ -816,12 +816,15 @@ export const VisitForm: React.FC<VisitFormProps> = ({
           <div className="grid grid-cols-1 sm:grid-cols-4 gap-4">
             <div>
               <label className="block font-bold text-[#172C40] mb-1">{t.visits.academicYear}</label>
-              <input
-                type="text"
-                readOnly
+              <select
                 value={academicYear}
-                className="w-full px-3 py-2 bg-slate-100 border border-slate-200 rounded-lg font-mono text-slate-700"
-              />
+                onChange={(e) => { setAcademicYear(e.target.value); triggerAutoSave(); }}
+                className="w-full px-3 py-2 border border-slate-300 rounded-lg focus:outline-none"
+              >
+                {Array.from(new Set([...(academicSettings.academicYears || []), academicYear].filter(Boolean))).map(year => (
+                  <option key={year} value={year}>{year}</option>
+                ))}
+              </select>
             </div>
 
             <div>
