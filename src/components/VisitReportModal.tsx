@@ -14,7 +14,8 @@ import {
   Compass,
   Users,
   GraduationCap,
-  Archive
+  Archive,
+  Undo2
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 import { 
@@ -36,6 +37,8 @@ interface VisitReportModalProps {
   language?: Language;
   canArchive?: boolean;
   onArchiveReport?: (visitId: string) => void;
+  canManageStatus?: boolean;
+  onUnapproveReport?: (visitId: string) => void;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -44,7 +47,9 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   onClose,
   language = 'ar',
   canArchive = false,
-  onArchiveReport
+  onArchiveReport,
+  canManageStatus = false,
+  onUnapproveReport
 }) => {
   if (!visit) return null;
 
@@ -156,7 +161,10 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <Printer className="w-4 h-4" />
               <span>{t.visitReportModal.printBtn}</span>
             </button>
-            {canArchive && onArchiveReport && (
+            {canManageStatus && visit.status === 'approved' && onUnapproveReport && (
+              <button onClick={() => { if (confirm(isEn ? 'Remove approval and return this report for review?' : 'هل تريد إلغاء اعتماد التقرير وإعادته للمراجعة؟')) { onUnapproveReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-amber-500 text-[#172C40] rounded-lg font-bold text-xs hover:bg-amber-400 flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Unapprove' : 'إلغاء الاعتماد'}</span></button>
+            )}
+            {canArchive && visit.status !== 'archived' && onArchiveReport && (
               <button
                 onClick={() => {
                   if (confirm(isEn ? 'Archive this report? It will remain in the historical record.' : 'هل تريد أرشفة هذا التقرير؟ سيظل محفوظًا في السجل التاريخي.')) {
