@@ -70,7 +70,7 @@ function getDatabaseHealth_() {
 }
 
 // Safe, read-only helper that can be run manually from the Apps Script editor.
-function runDatabaseHealthCheck() {
+function runDatabaseHealthCheck_() {
   return getDatabaseHealth_();
 }
 
