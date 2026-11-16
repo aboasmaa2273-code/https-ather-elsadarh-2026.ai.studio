@@ -86,7 +86,7 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
     const headers = ['رقم الزيارة','المعلم','الرقم الوظيفي','المادة','الصف','الشعبة','العام الدراسي','الفصل الدراسي','نوع الزيارة','المقيم','التاريخ','نسبة الإنجاز','الحالة'];
     const rows = filteredVisits.map(v => [v.id,v.teacherName,v.teacherJobNumber,v.subject,v.grade,v.section,v.academicYear,v.term,v.visitType==='full'?'كاملة':'سريعة',v.evaluatorName,v.date,String(v.achievementPercentage)+'%',v.status]);
     const cell = (value: unknown) => '"' + String(value ?? '').replace(/"/g,'""') + '"';
-    const csv = '\\uFEFF' + [headers,...rows].map(row=>row.map(cell).join(',')).join('\\r\\n');
+    const csv = '\uFEFF' + [headers,...rows].map(row=>row.map(cell).join(',')).join('\r\n');
     const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
     const url = URL.createObjectURL(blob);
     const link = document.createElement('a');
