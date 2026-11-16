@@ -9,6 +9,7 @@ import {
   AuditLogEntry
 } from './types';
 import { AtharStorageService } from './services/storageService';
+import { atharRemoteBootstrap, clearAtharRemoteSession } from './services/gasBridgeClient';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -68,13 +69,22 @@ export default function App() {
   const [editingVisit, setEditingVisit] = useState<ClassroomVisit | null>(null);
 
   // Load initial data
-  const refreshAllData = () => {
-    setTeachers(AtharStorageService.getTeachers());
-    setVisits(AtharStorageService.getVisits());
-    setPlans(AtharStorageService.getPlans());
+  const refreshAllData = async () => {
     setAcademicSettings(AtharStorageService.getAcademicSettings());
     setPlatformSettings(AtharStorageService.getPlatformSettings());
     setAuditLogs(AtharStorageService.getAuditLogs());
+    try {
+      const remote = await atharRemoteBootstrap() as any;
+      setTeachers(Array.isArray(remote.teachers) ? remote.teachers : []);
+      setVisits(Array.isArray(remote.visits) ? remote.visits : []);
+      setPlans(Array.isArray(remote.plans) ? remote.plans : []);
+    } catch (error) {
+      // Public landing remains usable; once authenticated, show the actual connection error.
+      console.warn('Athar central data load:', error);
+      setTeachers(AtharStorageService.getTeachers());
+      setVisits(AtharStorageService.getVisits());
+      setPlans(AtharStorageService.getPlans());
+    }
   };
 
   useEffect(() => {
@@ -94,6 +104,7 @@ export default function App() {
   // Login handler
   const handleSelectRoleToLogin = (user: User) => {
     handleUserChange(user);
+    void refreshAllData();
     setIsLoggedIn(true);
     setIsLoginModalOpen(false);
     setActiveTab('dashboard');
@@ -101,6 +112,7 @@ export default function App() {
 
   // Logout handler
   const handleLogout = () => {
+    clearAtharRemoteSession();
     setIsLoggedIn(false);
     setActiveTab('home');
   };
@@ -302,6 +314,7 @@ export default function App() {
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(user) => {
             handleUserChange(user);
+            void refreshAllData();
             setIsLoggedIn(true);
             setIsLoginModalOpen(false);
             setActiveTab('dashboard');
