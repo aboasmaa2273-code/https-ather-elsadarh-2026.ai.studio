@@ -1058,8 +1058,16 @@ function dispatchApiAction_(action, payload, session) {
       return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
     })[0];
     if (!planTeacher) return { success: false, error: 'المعلم المحدد غير موجود ضمن المدرسة.' };
+    var requestedPlanId = String(payload.id || '').trim();
+    var existingPlan = requestedPlanId ? rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(p) {
+      return String(p.id) === requestedPlanId && String(p.schoolId) === String(schoolId);
+    })[0] : null;
+    if (requestedPlanId && !existingPlan) return { success: false, error: 'خطة التطوير غير موجودة أو لا تتبع المدرسة.' };
+    if (session.role === 'evaluator' && existingPlan && String(existingPlan.evaluatorId || '') !== String(session.id)) {
+      return { success: false, error: 'يمكنك تعديل خطط التطوير التي أنشأتها فقط.' };
+    }
     var planRow = {
-      id: payload.id || Utilities.getUuid(),
+      id: requestedPlanId || Utilities.getUuid(),
       schoolId: schoolId,
       teacherId: planTeacher.id,
       teacherName: planTeacher.fullName,
@@ -1071,8 +1079,10 @@ function dispatchApiAction_(action, payload, session) {
       responsible: payload.responsiblePerson || payload.responsible,
       duration: payload.duration,
       followUpDate: payload.followUpDate,
-      status: payload.status || 'in_progress',
-      createdAt: payload.createdAt || new Date().toISOString()
+      status: payload.status || (existingPlan && existingPlan.status) || 'in_progress',
+      evaluatorId: existingPlan ? (existingPlan.evaluatorId || session.id) : session.id,
+      evaluatorName: existingPlan ? (existingPlan.evaluatorName || session.name) : session.name,
+      createdAt: existingPlan ? existingPlan.createdAt : (payload.createdAt || new Date().toISOString())
     };
     var savedPlan = upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
     if (savedPlan.success) logAuditAction(schoolId, session.name, 'حفظ خطة تطوير', 'تم حفظ خطة تطوير للمعلم: ' + planTeacher.fullName, session.role);
@@ -1086,15 +1096,20 @@ function dispatchApiAction_(action, payload, session) {
     var planHeaders = planValues[0].map(String);
     var planIdCol = planHeaders.indexOf('id');
     var planSchoolCol = planHeaders.indexOf('schoolId');
+    var planOwnerCol = planHeaders.indexOf('evaluatorId');
     if (planIdCol < 0 || planSchoolCol < 0) return { success: false, error: 'تعذر تحديد أعمدة خطط التطوير.' };
     var requestedPlanIds = Array.isArray(payload.ids) ? payload.ids.map(String) : [];
     var deleteAllPlans = requestedPlanIds.length === 0;
+    if (session.role === 'evaluator' && deleteAllPlans) return { success: false, error: 'حدد خططك التي تريد حذفها؛ لا يُسمح للمقيم بحذف جميع خطط المدرسة.' };
     var planIdsToDelete = [];
     var planRowsToDelete = [];
     for (var planRow = 1; planRow < planValues.length; planRow++) {
       var belongsToCurrentSchool = String(planValues[planRow][planSchoolCol]) === String(schoolId);
       var isRequestedPlan = deleteAllPlans || requestedPlanIds.indexOf(String(planValues[planRow][planIdCol])) >= 0;
       if (belongsToCurrentSchool && isRequestedPlan) {
+        if (session.role === 'evaluator' && (planOwnerCol < 0 || String(planValues[planRow][planOwnerCol] || '') !== String(session.id))) {
+          return { success: false, error: 'يمكنك حذف خطط التطوير التي أنشأتها فقط. لم يُحذف أي سجل.' };
+        }
         planIdsToDelete.push(String(planValues[planRow][planIdCol]));
         planRowsToDelete.push(planRow + 1);
       }
@@ -1125,6 +1140,12 @@ function dispatchApiAction_(action, payload, session) {
       if (String(planData[pi][0]) === String(payload.planId) && String(planData[pi][1]) === String(schoolId)) { planIndex = pi + 1; break; }
     }
     if (planIndex < 0) return { success: false, error: 'خطة التطوير غير موجودة في المدرسة.' };
+    var selectedPlan = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(p) {
+      return String(p.id) === String(payload.planId) && String(p.schoolId) === String(schoolId);
+    })[0];
+    if (session.role === 'evaluator' && (!selectedPlan || String(selectedPlan.evaluatorId || '') !== String(session.id))) {
+      return { success: false, error: 'يمكنك متابعة خطط التطوير التي أنشأتها فقط.' };
+    }
     var followSheet = ss.getSheetByName('PlanFollowUps');
     if (!followSheet) return { success: false, error: 'ورقة متابعة الخطط غير موجودة.' };
     var followId = Utilities.getUuid();
