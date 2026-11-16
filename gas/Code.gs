@@ -170,10 +170,6 @@ function initializeDatabase_() {
  * Password hashes are copied only when both hash and salt exist.
  */
 /**
- * Adds evaluator ownership columns to an existing ImprovementPlans sheet.
- * This is an additive, non-destructive migration: existing rows and values are preserved.
- */
-/**
  * Adds stable creator identity to existing internal-note sheets without altering note rows.
  */
 function ensureInternalNoteOwnerColumn_(sheet) {
@@ -186,6 +182,10 @@ function ensureInternalNoteOwnerColumn_(sheet) {
   return { success: true, added: true };
 }
 
+/**
+ * Adds evaluator ownership columns to an existing ImprovementPlans sheet.
+ * This is an additive, non-destructive migration: existing rows and values are preserved.
+ */
 function ensureImprovementPlanOwnershipColumns_(sheet) {
   if (!sheet) return { success: false, error: 'ورقة خطط التطوير غير موجودة.' };
   var lastColumn = sheet.getLastColumn();
