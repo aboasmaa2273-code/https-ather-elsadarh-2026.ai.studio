@@ -315,8 +315,10 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       if (visitor?.username) {
         let account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
         if (!account) {
-          await refreshCentralUsers();
-          account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+          const remote: any = await atharRemoteBootstrap();
+          const latestUsers = Array.isArray(remote.users) ? remote.users as User[] : [];
+          setAllUsersList(latestUsers);
+          account = latestUsers.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
         }
         if (account) await atharRemoteAction('setUserStatus', { id: account.id, status: 'inactive' });
       }
