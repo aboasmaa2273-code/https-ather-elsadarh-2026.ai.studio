@@ -1,0 +1,67 @@
+name: Validate and Package Ather Apps Script
+
+on:
+  push:
+    branches: [ather-development]
+    paths:
+      - "gas/**"
+      - ".github/workflows/validate-gas-development.yml"
+  pull_request:
+    branches: [ather-development]
+    paths:
+      - "gas/**"
+      - ".github/workflows/validate-gas-development.yml"
+
+permissions:
+  contents: read
+
+jobs:
+  validate-gas:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Checkout development branch
+        uses: actions/checkout@v4
+
+      - name: Set up Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Validate Apps Script JavaScript syntax
+        run: |
+          cp gas/Code.gs /tmp/Code.js
+          node --check /tmp/Code.js
+
+      - name: Validate Apps Script manifest
+        run: node -e "JSON.parse(require('fs').readFileSync('gas/appsscript.json', 'utf8')); console.log('appsscript.json is valid')"
+
+      - name: Verify required project files
+        run: |
+          test -s gas/Code.gs
+          test -s gas/Bridge.html
+          test -s gas/Index.html
+          test -s gas/Styles.html
+          test -s gas/Client.html
+          test -s gas/appsscript.json
+
+      - name: Verify critical backend actions
+        run: |
+          grep -q "deleteTeacherImportBatch" gas/Code.gs
+          grep -q "sendTeacherVisitNotes" gas/Code.gs
+          grep -q "logWhatsAppOpen" gas/Code.gs
+          grep -q "sendApprovedVisitReport" gas/Code.gs
+          grep -q "ATHAR_DATABASE_SPREADSHEET_ID" gas/Code.gs
+
+      - name: Package Apps Script source files
+        run: |
+          mkdir -p dist
+          cd gas
+          zip -r ../dist/ather-apps-script-source.zip Code.gs Bridge.html Index.html Styles.html Client.html appsscript.json README_DEPLOYMENT.md
+
+      - name: Upload Apps Script package
+        uses: actions/upload-artifact@v4
+        with:
+          name: ather-apps-script-source
+          path: dist/ather-apps-script-source.zip
+          if-no-files-found: error
+          retention-days: 14
