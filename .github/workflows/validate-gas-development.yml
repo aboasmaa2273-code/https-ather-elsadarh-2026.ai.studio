@@ -5,6 +5,7 @@ on:
     branches: [ather-development]
     paths:
       - "gas/**"
+      - "scripts/**"
       - ".github/workflows/validate-gas-development.yml"
   pull_request:
     branches: [ather-development]
@@ -58,6 +59,9 @@ jobs:
           grep -q "function migrateUserPasswordColumns_()" gas/Code.gs
           grep -q "function setUserPassword_(identifier, password)" gas/Code.gs
           ! grep -qE "function (initializeDatabase|migrateUserPasswordColumns|setUserPassword)\\(" gas/Code.gs
+
+      - name: Run backend access-control regression tests
+        run: node scripts/test-ather-gas.js
 
       - name: Package Apps Script source files
         run: |
