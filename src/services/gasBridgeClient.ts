@@ -164,3 +164,12 @@ export async function atharRemoteBootstrap() {
   return result;
 }
 export function clearAtharRemoteSession() { localStorage.removeItem(GAS_TOKEN_KEY); }
+
+export async function atharRemoteAction(action: string, payload: Record<string, unknown>) {
+  if (!configureAtharBridge()) throw new Error('رابط قاعدة البيانات غير مضبوط.');
+  const token = localStorage.getItem(GAS_TOKEN_KEY) || '';
+  if (!token) throw new Error('انتهت الجلسة. سجّل الدخول مجدداً.');
+  const result = await atharGasBridge.request({ action, payload, token });
+  if (!result.success) throw new Error(result.error || 'لم يؤكد الخادم تنفيذ العملية.');
+  return result;
+}
