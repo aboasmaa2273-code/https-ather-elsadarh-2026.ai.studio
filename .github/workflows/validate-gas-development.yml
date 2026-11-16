@@ -49,6 +49,8 @@ jobs:
           grep -q "deleteTeacherImportBatch" gas/Code.gs
           grep -q "sendTeacherVisitNotes" gas/Code.gs
           grep -q "logWhatsAppOpen" gas/Code.gs
+          grep -q "function getPublicEvaluators_" gas/Code.gs
+          test "$(grep -c "getPublicEvaluators_()" gas/Code.gs)" -ge 3
           grep -q "sendApprovedVisitReport" gas/Code.gs
           grep -q "ATHAR_DATABASE_SPREADSHEET_ID" gas/Code.gs
 
