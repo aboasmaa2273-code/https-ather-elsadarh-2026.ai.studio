@@ -567,26 +567,19 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   // Save handler
   const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
     const visitObj = buildVisitObject(finalStatus);
-    const res = AtharStorageService.saveVisit(visitObj);
-
-    if (res.success) {
-      try {
-        await atharRemoteAction('saveVisit', { ...visitObj, ...res.visit });
-      } catch (error) {
-        setAutoSaveStatus('error');
-        if (isExplicitFinish) alert(error instanceof Error ? error.message : 'تعذر الحفظ في قاعدة البيانات المركزية.');
-        return;
-      }
+    try {
+      const remote = await atharRemoteAction('saveVisit', visitObj as unknown as Record<string, unknown>) as any;
+      const savedVisit = {
+        ...visitObj,
+        id: String(remote.visitId || visitObj.id),
+        achievementPercentage: Number(remote.achievementPercentage ?? visitObj.achievementPercentage)
+      };
       setAutoSaveStatus('saved');
       setLastSavedTime(new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-AE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      if (isExplicitFinish && res.visit) {
-        onSaveSuccess(res.visit);
-      }
-    } else {
+      if (isExplicitFinish) onSaveSuccess(savedVisit);
+    } catch (error) {
       setAutoSaveStatus('error');
-      if (isExplicitFinish) {
-        alert(res.error || (isEn ? 'An error occurred while saving the visit.' : 'حدث خطأ أثناء حفظ الزيارة.'));
-      }
+      if (isExplicitFinish) alert(error instanceof Error ? error.message : 'تعذر الحفظ في قاعدة البيانات المركزية. لم يتم اعتماد الحفظ محلياً.');
     }
   };
 
