@@ -40,6 +40,9 @@ interface VisitReportModalProps {
   canManageStatus?: boolean;
   onUnapproveReport?: (visitId: string) => void;
   onRestoreReport?: (visitId: string) => void;
+  canSendApprovedReport?: boolean;
+  teacherEmail?: string;
+  onSendApprovedReport?: (visitId: string, message: string) => Promise<void>;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -51,7 +54,10 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   onArchiveReport,
   canManageStatus = false,
   onUnapproveReport,
-  onRestoreReport
+  onRestoreReport,
+  canSendApprovedReport = false,
+  teacherEmail = '',
+  onSendApprovedReport
 }) => {
   if (!visit) return null;
 
@@ -165,6 +171,31 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             </button>
             {canManageStatus && visit.status === 'archived' && onRestoreReport && (
               <button onClick={() => { if (confirm(isEn ? 'Restore this report from archive?' : 'هل تريد استعادة هذا التقرير من الأرشيف؟')) { onRestoreReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Restore report' : 'استعادة من الأرشيف'}</span></button>
+            )}
+            {canSendApprovedReport && visit.status === 'approved' && onSendApprovedReport && (
+              <button
+                onClick={() => {
+                  if (!teacherEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(teacherEmail)) {
+                    alert(isEn ? 'No valid teacher email is registered.' : 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.');
+                    return;
+                  }
+                  const note = window.prompt(
+                    isEn ? 'Optional message to include with the approved report:' : 'أضف رسالة تربوية اختيارية تظهر في البريد المرسل مع التقرير:',
+                    ''
+                  );
+                  if (note === null) return;
+                  const confirmed = confirm(
+                    (isEn ? 'Send the approved PDF report to ' : 'تأكيد إرسال تقرير الزيارة المعتمد إلى ') +
+                    teacherEmail + (isEn ? '?' : '؟')
+                  );
+                  if (confirmed) void onSendApprovedReport(visit.id, note.trim());
+                }}
+                disabled={!teacherEmail}
+                className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                title={teacherEmail || (isEn ? 'Teacher email is missing' : 'البريد الإلكتروني للمعلم غير مسجل')}
+              >
+                <span>{isEn ? 'Send to teacher' : 'إرسال التقرير للمعلم'}</span>
+              </button>
             )}
             {canManageStatus && visit.status === 'approved' && onUnapproveReport && (
               <button onClick={() => { if (confirm(isEn ? 'Remove approval and return this report for review?' : 'هل تريد إلغاء اعتماد التقرير وإعادته للمراجعة؟')) { onUnapproveReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-amber-500 text-[#172C40] rounded-lg font-bold text-xs hover:bg-amber-400 flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Unapprove' : 'إلغاء الاعتماد'}</span></button>
