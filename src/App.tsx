@@ -345,6 +345,10 @@ export default function App() {
           language={language}
           canArchive={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
           canManageStatus={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          onRestoreReport={async (visitId) => {
+            try { await atharRemoteAction('restoreVisit', { id: visitId }); await refreshAllData(true); }
+            catch (error) { alert(error instanceof Error ? error.message : 'تعذر استعادة التقرير من الأرشيف.'); }
+          }}
           onUnapproveReport={async (visitId) => {
             try { await atharRemoteAction('unapproveVisit', { id: visitId }); await refreshAllData(true); }
             catch (error) { alert(error instanceof Error ? error.message : 'تعذر إلغاء اعتماد التقرير.'); }
