@@ -756,27 +756,28 @@ function migrateUserPasswordColumns() {
 }
 
 // تعيين كلمة مرور لحساب موجود فقط؛ لا تنشئ مستخدمين ولا تغيّر أدوارهم.
-function setUserPassword(email, password) {
-  if (!email || !password || String(password).length < 10) throw new Error('أدخل البريد وكلمة مرور لا تقل عن 10 أحرف.');
+function setUserPassword(identifier, password) {
+  if (!identifier || !password || String(password).length < 10) throw new Error('أدخل اسم المستخدم أو البريد وكلمة مرور لا تقل عن 10 أحرف.');
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss && ss.getSheetByName('Users');
   if (!sheet) throw new Error('ورقة Users غير موجودة.');
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(String);
   var emailCol = headers.indexOf('email');
+  var usernameCol = headers.indexOf('username');
   var saltCol = headers.indexOf('passwordSalt');
   var hashCol = headers.indexOf('passwordHash');
-  if (emailCol < 0 || saltCol < 0 || hashCol < 0) throw new Error('نفّذ migrateUserPasswordColumns() أولاً.');
-  var normalized = String(email).trim().toLowerCase();
+  if (emailCol < 0 || usernameCol < 0 || saltCol < 0 || hashCol < 0) throw new Error('نفّذ migrateUserPasswordColumns() أولاً.');
+  var normalized = String(identifier).trim().toLowerCase();
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][emailCol] || '').trim().toLowerCase() === normalized) {
+    if (String(data[i][emailCol] || '').trim().toLowerCase() === normalized || String(data[i][usernameCol] || '').trim().toLowerCase() === normalized) {
       var salt = Utilities.getUuid() + Utilities.getUuid();
       sheet.getRange(i + 1, saltCol + 1).setValue(salt);
       sheet.getRange(i + 1, hashCol + 1).setValue(passwordHash_(String(password), salt));
       return { success: true, message: 'تم تحديث كلمة مرور الحساب.' };
     }
   }
-  throw new Error('لم يتم العثور على بريد مطابق في قائمة Users.');
+  throw new Error('لم يتم العثور على اسم مستخدم أو بريد مطابق في قائمة Users.');
 }
 
 
