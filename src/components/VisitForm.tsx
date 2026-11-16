@@ -83,6 +83,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [teacherName, setTeacherName] = useState(editingVisit?.teacherName || (teachers[0]?.fullName || ''));
   const [teacherJobNumber, setTeacherJobNumber] = useState(editingVisit?.teacherJobNumber || (teachers[0]?.jobNumber || ''));
   const [teacherSpecialization, setTeacherSpecialization] = useState(editingVisit?.teacherSpecialization || (teachers[0]?.specialization || ''));
+  const teacherSelectionChangedByUserRef = useRef(false);
 
   // If the visit form opens before the central teacher list finishes loading,
   // select the first available teacher once the list arrives.
@@ -386,6 +387,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
   // Auto-fill teacher info when teacher selection changes
   const handleTeacherChange = (teacherId: string) => {
+    teacherSelectionChangedByUserRef.current = true;
     setSelectedTeacherId(teacherId);
     const tch = teachers.find(t => t.id === teacherId);
     if (tch) {
@@ -461,6 +463,14 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       saveVisitToStorage('draft', false);
     }, 1200);
   };
+
+  // Save teacher changes only after React has committed the new teacher state.
+  // This prevents the debounce callback from capturing the previously selected teacher.
+  useEffect(() => {
+    if (!teacherSelectionChangedByUserRef.current) return;
+    teacherSelectionChangedByUserRef.current = false;
+    triggerAutoSave();
+  }, [selectedTeacherId]);
 
   useEffect(() => {
     return () => {
@@ -747,7 +757,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               <label className="block font-bold text-[#172C40] mb-1">{t.visits.teacherLabel} *</label>
               <select
                 value={selectedTeacherId}
-                onChange={(e) => { handleTeacherChange(e.target.value); triggerAutoSave(); }}
+                onChange={(e) => handleTeacherChange(e.target.value)}
                 className="w-full px-3 py-2 bg-white border border-slate-300 rounded-lg font-bold text-[#172C40] focus:outline-none focus:border-[#172C40]"
               >
                 {teachers.map(tch => (
