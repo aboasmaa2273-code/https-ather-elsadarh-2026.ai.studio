@@ -88,8 +88,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [visitorFormPassword, setVisitorFormPassword] = useState('');
 
   // Demo Data Management & Cleanup State
-  const [purgeTarget, setPurgeTarget] = useState<'visits' | 'plans' | 'teachers' | 'all' | null>(null);
-  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
 
   // Audit Log Filtering & Sorting State
   const [auditSearch, setAuditSearch] = useState('');
@@ -305,37 +303,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     }
   };
 
-  // Demo Data Purge Execution
-  const handleExecutePurge = () => {
-    if (!purgeTarget) return;
-
-    if (purgeTarget === 'visits') {
-      const res = AtharStorageService.clearDemoVisits();
-      showFeedback('success', isEn ? `Cleared ${res.count} visits successfully.` : `تم مسح ${res.count} زيارة صفية بنجاح.`);
-    } else if (purgeTarget === 'plans') {
-      const res = AtharStorageService.clearDemoPlans();
-      showFeedback('success', isEn ? `Cleared ${res.count} improvement plans successfully.` : `تم مسح ${res.count} خطة تطوير مهني بنجاح.`);
-    } else if (purgeTarget === 'teachers') {
-      const res = AtharStorageService.clearDemoTeachers();
-      showFeedback('success', isEn ? `Cleared ${res.count} teachers successfully.` : `تم مسح ${res.count} معلماً تجريبياً بنجاح.`);
-    } else if (purgeTarget === 'all') {
-      AtharStorageService.resetAllDataToClean();
-      showFeedback('success', isEn ? 'Purged all demo records. System initialized with clean slate.' : 'تم تفريغ كامل البيانات التجريبية والبدء بسجل رسمي نظيف.');
-    }
-
-    setIsPurgeModalOpen(false);
-    setPurgeTarget(null);
-    onRefreshSettings();
-  };
-
-  const handleRestoreDemoData = () => {
-    if (confirm(isEn ? 'Restore sample demo records for testing and training?' : 'هل تود استرجاع البيانات التجريبية النموذجية لأغراض التدريب والتجربة؟')) {
-      AtharStorageService.resetToDefaults();
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      showFeedback('success', isEn ? 'Sample demo data restored successfully.' : 'تمت استعادة البيانات التجريبية النموذجية بنجاح.');
-      onRefreshSettings();
-    }
-  };
 
   return (
     <div className="space-y-6 text-xs text-[#172C40]">
@@ -448,18 +415,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('data')}
-          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'data'
-              ? 'bg-[#172C40] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Database className="w-4 h-4 text-[#C6A66A]" />
-          <span>{t.settings.tabData}</span>
-        </button>
 
         <button
           type="button"
@@ -859,130 +814,11 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* SUB-TAB 3: Demo Data & Records Management (حذف البيانات)       */}
-      {/* ============================================================== */}
       {activeSubTab === 'data' && (
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 pb-3">
-            <h3 className="text-base font-bold text-[#172C40] font-['Tajawal'] flex items-center gap-2">
-              <Database className="w-5 h-5 text-[#C6A66A]" />
-              <span>{t.demoDataManagement.title}</span>
-            </h3>
-            <p className="text-slate-500 text-xs mt-0.5">
-              {t.demoDataManagement.subtitle}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 1. Clear Demo Visits */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-[#172C40] text-sm block">
-                  {t.demoDataManagement.clearVisitsBtn}
-                </span>
-                <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.clearVisitsDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('visits');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs self-start"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{t.demoDataManagement.clearVisitsBtn}</span>
-              </button>
-            </div>
-
-            {/* 2. Clear Demo Plans */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-[#172C40] text-sm block">
-                  {t.demoDataManagement.clearPlansBtn}
-                </span>
-                <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.clearPlansDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('plans');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs self-start"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{t.demoDataManagement.clearPlansBtn}</span>
-              </button>
-            </div>
-
-            {/* 3. Clear Demo Teachers */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-[#172C40] text-sm block">
-                  {t.demoDataManagement.clearTeachersBtn}
-                </span>
-                <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.clearTeachersDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('teachers');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs self-start"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{t.demoDataManagement.clearTeachersBtn}</span>
-              </button>
-            </div>
-
-            {/* 4. Complete Clean Slate Purge */}
-            <div className="p-4 rounded-xl border border-rose-300 bg-rose-50/40 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-rose-950 text-sm block">
-                  {t.demoDataManagement.cleanStartBtn}
-                </span>
-                <p className="text-rose-900/80 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.cleanStartDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('all');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-rose-700 text-white hover:bg-rose-800 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs self-start"
-              >
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />
-                <span>{t.demoDataManagement.cleanStartBtn}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Restore sample demo records */}
-          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F2EBDD]/40 p-4 rounded-xl border border-[#C6A66A]/40">
-            <div>
-              <span className="font-bold text-[#172C40] block">{t.demoDataManagement.restoreDemoBtn}</span>
-              <p className="text-slate-600 text-[11px] mt-0.5">{t.demoDataManagement.restoreDemoDesc}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleRestoreDemoData}
-              className="px-4 py-2 bg-white text-[#172C40] border border-[#C6A66A] rounded-lg font-bold hover:bg-[#F2EBDD] flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-[#C6A66A]" />
-              <span>{t.demoDataManagement.restoreDemoBtn}</span>
-            </button>
-          </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+          {isEn
+            ? 'Data cleanup and demo restoration are temporarily disabled until these actions are connected to the central database. No shared records will be changed from this screen.'
+            : 'أُوقِفت أدوات تفريغ البيانات التجريبية واستعادتها مؤقتًا إلى أن تُربط بقاعدة البيانات المركزية؛ لن تُحذف أي سجلات مشتركة من هذه الشاشة.'}
         </div>
       )}
 
@@ -1315,58 +1151,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* MODAL 2: Safety Confirm Purge Modal                            */}
-      {/* ============================================================== */}
-      {isPurgeModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#172C40]/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-rose-300 max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-4 bg-rose-700 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-300" />
-                <h3 className="font-bold text-sm font-['Tajawal']">{t.demoDataManagement.confirmModalTitle}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPurgeModalOpen(false)}
-                className="p-1 hover:bg-white/10 rounded-lg text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <p className="text-slate-700 leading-relaxed text-xs">
-                {t.demoDataManagement.confirmWarning}
-              </p>
-
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 font-bold text-xs">
-                {purgeTarget === 'visits' && (isEn ? 'All recorded classroom observation visits will be wiped.' : 'سيتم حذف كافة سجلات الزيارات الصفية المسجلة.')}
-                {purgeTarget === 'plans' && (isEn ? 'All improvement plans and follow-ups will be wiped.' : 'سيتم حذف كافة خطط التطوير المهني والمتابعات.')}
-                {purgeTarget === 'teachers' && (isEn ? 'All demo teachers will be deleted to allow faculty CSV import.' : 'سيتم تفريغ سجل المعلمين بالكامل لإفساح المجال للاستيراد الفعلي.')}
-                {purgeTarget === 'all' && (isEn ? 'All demo visits, plans, and teachers will be wiped for a clean institutional start.' : 'سيتم تفريغ كافة البيانات التجريبية (الزيارات، المعلمين، الخطط) دفعة واحدة.')}
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPurgeModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 cursor-pointer"
-                >
-                  {t.common.cancel}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExecutePurge}
-                  className="px-5 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-lg font-bold cursor-pointer shadow-xs"
-                >
-                  {t.demoDataManagement.confirmActionBtn}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
 
     </div>
   );
