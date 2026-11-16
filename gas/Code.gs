@@ -932,6 +932,10 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'إلغاء اعتماد التقارير مقتصر على الإدارة المخولة.' };
     return unapproveVisit_(payload.id, session, schoolId);
   }
+  if (action === 'restoreVisit') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'استعادة التقارير المؤرشفة مقتصرة على الإدارة المخولة.' };
+    return restoreVisit_(payload.id, session, schoolId);
+  }
   if (action === 'deleteVisit') {
     return { success: false, error: 'الحذف النهائي للتقارير غير متاح. استخدم إجراء الأرشفة للاحتفاظ بالسجل التاريخي.' };
   }
@@ -1118,6 +1122,25 @@ function unapproveVisit_(visitId, session, schoolId) {
     sheet.getRange(i + 1, statusCol + 1).setValue('completed');
     if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
     logAuditAction(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
+    return { success: true, id: visitId, status: 'completed' };
+  }
+  return { success: false, error: 'التقرير غير موجود في المدرسة.' };
+}
+
+function restoreVisit_(visitId, session, schoolId) {
+  if (!visitId) return { success: false, error: 'رقم التقرير مطلوب.' };
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('Visits');
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(String);
+  var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+    if (String(data[i][statusCol]) !== 'archived') return { success: false, error: 'هذا التقرير ليس مؤرشفًا.' };
+    recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'استعادة التقرير من الأرشيف');
+    sheet.getRange(i + 1, statusCol + 1).setValue('completed');
+    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
+    logAuditAction(schoolId, session.name, 'استعادة تقرير من الأرشيف', 'تمت استعادة التقرير ' + visitId, session.role);
     return { success: true, id: visitId, status: 'completed' };
   }
   return { success: false, error: 'التقرير غير موجود في المدرسة.' };
