@@ -352,7 +352,7 @@ export default function App() {
           language={language}
           canArchive={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
           canManageStatus={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
-          canSendApprovedReport={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          canSendApprovedReport={['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)}
           teacherEmail={teachers.find((teacher) => teacher.id === selectedVisitForReport.teacherId)?.email || ''}
           onSendApprovedReport={async (visitId, message) => {
             try {
