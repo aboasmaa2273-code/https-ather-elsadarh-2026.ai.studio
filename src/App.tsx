@@ -73,7 +73,7 @@ export default function App() {
   const refreshAllData = async (requireCentral = isLoggedIn) => {
     setAcademicSettings(AtharStorageService.getAcademicSettings());
     setPlatformSettings(AtharStorageService.getPlatformSettings());
-    setAuditLogs(AtharStorageService.getAuditLogs());
+    setAuditLogs([]);
     try {
       const remote = await atharRemoteBootstrap() as any;
       setTeachers(Array.isArray(remote.teachers) ? remote.teachers : []);
