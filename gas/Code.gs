@@ -793,6 +793,7 @@ function dispatchApiAction_(action, payload, session) {
         return String(v.id) === String(payload.id) && String(v.schoolId) === String(schoolId);
       })[0] || null;
       if (!existingVisitForEdit) return { success: false, error: 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
+      if (String(existingVisitForEdit.status || '') === 'archived') return { success: false, error: 'لا يمكن تعديل تقرير مؤرشف. استعد التقرير من الأرشيف أولاً.' };
       if (session.role === 'evaluator' && String(existingVisitForEdit.evaluatorId) !== String(session.id)) {
         return { success: false, error: 'لا يمكنك تعديل زيارة سجّلها مقيم آخر.' };
       }
