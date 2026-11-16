@@ -101,6 +101,9 @@ function initializeDatabase() {
       }
     }
     
+    // Ensure the destination has password columns before importing legacy account hashes.
+    migrateUserPasswordColumns();
+
     // Import existing central users once, without deleting or modifying the source sheet.
     var userMigration = migrateCentralUsersToUsers_(ss);
 
@@ -607,8 +610,19 @@ function apiLogin_(payload) {
       email: rowEmail,
       username: rowUsername,
       role: role,
-      teacherId: String(row[headers.indexOf('teacherId')] || '')
+      teacherId: String(row[headers.indexOf('teacherId')] || ''),
+      jobNumber: String(row[headers.indexOf('jobNumber')] || ''),
+      specialization: String(row[headers.indexOf('specialization')] || ''),
+      status: status
     };
+    // Resolve a teacher account to its actual Teachers.id using the employee number.
+    if (role === 'teacher' && !user.teacherId && user.jobNumber) {
+      var teacherRows = rowsAsObjects_(ss.getSheetByName('Teachers'));
+      var matchedTeacher = teacherRows.filter(function(t) {
+        return String(t.schoolId || '') === user.schoolId && String(t.jobNumber || '') === user.jobNumber;
+      })[0];
+      if (matchedTeacher) user.teacherId = String(matchedTeacher.id || '');
+    }
     CacheService.getScriptCache().put('ATHAR_SESSION_' + token, JSON.stringify(user), 21600);
     return { success: true, token: token, user: user, expiresIn: 21600 };
   }
