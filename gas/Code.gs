@@ -1084,9 +1084,9 @@ function dispatchApiAction_(action, payload, session) {
     return sendApprovedVisitReport_(payload, session, schoolId);
   }
   if (action === 'savePlan') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
     var ownershipMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
     if (!ownershipMigration.success) return ownershipMigration;
-    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
     var planTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
       return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
     })[0];
@@ -1122,9 +1122,9 @@ function dispatchApiAction_(action, payload, session) {
     return savedPlan;
   }
   if (action === 'deletePlans') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'حذف خطط التطوير مقتصر على الإدارة والمقيمين المخولين.' };
     var deletePlanMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
     if (!deletePlanMigration.success) return deletePlanMigration;
-    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'حذف خطط التطوير مقتصر على الإدارة والمقيمين المخولين.' };
     var plansSheet = ss.getSheetByName('ImprovementPlans');
     if (!plansSheet || plansSheet.getLastRow() < 2) return { success: true, deletedCount: 0 };
     var planValues = plansSheet.getDataRange().getValues();
@@ -1166,9 +1166,9 @@ function dispatchApiAction_(action, payload, session) {
     return { success: true, deletedCount: planRowsToDelete.length };
   }
   if (action === 'savePlanFollowUp') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية متابعة خطط التطوير.' };
     var followPlanMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
     if (!followPlanMigration.success) return followPlanMigration;
-    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية متابعة خطط التطوير.' };
     var planSheet = ss.getSheetByName('ImprovementPlans');
     var planData = planSheet.getDataRange().getValues();
     var planHeaders = planData[0].map(String);
