@@ -15,6 +15,7 @@ import {
 } from '../types';
 import { OFFICIAL_INDICATORS, GENERAL_DOMAINS, POTENTIAL_VISIT_GOALS, PRESET_RECOMMENDATION_BANKS } from '../data/defaultData';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   Save, 
   CheckCircle2, 
@@ -564,11 +565,18 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   };
 
   // Save handler
-  const saveVisitToStorage = (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
+  const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
     const visitObj = buildVisitObject(finalStatus);
     const res = AtharStorageService.saveVisit(visitObj);
 
     if (res.success) {
+      try {
+        await atharRemoteAction('saveVisit', { ...visitObj, ...res.visit });
+      } catch (error) {
+        setAutoSaveStatus('error');
+        if (isExplicitFinish) alert(error instanceof Error ? error.message : 'تعذر الحفظ في قاعدة البيانات المركزية.');
+        return;
+      }
       setAutoSaveStatus('saved');
       setLastSavedTime(new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-AE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       if (isExplicitFinish && res.visit) {
