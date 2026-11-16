@@ -44,7 +44,7 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
   const subjects = options(visits.map(v => v.subject || ''));
   const grades = options(visits.map(v => v.grade || ''));
   const sections = options(visits.map(v => v.section || ''));
-  const indicators = Array.from(new Map(visits.flatMap(v => (v.indicators || []).map(i => [String(i.indicatorId), i.indicatorText]))).entries());
+  const indicators = Array.from(new Map(visits.flatMap(v => (v.indicators || []).map(i => [String(i.indicatorId), i.indicatorText] as [string, string]))).entries());
   const strengths = options(visits.flatMap(v => v.strengths || []));
   const improvementAreas = options(visits.flatMap(v => v.improvementAreas || []));
 
