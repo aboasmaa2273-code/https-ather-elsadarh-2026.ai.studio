@@ -79,6 +79,14 @@ export default function App() {
       setTeachers(Array.isArray(remote.teachers) ? remote.teachers : []);
       setVisits(Array.isArray(remote.visits) ? remote.visits : []);
       setPlans(Array.isArray(remote.plans) ? remote.plans : []);
+      const centralSettings: Record<string, any> = {};
+      (Array.isArray(remote.settings) ? remote.settings : []).forEach((item: any) => {
+        if (!item || !item.key) return;
+        try { centralSettings[String(item.key)] = typeof item.value === 'string' ? JSON.parse(item.value) : item.value; }
+        catch { centralSettings[String(item.key)] = item.value; }
+      });
+      if (centralSettings.academicSettings) setAcademicSettings(centralSettings.academicSettings);
+      if (centralSettings.platformSettings) setPlatformSettings(centralSettings.platformSettings);
       setDataConnectionError('');
     } catch (error) {
       // Public landing remains usable; once authenticated, show the actual connection error.
