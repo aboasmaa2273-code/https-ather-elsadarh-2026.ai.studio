@@ -1026,6 +1026,13 @@ function saveInternalNote_(payload, session, schoolId) {
   var noteId = String(payload.id || Utilities.getUuid());
   var existing = rowsAsObjects_(sheet).filter(function(n) { return String(n.id) === noteId && String(n.schoolId) === String(schoolId); })[0];
   if (payload.id && !existing) return { success: false, error: 'الملاحظة غير موجودة أو لا تتبع المدرسة.' };
+  if (existing && ['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) < 0 && String(existing.createdBy || '') !== String(session.name || '')) {
+    return { success: false, error: 'يمكنك تعديل ملاحظاتك التي كتبتها فقط. يمكن للإدارة تعديل جميع الملاحظات.' };
+  }
+  if (payload.visitId) {
+    var linkedVisit = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId) && String(v.teacherId) === String(teacher.id); })[0];
+    if (!linkedVisit) return { success: false, error: 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+  }
   if (existing) {
     getDatabaseSpreadsheet_().getSheetByName('InternalNoteHistory').appendRow([
       Utilities.getUuid(), schoolId, noteId, session.name, session.role, now, String(existing.noteText || ''), text
