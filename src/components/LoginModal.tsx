@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { AtharStorageService } from '../services/storageService';
-import { atharRemoteLogin } from '../services/gasBridgeClient';
+import { atharRemoteLogin, clearAtharRemoteSession } from '../services/gasBridgeClient';
 import { 
   Shield, 
   Lock, 
@@ -66,6 +66,10 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         if (remote.success && remote.user) {
           const user = remote.user as User;
           if (selectedEvaluator && (user.id !== selectedEvaluator.id || user.role !== 'evaluator')) {
+            // A successful credential check creates a server session. Do not
+            // leave its token in this browser when the account does not match
+            // the evaluator portal the user selected.
+            clearAtharRemoteSession();
             setErrorMessage(isEn
               ? 'This portal belongs to a different evaluator account.'
               : 'هذه البوابة مخصصة للمقيم المحدد فقط. تحقق من بيانات الحساب أو اختر بوابتك الصحيحة.');
