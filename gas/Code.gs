@@ -1427,6 +1427,12 @@ function dispatchBridgeRequest(request) {
 
 
 // إرسال التقرير المعتمد للمعلم فقط، مع إنشاء سجل مراسلات آمن عند الحاجة.
+// تُشغّل مرة واحدة من محرر Apps Script بواسطة مالك النشر لمنح صلاحية إرسال البريد.
+function authorizeMailOnce() {
+  var remaining = MailApp.getRemainingDailyQuota();
+  return { success: true, remainingDailyQuota: remaining, message: 'تم التحقق من صلاحية إرسال البريد.' };
+}
+
 function ensureCommunicationLogSheet_() {
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss.getSheetByName('CommunicationLog');
