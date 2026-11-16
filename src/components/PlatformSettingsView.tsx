@@ -183,20 +183,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     }
   };
 
-  // Clear Audit Log History
-  const handleClearAuditLogs = () => {
-    if (!confirm(isEn ? 'Are you sure you want to permanently clear the audit log history?' : 'هل أنت متأكد من رغبتك في مسح كافة سجلات العمليات والأمان نهائياً؟')) {
-      return;
-    }
-    const res = AtharStorageService.clearAuditLogs();
-    if (res.success) {
-      setLocalAuditLogs([]);
-      showFeedback('success', isEn ? 'Audit log cleared successfully.' : 'تم مسح كامل سجل العمليات والأمان بنجاح.');
-      onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to clear logs.' : 'تعذر مسح السجل.'));
-    }
-  };
 
   // Save Platform Identity
   const handleSavePlatform = async () => {
@@ -446,8 +432,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         <button
           type="button"
           onClick={() => {
-            setAllUsersList(AtharStorageService.getAllUsers());
             setActiveSubTab('users');
+            void refreshCentralUsers();
           }}
           className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeSubTab === 'users'
