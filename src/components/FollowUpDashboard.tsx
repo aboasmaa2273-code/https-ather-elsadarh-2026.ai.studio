@@ -1,7 +1,7 @@
 import React, { useMemo, useState } from 'react';
 import { ClassroomVisit, Teacher, ImprovementPlan, User, AdministrativeFollowUp, VisitHistoryEntry } from '../types';
 import { AdministrativeFollowUpsPanel } from './AdministrativeFollowUpsPanel';
-import { Search, Filter, RotateCcw, ClipboardList, Users, CheckCircle2, Clock3, CalendarDays, Eye } from 'lucide-react';
+import { Search, Filter, RotateCcw, ClipboardList, Users, CheckCircle2, Clock3, CalendarDays, Eye, Download, Printer } from 'lucide-react';
 
 interface FollowUpDashboardProps {
   currentUser: User;
@@ -82,6 +82,17 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
     setVisitType('all'); setSubject('all'); setGrade('all'); setSection('all'); setStatus('all');
     setFromDate(''); setToDate(''); setIndicatorId('all'); setIndicatorRating('all'); setStrengthFilter('all'); setImprovementFilter('all'); setFollowUpStatus('all');
   };
+  const exportCsv = () => {
+    const headers = ['رقم الزيارة','المعلم','الرقم الوظيفي','المادة','الصف','الشعبة','العام الدراسي','الفصل الدراسي','نوع الزيارة','المقيم','التاريخ','نسبة الإنجاز','الحالة'];
+    const rows = filteredVisits.map(v => [v.id,v.teacherName,v.teacherJobNumber,v.subject,v.grade,v.section,v.academicYear,v.term,v.visitType==='full'?'كاملة':'سريعة',v.evaluatorName,v.date,String(v.achievementPercentage)+'%',v.status]);
+    const cell = (value: unknown) => '"' + String(value ?? '').replace(/"/g,'""') + '"';
+    const csv = '\\uFEFF' + [headers,...rows].map(row=>row.map(cell).join(',')).join('\\r\\n');
+    const blob = new Blob([csv],{type:'text/csv;charset=utf-8;'});
+    const url = URL.createObjectURL(blob);
+    const link = document.createElement('a');
+    link.href = url; link.download = 'تقارير-زيارات-أثر.csv'; link.click();
+    URL.revokeObjectURL(url);
+  };
   const statusLabel = (value: string) => ({
     draft: 'مسودة', in_progress: 'قيد التنفيذ', completed: 'مكتمل', approved: 'معتمد', archived: 'مؤرشف'
   } as Record<string,string>)[value] || value;
@@ -148,7 +159,7 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
     </div>
 
     <div className="overflow-hidden rounded-2xl border border-slate-200 bg-white shadow-sm">
-      <div className="flex items-center justify-between border-b border-slate-200 p-4"><h2 className="font-black text-[#172C40]">سجل الزيارات والتقارير</h2><span className="text-xs text-slate-500">الأحدث أولًا</span></div>
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-slate-200 p-4"><h2 className="font-black text-[#172C40]">سجل الزيارات والتقارير</h2><div className="flex items-center gap-2"><button type="button" onClick={exportCsv} className="inline-flex items-center gap-1.5 rounded-lg border border-slate-300 px-3 py-2 text-xs font-bold text-slate-700 hover:bg-slate-50"><Download className="h-4 w-4"/>تصدير Excel / CSV</button><button type="button" onClick={()=>window.print()} className="inline-flex items-center gap-1.5 rounded-lg bg-[#172C40] px-3 py-2 text-xs font-bold text-white hover:bg-[#263F55]"><Printer className="h-4 w-4"/>طباعة / PDF</button></div></div>
       <div className="overflow-x-auto">
         <table className="w-full min-w-[980px] text-right text-sm">
           <thead className="bg-[#F5F2EA] text-xs text-[#172C40]"><tr>{['رقم الزيارة','المعلم','المادة / الصف / الشعبة','العام الدراسي','نوع الزيارة','المقيم','التاريخ','نسبة الإنجاز','الحالة','التقرير'].map(h=><th key={h} className="whitespace-nowrap px-3 py-3 font-black">{h}</th>)}</tr></thead>
