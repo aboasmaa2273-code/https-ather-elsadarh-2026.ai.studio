@@ -661,8 +661,8 @@ function apiLogin_(payload) {
     var rowEmail = String(row[emailCol] || '').trim().toLowerCase();
     var rowUsername = String(row[usernameCol] || '').trim().toLowerCase();
     if (rowEmail !== identifier && rowUsername !== identifier) continue;
-    var status = String(row[statusCol] || 'active').toLowerCase();
-    if (status === 'inactive' || status === 'disabled') return { success: false, error: 'هذا الحساب معطّل.' };
+    var status = String(row[statusCol] || 'active').trim().toLowerCase();
+    if (status !== 'active') return { success: false, error: 'هذا الحساب معطّل أو غير مفعّل.' };
     var salt = String(row[saltCol] || '');
     var expected = String(row[hashCol] || '');
     if (!salt || !expected || !constantTimeEquals_(passwordHash_(password, salt), expected)) {
