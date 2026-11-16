@@ -758,7 +758,7 @@ function dispatchApiAction_(action, payload, session) {
     });
     if (session.role === 'teacher') {
       teachers = teachers.filter(function(x) { return String(x.id) === String(session.teacherId); });
-      visits = visits.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
+      visits = visits.filter(function(x) { return String(x.teacherId) === String(session.teacherId) && String(x.status || '') !== 'archived'; });
       plans = plans.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
     }
     return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators,
