@@ -881,13 +881,23 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تسجيل الزيارة.' };
     var existingVisitForEdit = null;
     if (payload.id) {
-      existingVisitForEdit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
-        return String(v.id) === String(payload.id) && String(v.schoolId) === String(schoolId);
+      // The form assigns a visit ID before the first autosave. A new ID is
+      // therefore expected not to exist yet; only enforce edit rules when
+      // the ID is already present in the Visits sheet.
+      var visitWithSameId = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+        return String(v.id) === String(payload.id);
       })[0] || null;
-      if (!existingVisitForEdit) return { success: false, error: 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
-      if (String(existingVisitForEdit.status || '') === 'archived') return { success: false, error: 'لا يمكن تعديل تقرير مؤرشف. استعد التقرير من الأرشيف أولاً.' };
-      if (session.role === 'evaluator' && String(existingVisitForEdit.evaluatorId) !== String(session.id)) {
-        return { success: false, error: 'لا يمكنك تعديل زيارة سجّلها مقيم آخر.' };
+
+      if (visitWithSameId && String(visitWithSameId.schoolId) !== String(schoolId)) {
+        return { success: false, error: 'رقم الزيارة مرتبط بسجل في مدرسة أخرى.' };
+      }
+
+      if (visitWithSameId) {
+        existingVisitForEdit = visitWithSameId;
+        if (String(existingVisitForEdit.status || '') === 'archived') return { success: false, error: 'لا يمكن تعديل تقرير مؤرشف. استعد التقرير من الأرشيف أولاً.' };
+        if (session.role === 'evaluator' && String(existingVisitForEdit.evaluatorId) !== String(session.id)) {
+          return { success: false, error: 'لا يمكنك تعديل زيارة سجّلها مقيم آخر.' };
+        }
       }
     }
     var teacherForVisit = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
