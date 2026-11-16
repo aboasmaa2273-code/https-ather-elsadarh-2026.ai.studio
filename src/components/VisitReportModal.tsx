@@ -242,7 +242,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             {canManageStatus && visit.status === 'archived' && onRestoreReport && (
               <button onClick={() => { if (confirm(isEn ? 'Restore this report from archive?' : 'هل تريد استعادة هذا التقرير من الأرشيف؟')) { onRestoreReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Restore report' : 'استعادة من الأرشيف'}</span></button>
             )}
-            {canSendApprovedReport && visit.status === 'approved' && onSendApprovedReport && (
+            {false && canSendApprovedReport && visit.status === 'approved' && onSendApprovedReport && (
               <button
                 onClick={() => {
                   if (!teacherEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(teacherEmail)) {
@@ -267,7 +267,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                 <span>{isEn ? 'Send to teacher' : 'إرسال التقرير للمعلم'}</span>
               </button>
             )}
-            {canSendTeacherNotes && onSendTeacherNotes && (
+            {false && canSendTeacherNotes && onSendTeacherNotes && (
               <button
                 onClick={() => {
                   if (!teacherEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(teacherEmail)) {
