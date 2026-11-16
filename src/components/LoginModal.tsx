@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteLogin } from '../services/gasBridgeClient';
 import { 
   Shield, 
   Lock, 
@@ -63,16 +64,21 @@ export const LoginModal: React.FC<LoginModalProps> = ({
     }
 
     setIsLoading(true);
-    setTimeout(() => {
-      const res = AtharStorageService.authenticate(username, password);
-      setIsLoading(false);
-      if (res.success && res.user) {
-        onLoginSuccess(res.user);
-        onClose();
-      } else {
-        setErrorMessage(res.error || (isEn ? 'Invalid credentials.' : 'بيانات الدخول غير صحيحة.'));
-      }
-    }, 150);
+    (async () => {
+      try {
+        const remote = await atharRemoteLogin(username, password);
+        if (remote.success && remote.user) {
+          const user = remote.user as User;
+          AtharStorageService.setCurrentUser(user);
+          onLoginSuccess(user);
+          onClose();
+        } else {
+          setErrorMessage(remote.error || (isEn ? 'Invalid credentials.' : 'بيانات الدخول غير صحيحة.'));
+        }
+      } catch (error) {
+        setErrorMessage(error instanceof Error ? error.message : 'تعذر الاتصال بقاعدة البيانات.');
+      } finally { setIsLoading(false); }
+    })();
   };
 
   const handleRegisterSubmit = (e: React.FormEvent) => {
