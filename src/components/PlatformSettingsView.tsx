@@ -1034,19 +1034,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Action Buttons: Clear Audit Log */}
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={handleClearAuditLogs}
-                  disabled={localAuditLogs.length === 0}
-                  className="px-3.5 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-rose-200 shadow-2xs self-start sm:self-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={isEn ? 'Clear Entire Audit Log' : 'مسح كامل سجل العمليات'}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{isEn ? 'Clear Audit Log' : 'مسح السجل'}</span>
-                </button>
-              )}
+              <span className="text-[10px] text-slate-500">{isEn ? 'Central audit records are retained for accountability.' : 'تُحفَظ سجلات التدقيق المركزية لضمان المساءلة.'}</span>
             </div>
 
             {/* Filter and Sorting Controls Toolbar */}
@@ -1304,10 +1292,10 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                       {isEn ? 'Password' : 'كلمة المرور (الباسوورد)'}
                     </label>
                     <input
-                      type="text"
+                      type="password"
                       value={visitorFormPassword}
                       onChange={(e) => setVisitorFormPassword(e.target.value)}
-                      placeholder="123"
+                      placeholder={isEn ? "At least 10 characters" : "10 أحرف على الأقل"}
                       dir="ltr"
                       className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white"
                     />
