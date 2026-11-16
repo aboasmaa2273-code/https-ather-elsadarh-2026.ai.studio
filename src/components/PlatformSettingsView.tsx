@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   Sliders, 
   Check, 
@@ -163,7 +164,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   };
 
   // Save Platform Identity
-  const handleSavePlatform = () => {
+  const handleSavePlatform = async () => {
     const updated: PlatformSettings = {
       platformName,
       platformTitle,
@@ -180,12 +181,12 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       contactPhone
     };
 
-    const res = AtharStorageService.savePlatformSettings(updated);
-    if (res.success) {
-      showFeedback('success', isEn ? 'Platform identity and settings saved successfully.' : 'تم حفظ هوية وإعدادات المنصة بنجاح.');
+    try {
+      await atharRemoteAction('saveSettings', { platformSettings: updated });
+      showFeedback('success', isEn ? 'Platform identity and settings saved successfully.' : 'تم حفظ هوية وإعدادات المنصة مركزياً بنجاح.');
       onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Error occurred while saving.' : 'حدث خطأ أثناء الحفظ.'));
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Central save failed.' : 'تعذر الحفظ في قاعدة البيانات المركزية.'));
     }
   };
 
