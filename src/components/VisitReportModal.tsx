@@ -69,6 +69,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   onLogWhatsAppOpen
 }) => {
   if (!visit) return null;
+  const activeVisitId = visit.id;
 
   const t = translations[language];
   const isEn = language === 'en';
@@ -249,7 +250,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <span>{t.visitReportModal.printBtn}</span>
             </button>
             {canManageStatus && visit.status === 'archived' && onRestoreReport && (
-              <button onClick={() => { if (confirm(isEn ? 'Restore this report from archive?' : 'هل تريد استعادة هذا التقرير من الأرشيف؟')) { onRestoreReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Restore report' : 'استعادة من الأرشيف'}</span></button>
+              <button onClick={() => { if (confirm(isEn ? 'Restore this report from archive?' : 'هل تريد استعادة هذا التقرير من الأرشيف؟')) { onRestoreReport(activeVisitId); onClose(); } }} className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Restore report' : 'استعادة من الأرشيف'}</span></button>
             )}
             {false && canSendApprovedReport && visit.status === 'approved' && onSendApprovedReport && (
               <button
@@ -267,7 +268,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                     (isEn ? 'Send the approved PDF report to ' : 'تأكيد إرسال تقرير الزيارة المعتمد إلى ') +
                     teacherEmail + (isEn ? '?' : '؟')
                   );
-                  if (confirmed) void onSendApprovedReport(visit.id, note.trim());
+                  if (confirmed) void onSendApprovedReport?.(activeVisitId, note.trim());
                 }}
                 disabled={!teacherEmail}
                 className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
@@ -292,7 +293,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                     (isEn ? 'Send these notes to ' : 'تأكيد إرسال هذه الملاحظات إلى ') +
                     teacherEmail + (isEn ? '?' : '؟')
                   );
-                  if (confirmed) void onSendTeacherNotes(visit.id, notes.trim());
+                  if (confirmed) void onSendTeacherNotes?.(activeVisitId, notes.trim());
                 }}
                 disabled={!teacherEmail}
                 className="px-3 py-1.5 bg-[#172C40] text-white rounded-lg font-bold text-xs hover:bg-[#101F2D] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
