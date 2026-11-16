@@ -1,5 +1,5 @@
 import React, { useMemo, useState } from 'react';
-import { ClassroomVisit, Teacher, ImprovementPlan, User, AdministrativeFollowUp } from '../types';
+import { ClassroomVisit, Teacher, ImprovementPlan, User, AdministrativeFollowUp, VisitHistoryEntry } from '../types';
 import { AdministrativeFollowUpsPanel } from './AdministrativeFollowUpsPanel';
 import { Search, Filter, RotateCcw, ClipboardList, Users, CheckCircle2, Clock3, CalendarDays, Eye } from 'lucide-react';
 
@@ -9,6 +9,7 @@ interface FollowUpDashboardProps {
   teachers: Teacher[];
   plans: ImprovementPlan[];
   followUps: AdministrativeFollowUp[];
+  visitHistory: VisitHistoryEntry[];
   onRefresh: () => void;
   onOpenVisitReport: (visit: ClassroomVisit) => void;
 }
@@ -16,7 +17,7 @@ interface FollowUpDashboardProps {
 const fieldClass = "w-full rounded-lg border border-slate-300 bg-white px-3 py-2.5 text-sm text-[#172C40] outline-none focus:border-[#C6A66A] focus:ring-2 focus:ring-[#C6A66A]/20";
 
 export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
-  currentUser, visits, teachers, plans, followUps, onRefresh, onOpenVisitReport
+  currentUser, visits, teachers, plans, followUps, visitHistory, onRefresh, onOpenVisitReport
 }) => {
   const [search, setSearch] = useState('');
   const [teacherId, setTeacherId] = useState('all');
@@ -30,6 +31,7 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
   const [status, setStatus] = useState('all');
   const [fromDate, setFromDate] = useState('');
   const [toDate, setToDate] = useState('');
+  const [expandedHistory, setExpandedHistory] = useState<string[]>([]);
 
   const options = (values: string[]) => Array.from(new Set(values.filter(Boolean))).sort((a,b) => a.localeCompare(b, 'ar'));
   const years = options(visits.map(v => v.academicYear || ''));
@@ -148,5 +150,15 @@ export const FollowUpDashboard: React.FC<FollowUpDashboardProps> = ({
     </div>
 
     <AdministrativeFollowUpsPanel currentUser={currentUser} teachers={teachers} visits={visits} followUps={followUps} onRefresh={onRefresh} />
+
+    <div className="rounded-2xl border border-slate-200 bg-white p-5 shadow-sm space-y-3">
+      <div className="flex items-center justify-between"><h2 className="font-black text-[#172C40]">سجل تعديلات التقارير وأرشفتها</h2><span className="text-xs text-slate-500">{visitHistory.length} عملية محفوظة</span></div>
+      {visitHistory.slice(0,100).map(item=><article key={item.id} className="rounded-lg border border-slate-100 p-3">
+        <div className="flex flex-wrap items-center justify-between gap-2"><div><p className="text-sm font-bold text-[#172C40]">{item.action} — {item.visitId}</p><p className="text-[11px] text-slate-500">{item.changedBy} · {new Date(item.changedAt).toLocaleString('ar-AE')}</p></div>
+        <button type="button" onClick={()=>setExpandedHistory(prev=>prev.includes(item.id)?prev.filter(x=>x!==item.id):[...prev,item.id])} className="rounded-lg border border-slate-300 px-3 py-1.5 text-xs font-bold">{expandedHistory.includes(item.id)?'إخفاء النسخة السابقة':'عرض النسخة السابقة'}</button></div>
+        {expandedHistory.includes(item.id)&&<pre className="mt-3 max-h-72 overflow-auto rounded-lg bg-slate-50 p-3 text-[10px] leading-5 text-slate-600" dir="ltr">{(()=>{try{return JSON.stringify(JSON.parse(item.snapshotJson),null,2)}catch{return item.snapshotJson}})()}</pre>}
+      </article>)}
+      {visitHistory.length===0&&<p className="py-6 text-center text-sm text-slate-500">سيظهر هنا سجل النسخ السابقة عند تعديل التقارير أو أرشفتها.</p>}
+    </div>
   </section>;
 };
