@@ -65,7 +65,7 @@ function initializeDatabase() {
       'Users': ['id', 'schoolId', 'name', 'email', 'role', 'jobNumber', 'specialization', 'status', 'createdAt', 'username', 'teacherId', 'roleTitle', 'department', 'profileSummary', 'avatarUrl'],
       'RegisteredVisitors': ['id', 'schoolId', 'name', 'role', 'roleTitle', 'department', 'jobNumber', 'email', 'phone', 'username', 'status', 'createdAt'],
       'Schools': ['id', 'name', 'code', 'stage', 'welcomeMessage', 'primaryColor', 'secondaryColor', 'contactEmail', 'contactPhone'],
-      'Teachers': ['id', 'schoolId', 'fullName', 'jobNumber', 'specialization', 'status', 'email', 'phone', 'dateAdded'],
+      'Teachers': ['id', 'schoolId', 'fullName', 'jobNumber', 'specialization', 'status', 'email', 'phone', 'dateAdded', 'importBatchId'],
       'Visits': ['id', 'schoolId', 'academicYear', 'term', 'visitType', 'teacherId', 'teacherName', 'teacherJobNumber', 'teacherSpecialization', 'grade', 'section', 'subject', 'evaluatorId', 'evaluatorName', 'date', 'time', 'visitGoal', 'status', 'achievementPercentage', 'observedCount', 'totalCount', 'eLearningMaturity', 'strengths', 'improvementAreas', 'recommendations', 'createdAt', 'updatedAt'],
       'VisitIndicators': ['id', 'visitId', 'indicatorId', 'indicatorText', 'group', 'rating', 'notes', 'timestamp'],
       'VisitDomains': ['id', 'visitId', 'domainId', 'domainName', 'rating'],
@@ -980,7 +980,7 @@ function dispatchApiAction_(action, payload, session) {
     return sendTeacherVisitNotes_(payload, session, schoolId);
   }
   if (action === 'sendApprovedVisitReport') {
-    if (!requireRole_(session, managementRoles)) return { success: false, error: 'إرسال التقارير للمعلمين مقتصر على الإدارة المخولة.' };
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إرسال تقرير الزيارة.' };
     return sendApprovedVisitReport_(payload, session, schoolId);
   }
   if (action === 'savePlan') {
@@ -1548,6 +1548,7 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
     return String(v.id) === visitId && String(v.schoolId) === String(schoolId);
   })[0];
   if (!visit) return { success: false, error: 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
+  if (session.role === 'evaluator' && String(visit.evaluatorId || '') !== String(session.id)) return { success: false, error: 'يمكنك إرسال تقارير الزيارات التي أجريتها فقط.' };
   if (String(visit.status || '') !== 'approved') return { success: false, error: 'لا يمكن إرسال التقرير قبل اعتماده من الإدارة.' };
 
   var teacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
