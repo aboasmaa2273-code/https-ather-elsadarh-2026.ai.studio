@@ -95,9 +95,9 @@ export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language =
           </h2>
           <p className="text-slate-500 mt-1">
             {isAr ? (
-              <>جميع الأكواد المجهزة المتوافقة 100% مع Google Apps Script Web App، دوال <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">doGet()</code>، <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">initializeDatabase()</code>، و <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">google.script.run</code>.</>
+              <>ملفات خادم Google Apps Script الجاهزة للتحديث الآمن للمشروع القائم، مع جسر الاتصال وقاعدة البيانات الحالية. لا تشغّل دالة التهيئة عند تحديث المنصة.</>
             ) : (
-              <>Complete source code ready for Google Apps Script Web App: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">doGet()</code>, <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">initializeDatabase()</code>, and <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">google.script.run</code>.</>
+              <>Google Apps Script files for safely updating the existing project and preserving its current database. Do not run the database initialization function during routine updates.</>
             )}
           </p>
         </div>
