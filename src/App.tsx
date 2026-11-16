@@ -34,6 +34,7 @@ import {
   Database
 } from 'lucide-react';
 import { translations, Language } from './i18n/translations';
+import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS } from './data/defaultData';
 
 export default function App() {
   // Language State with persistence
@@ -59,8 +60,8 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [visits, setVisits] = useState<ClassroomVisit[]>([]);
   const [plans, setPlans] = useState<ImprovementPlan[]>([]);
-  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(() => AtharStorageService.getAcademicSettings());
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => AtharStorageService.getPlatformSettings());
+  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [dataConnectionError, setDataConnectionError] = useState<string>('');
 
@@ -71,8 +72,8 @@ export default function App() {
 
   // Load initial data
   const refreshAllData = async (requireCentral = isLoggedIn) => {
-    setAcademicSettings(AtharStorageService.getAcademicSettings());
-    setPlatformSettings(AtharStorageService.getPlatformSettings());
+    setAcademicSettings(DEFAULT_ACADEMIC_SETTINGS);
+    setPlatformSettings(DEFAULT_PLATFORM_SETTINGS);
     setAuditLogs([]);
     try {
       const remote = await atharRemoteBootstrap() as any;
@@ -98,9 +99,9 @@ export default function App() {
         setPlans([]);
         setDataConnectionError(error instanceof Error ? error.message : 'تعذر تحميل البيانات المركزية.');
       } else {
-        setTeachers(AtharStorageService.getTeachers());
-        setVisits(AtharStorageService.getVisits());
-        setPlans(AtharStorageService.getPlans());
+        setTeachers([]);
+        setVisits([]);
+        setPlans([]);
       }
     }
   };
