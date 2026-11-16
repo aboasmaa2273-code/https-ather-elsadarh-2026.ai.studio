@@ -682,6 +682,23 @@ function dispatchApiAction_(action, payload, session) {
     var visitIndicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators'));
     var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains'));
     var followUps = rowsAsObjects_(ss.getSheetByName('PlanFollowUps'));
+    var auditLogs = [];
+    if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
+      auditLogs = rowsAsObjects_(ss.getSheetByName('AuditLog'))
+        .filter(function(x) { return String(x.schoolId) === String(schoolId); })
+        .sort(function(a, b) { return String(b.timestamp).localeCompare(String(a.timestamp)); })
+        .slice(0, 300);
+    }
+    var users = [];
+    if (requireRole_(session, adminRoles)) {
+      users = rowsAsObjects_(ss.getSheetByName('Users'))
+        .filter(function(x) { return String(x.schoolId) === String(schoolId); })
+        .map(function(x) {
+          return { id: x.id, schoolId: x.schoolId, name: x.name, email: x.email, username: x.username,
+            role: x.role, jobNumber: x.jobNumber, specialization: x.specialization, status: x.status,
+            teacherId: x.teacherId, createdAt: x.createdAt };
+        });
+    }
     visits = visits.map(function(v) {
       v.indicators = visitIndicators.filter(function(x) { return String(x.visitId) === String(v.id); }).map(function(x) {
         return { indicatorId: x.indicatorId, indicatorText: x.indicatorText, indicatorGroup: x.group, rating: x.rating, notes: x.notes };
@@ -711,7 +728,8 @@ function dispatchApiAction_(action, payload, session) {
       visits = visits.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
       plans = plans.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
     }
-    return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators, settings: settings };
+    return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators,
+      settings: settings, auditLogs: auditLogs, users: users };
   }
 
   if (action === 'saveTeacher') {
@@ -790,7 +808,21 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'saveSettings') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'تعديل الإعدادات مقتصر على إدارة المنصة والمدرسة.' };
-    return saveSettingsRows_(payload, session.name);
+    var settingsPayload = {};
+    if (payload.platformSettings) settingsPayload.platformSettings = payload.platformSettings;
+    if (payload.academicSettings) settingsPayload.academicSettings = payload.academicSettings;
+    if (Object.keys(settingsPayload).length === 0) return { success: false, error: 'لا توجد إعدادات صالحة للحفظ.' };
+    var settingsResult = saveSettingsRows_(settingsPayload, session.name);
+    if (settingsResult.success) logAuditAction(schoolId, session.name, 'تحديث إعدادات المنصة', 'تم تحديث إعدادات المنصة أو الإعدادات الأكاديمية.');
+    return settingsResult;
+  }
+  if (action === 'saveUserAccount') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة الحسابات مقتصرة على مسؤول المنصة أو إدارة المدرسة.' };
+    return saveUserAccount_(payload, session);
+  }
+  if (action === 'setUserStatus') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'تغيير حالة الحساب مقتصر على الإدارة.' };
+    return setUserStatus_(payload, session);
   }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
@@ -801,6 +833,76 @@ function dispatchApiAction_(action, payload, session) {
     return deleteVisitRows_(payload.id, schoolId);
   }
   return { success: false, error: 'عملية API غير مدعومة: ' + action };
+}
+
+function saveUserAccount_(payload, session) {
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('Users');
+  if (!sheet) return { success: false, error: 'ورقة الحسابات غير موجودة.' };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+  var rows = rowsAsObjects_(sheet);
+  var id = String(payload.id || Utilities.getUuid());
+  var username = String(payload.username || '').trim().toLowerCase();
+  var name = String(payload.name || '').trim();
+  var role = String(payload.role || 'evaluator').trim();
+  var allowedRoles = session.role === 'platform_admin'
+    ? ['school_admin', 'vice_principal', 'evaluator', 'teacher']
+    : ['vice_principal', 'evaluator', 'teacher'];
+  if (!name || !username) return { success: false, error: 'الاسم واسم المستخدم مطلوبان.' };
+  if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) return { success: false, error: 'اسم المستخدم يجب أن يتكون من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا أو . _ -' };
+  if (allowedRoles.indexOf(role) < 0) return { success: false, error: 'الدور المطلوب غير مسموح لهذا الحساب الإداري.' };
+  var existing = rows.filter(function(x) { return String(x.id) === id && String(x.schoolId) === String(session.schoolId); })[0];
+  if (payload.id && !existing) return { success: false, error: 'الحساب غير موجود في المدرسة المرتبطة بك.' };
+  if (rows.some(function(x) { return String(x.schoolId) === String(session.schoolId) && String(x.username || '').toLowerCase() === username && String(x.id) !== id; })) {
+    return { success: false, error: 'اسم المستخدم مستخدم بالفعل في هذه المدرسة.' };
+  }
+  var password = String(payload.password || '');
+  if (!existing && password.length < 10) return { success: false, error: 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.' };
+  if (password && password.length < 10) return { success: false, error: 'كلمة المرور يجب ألا تقل عن 10 أحرف.' };
+  var obj = {
+    id: id, schoolId: session.schoolId || 'sch_alsadara_01', name: name,
+    email: String(payload.email || ''), role: role, jobNumber: String(payload.jobNumber || ''),
+    specialization: String(payload.specialization || ''), status: String(payload.status || (existing ? existing.status : 'active')),
+    createdAt: existing ? existing.createdAt : new Date().toISOString(), username: username,
+    teacherId: String(payload.teacherId || (existing ? existing.teacherId : ''))
+  };
+  var row = headers.map(function(h) {
+    if (h === 'passwordSalt' || h === 'passwordHash') return existing ? (existing[h] || '') : '';
+    return obj[h] === undefined || obj[h] === null ? '' : obj[h];
+  });
+  var rowIndex = -1;
+  var data = sheet.getDataRange().getValues();
+  for (var i = 1; i < data.length; i++) if (String(data[i][0]) === id) { rowIndex = i + 1; break; }
+  if (rowIndex > 0) sheet.getRange(rowIndex, 1, 1, row.length).setValues([row]);
+  else { sheet.appendRow(row); rowIndex = sheet.getLastRow(); }
+  if (password) {
+    var salt = Utilities.getUuid() + Utilities.getUuid();
+    var saltCol = headers.indexOf('passwordSalt'), hashCol = headers.indexOf('passwordHash');
+    if (saltCol < 0 || hashCol < 0) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة. تواصل مع مسؤول النظام.' };
+    sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
+    sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
+  }
+  logAuditAction(obj.schoolId, session.name, existing ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')');
+  return { success: true, user: { id: id, schoolId: obj.schoolId, name: name, username: username, email: obj.email,
+    role: role, jobNumber: obj.jobNumber, specialization: obj.specialization, status: obj.status, teacherId: obj.teacherId } };
+}
+
+function setUserStatus_(payload, session) {
+  var id = String(payload.id || '');
+  if (!id || id === String(session.id)) return { success: false, error: 'لا يمكن تعطيل الحساب الحالي أو أن المعرّف غير صالح.' };
+  var sheet = getDatabaseSpreadsheet_().getSheetByName('Users');
+  if (!sheet) return { success: false, error: 'ورقة الحسابات غير موجودة.' };
+  var data = sheet.getDataRange().getValues(), headers = data[0].map(String);
+  var schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status'), idCol = headers.indexOf('id');
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === id && String(data[i][schoolCol]) === String(session.schoolId)) {
+      var next = payload.status === 'active' ? 'active' : 'inactive';
+      sheet.getRange(i + 1, statusCol + 1).setValue(next);
+      logAuditAction(session.schoolId, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next);
+      return { success: true, id: id, status: next };
+    }
+  }
+  return { success: false, error: 'الحساب غير موجود في المدرسة المرتبطة بك.' };
 }
 
 function upsertObjectRow_(sheetName, obj, idKey, schoolId) {
