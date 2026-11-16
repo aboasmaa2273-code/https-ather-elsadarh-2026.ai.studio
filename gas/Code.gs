@@ -47,7 +47,7 @@ function getDatabaseSpreadsheet_() {
 }
 
 // ====================================================
-// 2. تهيئة قاعدة البيانات وأوراق العمل (18 ورقة عمل)
+// 2. تهيئة قاعدة البيانات وأوراق العمل (19 ورقة عمل)
 // ====================================================
 
 function initializeDatabase() {
@@ -113,7 +113,7 @@ function initializeDatabase() {
     
     return {
       success: true,
-      message: "تمت تهيئة قاعدة البيانات بنجاح (18 ورقة عمل).",
+      message: "تمت تهيئة قاعدة البيانات بنجاح (19 ورقة عمل).",
       userMigration: userMigration,
       spreadsheetUrl: ss.getUrl(),
       details: results
