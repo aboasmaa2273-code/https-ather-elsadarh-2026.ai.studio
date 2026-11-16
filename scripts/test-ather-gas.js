@@ -353,6 +353,11 @@ const sameDisplayNameDifferentAccount = sandbox.dispatchApiAction_('saveInternal
 }, { id: 'attacker-account-id', schoolId, role: 'evaluator', name: 'المقيم نفسه بالاسم' });
 assert.equal(sameDisplayNameDifferentAccount.success, false);
 assert.equal(noteRecords[0].noteText, 'ملاحظة خاصة');
+const legitimateOwnerEdit = sandbox.dispatchApiAction_('saveInternalNote', {
+  id: 'note-owned-by-other', teacherId: 'teacher-1', noteText: 'تعديل من صاحب الملاحظة'
+}, { id: 'different-account-id', schoolId, role: 'evaluator', name: 'اسم مختلف' });
+assert.equal(legitimateOwnerEdit.success, true);
+assert.equal(noteRecords[0].noteText, 'تعديل من صاحب الملاحظة');
 const ownNoteSave = sandbox.dispatchApiAction_('saveInternalNote', {
   teacherId: 'teacher-1', noteText: 'ملاحظة جديدة'
 }, { id: 'note-owner-id', schoolId, role: 'evaluator', name: 'مقيم جديد' });
@@ -368,5 +373,12 @@ assert.equal(legacyMigration.added, true);
 assert.equal(legacyNoteHeaders.includes('createdById'), true);
 assert.equal(legacyNoteRecords[0].noteText, 'ملاحظة محفوظة');
 assert.equal(legacyNoteRecords.length, 1);
+noteSheets.InternalNotes = legacyNoteSheet;
+const managementLegacyEdit = sandbox.dispatchApiAction_('saveInternalNote', {
+  id: 'legacy-note', teacherId: 'teacher-1', noteText: 'تعديل إداري للملاحظة القديمة'
+}, { id: 'school-admin-id', schoolId, role: 'school_admin', name: 'مدير المدرسة' });
+assert.equal(managementLegacyEdit.success, true);
+assert.equal(legacyNoteRecords[0].noteText, 'تعديل إداري للملاحظة القديمة');
+assert.equal(legacyNoteRecords[0].createdById, '');
 console.log('PASS: internal note ownership uses stable account IDs, not display names');
 console.log('PASS: legacy internal-note migration adds the owner column without changing existing note rows');
