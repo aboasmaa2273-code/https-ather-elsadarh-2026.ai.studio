@@ -15,7 +15,8 @@ import {
   Users,
   GraduationCap,
   Archive,
-  Undo2
+  Undo2,
+  MessageCircle
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 import { 
@@ -42,6 +43,7 @@ interface VisitReportModalProps {
   onRestoreReport?: (visitId: string) => void;
   canSendApprovedReport?: boolean;
   teacherEmail?: string;
+  teacherPhone?: string;
   onSendApprovedReport?: (visitId: string, message: string) => Promise<void>;
   canSendTeacherNotes?: boolean;
   onSendTeacherNotes?: (visitId: string, notes: string) => Promise<void>;
@@ -59,6 +61,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   onRestoreReport,
   canSendApprovedReport = false,
   teacherEmail = '',
+  teacherPhone = '',
   onSendApprovedReport,
   canSendTeacherNotes = false,
   onSendTeacherNotes
@@ -70,6 +73,43 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const getWhatsAppNumber = () => {
+    let number = String(teacherPhone || '').replace(/\D/g, '');
+    if (number.startsWith('00')) number = number.slice(2);
+    if (number.startsWith('0')) number = '971' + number.slice(1);
+    else if (number.startsWith('5') && number.length === 9) number = '971' + number;
+    return number;
+  };
+
+  const openTeacherWhatsApp = (message: string) => {
+    const number = getWhatsAppNumber();
+    if (!number || number.length < 10) {
+      alert(isEn ? 'No valid WhatsApp number is registered for this teacher.' : 'لا يوجد رقم هاتف صحيح مسجل لهذا المعلم. أضف رقم الهاتف في ملف المعلم أولاً.');
+      return;
+    }
+    if (!confirm(isEn ? 'Open WhatsApp with this message ready to send?' : 'سيتم فتح واتساب مع تجهيز الرسالة. هل تريد المتابعة؟')) return;
+    window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(message), '_blank', 'noopener,noreferrer');
+  };
+
+  const buildVisitWhatsAppMessage = () => {
+    const lines = [
+      'السلام عليكم أستاذ/ ' + visit.teacherName,
+      'تقرير الزيارة الصفية – منظومة أَثَر',
+      'المدرسة: ' + platformSettings.schoolName,
+      'المادة: ' + visit.subject + ' | الصف والشعبة: ' + visit.grade + ' / ' + visit.section,
+      'تاريخ الزيارة: ' + visit.date,
+      'المقيم: ' + visit.evaluatorName,
+      'نسبة الإنجاز: ' + visit.achievementPercentage + '%',
+      '',
+      'مؤشرات الزيارة:'
+    ];
+    (visit.indicators || []).forEach((item) => lines.push('• ' + item.indicatorText + ' — ' + item.rating + (item.notes ? ' | ' + item.notes : '')));
+    lines.push('', 'جوانب التميز:', ...(visit.strengths || []).map((item) => '• ' + item));
+    lines.push('', 'فرص التحسين:', ...(visit.improvementAreas || []).map((item) => '• ' + item));
+    lines.push('', 'التوصيات:', visit.practicalRecommendations || '—', '', 'مع خالص التقدير،', 'منظومة أَثَر');
+    return lines.join('\n');
   };
 
   // Group indicators for clean report presentation
@@ -166,6 +206,32 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            {canSendTeacherNotes && (
+              <>
+                <button
+                  onClick={() => openTeacherWhatsApp(buildVisitWhatsAppMessage())}
+                  disabled={!teacherPhone}
+                  className="px-3 py-1.5 bg-[#25D366] text-white rounded-lg font-bold text-xs hover:bg-[#1fb85a] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  title={teacherPhone || (isEn ? 'Teacher phone is missing' : 'رقم هاتف المعلم غير مسجل')}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{isEn ? 'Share report on WhatsApp' : 'إرسال التقرير عبر واتساب'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const notes = window.prompt(isEn ? 'Write the visit notes to send:' : 'اكتب الملاحظات التي تريد إرسالها إلى المعلم:');
+                    if (notes === null || !notes.trim()) return;
+                    openTeacherWhatsApp('السلام عليكم أستاذ/ ' + visit.teacherName + '\nملاحظات الزيارة الصفية – ' + visit.date + '\n\n' + notes.trim() + '\n\nمع خالص التقدير،\n' + visit.evaluatorName + '\nمنظومة أَثَر');
+                  }}
+                  disabled={!teacherPhone}
+                  className="px-3 py-1.5 bg-[#128C7E] text-white rounded-lg font-bold text-xs hover:bg-[#0e796d] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  title={teacherPhone || (isEn ? 'Teacher phone is missing' : 'رقم هاتف المعلم غير مسجل')}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{isEn ? 'Send selected notes' : 'إرسال ملاحظات عبر واتساب'}</span>
+                </button>
+              </>
+            )}
             <button
               onClick={handlePrint}
               className="px-4 py-1.5 bg-[#C6A66A] text-[#172C40] rounded-lg font-bold text-xs hover:bg-[#b5955a] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
