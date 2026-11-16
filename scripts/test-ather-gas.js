@@ -224,3 +224,35 @@ console.log('PASS: evaluators can follow up only their own plans');
 console.log('PASS: evaluators cannot delete other plans or invoke bulk school-wide deletion');
 console.log('PASS: administrators retain school-wide plan deletion');
 
+const declaredPublicFunctions = Array.from(
+  fs.readFileSync('gas/Code.gs', 'utf8').matchAll(/^function\\s+([A-Za-z0-9_$]+)\\s*\\(/gm),
+  (match) => match[1]
+).filter((name) => !name.endsWith('_'));
+for (const privateHelper of ['saveClassroomVisit', 'saveTeacher', 'logAuditAction', 'determineUserRole', 'authorizeMailOnce']) {
+  assert.equal(declaredPublicFunctions.includes(privateHelper), false, `Sensitive helper ${privateHelper} must not be callable directly from google.script.run`);
+}
+
+mockDatabase({
+  Teachers: [{ id: 'teacher-1', schoolId, fullName: 'المعلم الأول' }],
+  Visits: [{ id: 'approved-visit', schoolId, teacherId: 'teacher-1', evaluatorId: 'evaluator-current', status: 'approved' }]
+});
+let capturedVisitPayload = null;
+sandbox.saveClassroomVisit_ = (payload) => {
+  capturedVisitPayload = { ...payload };
+  return { success: true, visitId: payload.id };
+};
+const evaluatorSessionForVisit = { id: 'evaluator-current', schoolId, role: 'evaluator', name: 'المقيم الحالي' };
+const deniedApprovedEdit = sandbox.dispatchApiAction_('saveVisit', {
+  id: 'approved-visit', teacherId: 'teacher-1', status: 'completed'
+}, evaluatorSessionForVisit);
+assert.equal(deniedApprovedEdit.success, false);
+const deniedClientApproval = sandbox.dispatchApiAction_('saveVisit', {
+  id: 'new-unapproved-visit', teacherId: 'teacher-1', status: 'approved'
+}, evaluatorSessionForVisit);
+assert.equal(deniedClientApproval.success, true);
+assert.equal(capturedVisitPayload.status, 'completed');
+
+console.log('PASS: sensitive Apps Script write helpers are private from direct google.script.run calls');
+console.log('PASS: evaluators cannot edit approved visits or approve a visit by forging the save status');
+
+
