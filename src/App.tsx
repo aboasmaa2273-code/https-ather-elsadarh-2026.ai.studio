@@ -13,7 +13,7 @@ import {
   VisitHistoryEntry
 } from './types';
 import { AtharStorageService } from './services/storageService';
-import { atharRemoteBootstrap, atharRemoteAction, clearAtharRemoteSession } from './services/gasBridgeClient';
+import { atharRemoteBootstrap, atharRemoteAction, atharPublicEvaluators, clearAtharRemoteSession } from './services/gasBridgeClient';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { PublicConnectionSetup } from './components/PublicConnectionSetup';
@@ -65,6 +65,7 @@ export default function App() {
 
   // Application Data State
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [publicEvaluators, setPublicEvaluators] = useState<User[]>([]);
   const [visits, setVisits] = useState<ClassroomVisit[]>([]);
   const [plans, setPlans] = useState<ImprovementPlan[]>([]);
   const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
@@ -125,6 +126,11 @@ export default function App() {
 
   useEffect(() => {
     refreshAllData();
+    let cancelled = false;
+    atharPublicEvaluators()
+      .then((items) => { if (!cancelled) setPublicEvaluators(items); })
+      .catch((error) => console.warn('Athar public evaluator directory:', error));
+    return () => { cancelled = true; };
   }, []);
 
   // Handle user switch
@@ -197,6 +203,7 @@ export default function App() {
         {(!isLoggedIn || activeTab === 'home') && (
           <PublicHome
             platformSettings={platformSettings}
+            evaluators={publicEvaluators}
             onLoginClick={() => setIsLoginModalOpen(true)}
             onSelectEvaluator={() => {
               // Public evaluator cards are directory information only; authentication
