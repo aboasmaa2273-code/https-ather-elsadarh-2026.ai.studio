@@ -224,6 +224,64 @@ export interface PlatformSettings {
   googleWebAppUrl?: string; // Optional real Google Apps Script webhook
 }
 
+export interface InternalNote {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  teacherName: string;
+  visitId?: string;
+  noteText: string;
+  createdBy: string;
+  createdByRole: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedByRole?: string;
+  updatedAt?: string;
+  status?: 'active' | 'archived';
+}
+
+export interface InternalNoteHistory {
+  id: string;
+  schoolId: string;
+  noteId: string;
+  changedBy: string;
+  changedByRole: string;
+  changedAt: string;
+  oldText: string;
+  newText: string;
+}
+
+export interface AdministrativeFollowUp {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  teacherName: string;
+  visitId?: string;
+  followUpDate: string;
+  action: string;
+  notes: string;
+  recommendations: string;
+  result: string;
+  nextAction: string;
+  nextDate: string;
+  status: string;
+  createdBy: string;
+  createdByRole: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VisitHistoryEntry {
+  id: string;
+  schoolId: string;
+  visitId: string;
+  changedBy: string;
+  changedByRole: string;
+  changedAt: string;
+  action: string;
+  snapshotJson: string;
+}
+
 export interface AuditLogEntry {
   id: string;
   schoolId: string;
