@@ -12,6 +12,7 @@ import { AtharStorageService } from './services/storageService';
 import { atharRemoteBootstrap, atharRemoteAction, clearAtharRemoteSession } from './services/gasBridgeClient';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
+import { PublicConnectionSetup } from './components/PublicConnectionSetup';
 import { Dashboard } from './components/Dashboard';
 import { TeachersList } from './components/TeachersList';
 import { VisitsList } from './components/VisitsList';
@@ -174,6 +175,7 @@ export default function App() {
 
             {/* Main Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {!isLoggedIn && <PublicConnectionSetup language={language} />}
         
         {/* View 1: Public Homepage */}
         {(!isLoggedIn || activeTab === 'home') && (
