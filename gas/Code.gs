@@ -117,7 +117,7 @@ function initializeDatabase() {
     
     return {
       success: true,
-      message: "تمت تهيئة قاعدة البيانات بنجاح (19 ورقة عمل).",
+      message: "تمت تهيئة قاعدة بيانات أَثَر وأوراق العمل المطلوبة بنجاح.",
       userMigration: userMigration,
       spreadsheetUrl: ss.getUrl(),
       details: results
@@ -1060,6 +1060,10 @@ function saveAdministrativeFollowUp_(payload, session, schoolId) {
     return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
   })[0];
   if (!teacher) return { success: false, error: 'المعلم المحدد غير موجود في المدرسة.' };
+  if (payload.visitId) {
+    var linkedVisit = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId) && String(v.teacherId) === String(teacher.id); })[0];
+    if (!linkedVisit) return { success: false, error: 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+  }
   var now = new Date().toISOString();
   var id = String(payload.id || Utilities.getUuid());
   var sheet = getDatabaseSpreadsheet_().getSheetByName('AdministrativeFollowUps');
