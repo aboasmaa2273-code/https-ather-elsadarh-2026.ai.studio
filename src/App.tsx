@@ -354,6 +354,7 @@ export default function App() {
           canManageStatus={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
           canSendApprovedReport={['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)}
           teacherEmail={teachers.find((teacher) => teacher.id === selectedVisitForReport.teacherId)?.email || ''}
+          teacherPhone={teachers.find((teacher) => teacher.id === selectedVisitForReport.teacherId)?.phone || ''}
           onSendApprovedReport={async (visitId, message) => {
             try {
               const result = await atharRemoteAction('sendApprovedVisitReport', { id: visitId, message, confirmResend: true });
