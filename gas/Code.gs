@@ -511,7 +511,7 @@ function logAuditAction(schoolId, userName, action, details, userRole) {
       var row = [
         Utilities.getUuid(),
         schoolId,
-        new Date().toLocaleString('ar-AE'),
+        new Date().toISOString(),
         userName,
         userRole || 'مستخدم المنصة',
         action,
