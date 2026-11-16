@@ -3,13 +3,14 @@ import { atharGasBridge } from '../services/gasBridgeClient';
 import { Database, CheckCircle2, AlertCircle } from 'lucide-react';
 
 const STORAGE_KEY = 'athar_gas_web_app_url_v1';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwllpGW5zoG6jKSvIq_UY2ae49wAejhuoQN9vYSRTlNmTmCcrehA7fth4ZaRHtw6Cv6/exec';
 
 interface Props {
   language?: 'ar' | 'en';
 }
 
 export const PublicConnectionSetup: React.FC<Props> = ({ language = 'ar' }) => {
-  const [url, setUrl] = useState(() => localStorage.getItem(STORAGE_KEY) || '');
+  const [url, setUrl] = useState(() => localStorage.getItem(STORAGE_KEY) || DEFAULT_GAS_URL);
   const [busy, setBusy] = useState(false);
   const [message, setMessage] = useState('');
   const [success, setSuccess] = useState(false);
