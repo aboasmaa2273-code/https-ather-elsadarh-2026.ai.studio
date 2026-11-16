@@ -39,6 +39,7 @@ interface VisitReportModalProps {
   onArchiveReport?: (visitId: string) => void;
   canManageStatus?: boolean;
   onUnapproveReport?: (visitId: string) => void;
+  onRestoreReport?: (visitId: string) => void;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -49,7 +50,8 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   canArchive = false,
   onArchiveReport,
   canManageStatus = false,
-  onUnapproveReport
+  onUnapproveReport,
+  onRestoreReport
 }) => {
   if (!visit) return null;
 
@@ -161,6 +163,9 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <Printer className="w-4 h-4" />
               <span>{t.visitReportModal.printBtn}</span>
             </button>
+            {canManageStatus && visit.status === 'archived' && onRestoreReport && (
+              <button onClick={() => { if (confirm(isEn ? 'Restore this report from archive?' : 'هل تريد استعادة هذا التقرير من الأرشيف؟')) { onRestoreReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Restore report' : 'استعادة من الأرشيف'}</span></button>
+            )}
             {canManageStatus && visit.status === 'approved' && onUnapproveReport && (
               <button onClick={() => { if (confirm(isEn ? 'Remove approval and return this report for review?' : 'هل تريد إلغاء اعتماد التقرير وإعادته للمراجعة؟')) { onUnapproveReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-amber-500 text-[#172C40] rounded-lg font-bold text-xs hover:bg-amber-400 flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Unapprove' : 'إلغاء الاعتماد'}</span></button>
             )}
