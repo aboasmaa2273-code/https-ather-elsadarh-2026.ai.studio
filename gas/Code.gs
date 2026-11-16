@@ -65,7 +65,7 @@ function initializeDatabase() {
     }
     
     var sheetsSchema = {
-      'Users': ['id', 'schoolId', 'name', 'email', 'role', 'jobNumber', 'specialization', 'status', 'createdAt'],
+      'Users': ['id', 'schoolId', 'name', 'email', 'role', 'jobNumber', 'specialization', 'status', 'createdAt', 'username', 'teacherId'],
       'Schools': ['id', 'name', 'code', 'stage', 'welcomeMessage', 'primaryColor', 'secondaryColor', 'contactEmail', 'contactPhone'],
       'Teachers': ['id', 'schoolId', 'fullName', 'jobNumber', 'specialization', 'status', 'email', 'phone', 'dateAdded'],
       'Visits': ['id', 'schoolId', 'academicYear', 'term', 'visitType', 'teacherId', 'teacherName', 'teacherJobNumber', 'teacherSpecialization', 'grade', 'section', 'subject', 'evaluatorId', 'evaluatorName', 'date', 'time', 'visitGoal', 'status', 'achievementPercentage', 'observedCount', 'totalCount', 'eLearningMaturity', 'strengths', 'improvementAreas', 'recommendations', 'createdAt', 'updatedAt'],
@@ -493,9 +493,9 @@ function jsonResponse_(data) {
 }
 
 function apiLogin_(payload) {
-  var email = String(payload.email || '').trim().toLowerCase();
+  var identifier = String(payload.username || payload.email || '').trim().toLowerCase();
   var password = String(payload.password || '');
-  if (!email || !password) return { success: false, error: 'البريد الإلكتروني وكلمة المرور مطلوبان.' };
+  if (!identifier || !password) return { success: false, error: 'أدخل اسم المستخدم وكلمة المرور.' };
 
   var ss = getDatabaseSpreadsheet_();
   if (!ss) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
@@ -505,17 +505,20 @@ function apiLogin_(payload) {
   var values = sheet.getDataRange().getValues();
   var headers = values[0].map(function(v) { return String(v); });
   var emailCol = headers.indexOf('email');
+  var usernameCol = headers.indexOf('username');
   var roleCol = headers.indexOf('role');
   var statusCol = headers.indexOf('status');
   var saltCol = headers.indexOf('passwordSalt');
   var hashCol = headers.indexOf('passwordHash');
-  if ([emailCol, roleCol, statusCol, saltCol, hashCol].some(function(i) { return i < 0; })) {
+  if ([emailCol, usernameCol, roleCol, statusCol, saltCol, hashCol].some(function(i) { return i < 0; })) {
     return { success: false, error: 'يلزم تحديث بنية ورقة Users وإعداد كلمات مرور الحسابات من مسؤول النظام.' };
   }
 
   for (var i = 1; i < values.length; i++) {
     var row = values[i];
-    if (String(row[emailCol] || '').trim().toLowerCase() !== email) continue;
+    var rowEmail = String(row[emailCol] || '').trim().toLowerCase();
+    var rowUsername = String(row[usernameCol] || '').trim().toLowerCase();
+    if (rowEmail !== identifier && rowUsername !== identifier) continue;
     var status = String(row[statusCol] || 'active').toLowerCase();
     if (status === 'inactive' || status === 'disabled') return { success: false, error: 'هذا الحساب معطّل.' };
     var salt = String(row[saltCol] || '');
@@ -533,13 +536,15 @@ function apiLogin_(payload) {
       id: String(row[headers.indexOf('id')] || ''),
       schoolId: String(row[headers.indexOf('schoolId')] || 'sch_alsadara_01'),
       name: String(row[headers.indexOf('name')] || ''),
-      email: email,
-      role: role
+      email: rowEmail,
+      username: rowUsername,
+      role: role,
+      teacherId: String(row[headers.indexOf('teacherId')] || '')
     };
     CacheService.getScriptCache().put('ATHAR_SESSION_' + token, JSON.stringify(user), 21600);
     return { success: true, token: token, user: user, expiresIn: 21600 };
   }
-  return { success: false, error: 'هذا البريد غير مسجل ضمن المستخدمين المعتمدين.' };
+  return { success: false, error: 'اسم المستخدم غير مسجل ضمن الحسابات المعتمدة.' };
 }
 
 function passwordHash_(password, salt) {
@@ -741,7 +746,7 @@ function migrateUserPasswordColumns() {
   var sheet = ss.getSheetByName('Users');
   if (!sheet) throw new Error('ورقة Users غير موجودة.');
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
-  ['passwordSalt', 'passwordHash'].forEach(function(h) {
+  ['username', 'teacherId', 'passwordSalt', 'passwordHash'].forEach(function(h) {
     if (headers.indexOf(h) < 0) {
       sheet.getRange(1, sheet.getLastColumn() + 1).setValue(h);
       headers.push(h);
