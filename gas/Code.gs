@@ -537,6 +537,34 @@ function logAuditAction(schoolId, userName, action, details, userRole) {
 // ملاحظة أمنية: لا تُفعّل هذه الواجهة قبل إعداد كلمات مرور المستخدمين.
 // لا تُرجع كلمات المرور أو بصماتها مطلقاً إلى المتصفح.
 
+// Shared public evaluator directory for both the JSON API and iframe bridge.
+// Return only profile fields required by the public homepage and evaluator login selector.
+function getPublicEvaluators_() {
+  var ss = getDatabaseSpreadsheet_();
+  var users = rowsAsObjects_(ss.getSheetByName('Users'));
+  var schoolId = 'sch_alsadara_01';
+  var evaluators = users.filter(function(user) {
+    return String(user.schoolId || schoolId) === schoolId &&
+      String(user.role || '') === 'evaluator' &&
+      String(user.status || 'active').toLowerCase() === 'active';
+  }).map(function(user) {
+    return {
+      id: String(user.id || ''),
+      name: String(user.name || ''),
+      email: '',
+      role: 'evaluator',
+      status: 'active',
+      schoolId: schoolId,
+      roleTitle: String(user.roleTitle || user.jobTitle || 'مقيّم معتمد'),
+      specialization: String(user.specialization || ''),
+      department: String(user.department || ''),
+      profileSummary: String(user.profileSummary || user.bio || ''),
+      avatarUrl: String(user.avatarUrl || '')
+    };
+  }).filter(function(user) { return user.id && user.name; });
+  return { success: true, evaluators: evaluators };
+}
+
 function doPost(e) {
   try {
     var raw = e && e.parameter && e.parameter.payload
@@ -550,29 +578,7 @@ function doPost(e) {
     if (action === 'health') return jsonResponse_({ success: true, service: 'athar-api', timestamp: new Date().toISOString() });
     // Public, read-only evaluator directory. Never expose usernames, emails, passwords, or account identifiers.
     if (action === 'publicEvaluators') {
-      var publicSs = getDatabaseSpreadsheet_();
-      var publicUsers = rowsAsObjects_(publicSs.getSheetByName('Users'));
-      var publicSchoolId = 'sch_alsadara_01';
-      var publicEvaluators = publicUsers.filter(function(u) {
-        return String(u.schoolId || publicSchoolId) === publicSchoolId &&
-          String(u.role || '') === 'evaluator' &&
-          String(u.status || 'active').toLowerCase() === 'active';
-      }).map(function(u) {
-        return {
-          id: String(u.id || ''),
-          name: String(u.name || ''),
-          email: '',
-          role: 'evaluator',
-          status: 'active',
-          schoolId: publicSchoolId,
-          roleTitle: String(u.roleTitle || u.jobTitle || 'مقيّم معتمد'),
-          specialization: String(u.specialization || ''),
-          department: String(u.department || ''),
-          profileSummary: String(u.profileSummary || u.bio || ''),
-          avatarUrl: String(u.avatarUrl || '')
-        };
-      }).filter(function(u) { return u.id && u.name; });
-      return jsonResponse_({ success: true, evaluators: publicEvaluators });
+      return jsonResponse_(getPublicEvaluators_());
     }
 
     var session = validateSession_(request.token);
@@ -1532,29 +1538,7 @@ function dispatchBridgeRequest(request) {
     // Public, read-only evaluator directory. Keep the iframe bridge behavior
     // consistent with doPost without exposing credentials or email addresses.
     if (action === 'publicEvaluators') {
-      var publicSs = getDatabaseSpreadsheet_();
-      var publicUsers = rowsAsObjects_(publicSs.getSheetByName('Users'));
-      var publicSchoolId = 'sch_alsadara_01';
-      var publicEvaluators = publicUsers.filter(function(u) {
-        return String(u.schoolId || publicSchoolId) === publicSchoolId &&
-          String(u.role || '') === 'evaluator' &&
-          String(u.status || 'active').toLowerCase() === 'active';
-      }).map(function(u) {
-        return {
-          id: String(u.id || ''),
-          name: String(u.name || ''),
-          email: '',
-          role: 'evaluator',
-          status: 'active',
-          schoolId: publicSchoolId,
-          roleTitle: String(u.roleTitle || u.jobTitle || 'مقيّم معتمد'),
-          specialization: String(u.specialization || ''),
-          department: String(u.department || ''),
-          profileSummary: String(u.profileSummary || u.bio || ''),
-          avatarUrl: String(u.avatarUrl || '')
-        };
-      }).filter(function(u) { return u.id && u.name; });
-      return { success: true, evaluators: publicEvaluators };
+      return getPublicEvaluators_();
     }
     var session = validateSession_(request.token);
     if (!session) return { success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' };
