@@ -26,6 +26,7 @@ interface PublicHomeProps {
   platformSettings: PlatformSettings;
   onLoginClick: () => void;
   onSelectEvaluator?: (user: User, navigateTo?: string) => void;
+  evaluators: User[];
   onAddNewEvaluator?: (name: string, roleTitle?: string) => void;
   language?: Language;
 }
@@ -34,19 +35,16 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   platformSettings, 
   onLoginClick,
   onSelectEvaluator,
-  onAddNewEvaluator,
+  evaluators,
   language = 'ar' 
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
 
-  // Public visitors do not receive the internal staff/account directory.
-  const evaluators: User[] = [];
-
-
-  const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
-    // Evaluator identity is established only after credential verification.
-    onLoginClick();
+  const handleCardClick = (user: User, navigateTo: string = 'new-visit') => {
+    // The public card shows profile details only; identity is verified by login.
+    if (onSelectEvaluator) onSelectEvaluator(user, navigateTo);
+    else onLoginClick();
   };
 
   return (
@@ -108,7 +106,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                 className="px-6 py-3.5 bg-gradient-to-r from-[#C6A66A] to-[#b89556] text-[#172C40] text-sm font-extrabold rounded-xl hover:brightness-105 transition-all shadow-lg flex items-center gap-2 cursor-pointer"
               >
                 <UserCheck className="w-4 h-4" />
-                <span>{isEn ? 'Choose Evaluator & Begin Visit' : 'اختر اسم المقيّم وابدأ الزيارة فوراً'}</span>
+                <span>{isEn ? 'Choose Evaluator & Begin Visit' : 'استعرض بوابات المقيمين'}</span>
                 {isEn ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </a>
 
@@ -244,10 +242,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
           {evaluators.length === 0 && (
             <div className="col-span-full rounded-2xl border border-slate-200 bg-white p-6 text-center space-y-3">
               <p className="text-sm font-bold text-[#172C40]">
-                {isEn ? 'Authorized staff sign in with their assigned account.' : 'يسجل المقيمون والموظفون المعتمدون الدخول باستخدام الحسابات التي تخصصها إدارة المنصة.'}
+                {isEn ? 'Authorized staff sign in with their assigned account.' : 'لا توجد بوابات مقيمين مفعّلة حاليًا. ستظهر هنا البوابات التي تعتمدها إدارة المنصة.'}
               </p>
               <button type="button" onClick={onLoginClick} className="px-5 py-2.5 bg-[#172C40] text-white rounded-lg text-xs font-bold">
-                {isEn ? 'Authorized Sign In' : 'دخول الحسابات المعتمدة'}
+                {isEn ? 'Authorized Sign In' : 'تسجيل الدخول'}
               </button>
             </div>
           )}
@@ -293,31 +291,24 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                         {user.name}
                       </h3>
                       <p className="text-[11px] text-[#668575] font-semibold mt-0.5">
-                        {user.specialization || (isEn ? translations.en.roles[user.role] : AtharStorageService.getRoleLabel(user.role))}
+                        {user.roleTitle || (isEn ? translations.en.roles[user.role] : 'مقيّم معتمد')}
                       </p>
                     </div>
                   </div>
-
-
+                  {user.specialization && <p className="text-xs text-slate-600">{isEn ? 'Specialization: ' : 'التخصص: '}{user.specialization}</p>}
+                  {user.department && <p className="text-xs text-slate-600">{isEn ? 'Department: ' : 'القسم: '}{user.department}</p>}
+                  {user.profileSummary && <p className="text-xs text-slate-500 leading-relaxed">{user.profileSummary}</p>}
                 </div>
 
-                {/* Primary Button: Enter and Start Visit */}
-                <div className="space-y-2 pt-2 border-t border-slate-100">
-                  <button
-                    type="button"
-                    onClick={() => handleCardClick(user, 'new-visit')}
-                    className="w-full py-2.5 bg-[#172C40] hover:bg-[#101F2D] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer group-hover:bg-[#C6A66A] group-hover:text-[#172C40]"
-                  >
-                    <PlusCircle className="w-3.5 h-3.5 text-[#C6A66A] group-hover:text-[#172C40]" />
-                    <span>{isEn ? 'Start Classroom Visit Now' : 'دخول وبدء التقييم الصفي'}</span>
-                  </button>
-
+                {/* Dedicated evaluator portal sign-in */}
+                <div className="pt-3 border-t border-slate-100">
                   <button
                     type="button"
                     onClick={() => handleCardClick(user, 'dashboard')}
-                    className="w-full py-1.5 text-[11px] text-slate-500 hover:text-[#172C40] hover:bg-slate-50 rounded-lg font-semibold transition-colors text-center cursor-pointer"
+                    className="w-full py-3 bg-[#172C40] hover:bg-[#101F2D] text-white rounded-xl text-xs font-bold transition-all shadow-sm flex items-center justify-center gap-2 cursor-pointer group-hover:bg-[#C6A66A] group-hover:text-[#172C40]"
                   >
-                    {isEn ? 'Or open dashboard' : 'أو تصفح لوحة المتابعة'}
+                    <Lock className="w-4 h-4 text-[#C6A66A] group-hover:text-[#172C40]" />
+                    <span>{isEn ? 'Sign in to evaluator portal' : 'تسجيل الدخول إلى بوابة المقيم'}</span>
                   </button>
                 </div>
 
