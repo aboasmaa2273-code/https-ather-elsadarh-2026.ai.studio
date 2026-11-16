@@ -14,6 +14,7 @@ import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { PublicConnectionSetup } from './components/PublicConnectionSetup';
 import { Dashboard } from './components/Dashboard';
+import { FollowUpDashboard } from './components/FollowUpDashboard';
 import { TeachersList } from './components/TeachersList';
 import { VisitsList } from './components/VisitsList';
 import { VisitForm } from './components/VisitForm';
@@ -192,6 +193,10 @@ export default function App() {
         )}
 
         {/* When Logged In: Core Educational Modules */}
+        {isLoggedIn && activeTab === 'follow-up' && ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+          <FollowUpDashboard currentUser={currentUser} visits={visits} teachers={teachers} plans={plans} onOpenVisitReport={(v) => setSelectedVisitForReport(v)} />
+        )}
+
         {isLoggedIn && activeTab === 'dashboard' && (
           <Dashboard
             currentUser={currentUser}
