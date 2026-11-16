@@ -139,3 +139,28 @@ class AtharGasBridgeClient {
 }
 
 export const atharGasBridge = new AtharGasBridgeClient();
+
+
+const GAS_URL_KEY = 'athar_gas_web_app_url_v1';
+const GAS_TOKEN_KEY = 'athar_gas_session_token_v1';
+export function configureAtharBridge(): boolean {
+  const url = localStorage.getItem(GAS_URL_KEY) || '';
+  if (!url) return false;
+  atharGasBridge.configure(url);
+  return true;
+}
+export async function atharRemoteLogin(username: string, password: string) {
+  if (!configureAtharBridge()) return { success: false, error: 'لم يتم إعداد رابط قاعدة بيانات أَثَر بعد. افتح مركز الربط وأدخل رابط Apps Script المنشور.' };
+  const result = await atharGasBridge.request<User>({ action: 'login', payload: { username, password } });
+  if (result.success && result.token) localStorage.setItem(GAS_TOKEN_KEY, result.token);
+  return result;
+}
+export async function atharRemoteBootstrap() {
+  if (!configureAtharBridge()) throw new Error('رابط قاعدة البيانات غير مضبوط.');
+  const token = localStorage.getItem(GAS_TOKEN_KEY) || '';
+  if (!token) throw new Error('سجّل الدخول أولاً.');
+  const result = await atharGasBridge.request({ action: 'bootstrap', token });
+  if (!result.success) throw new Error(result.error || 'تعذر تحميل بيانات قاعدة البيانات.');
+  return result;
+}
+export function clearAtharRemoteSession() { localStorage.removeItem(GAS_TOKEN_KEY); }
