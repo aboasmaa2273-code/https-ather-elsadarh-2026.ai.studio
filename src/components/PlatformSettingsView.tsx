@@ -119,6 +119,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             phone: visitor.phone || '', username, status: 'active'
           });
           migrated = true;
+          centralIds.add(visitor.id);
+          if (username) centralUsernames.add(username);
         }
         if (migrated) remote = await atharRemoteBootstrap();
         if (!active) return;
@@ -311,7 +313,11 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     const visitor = visitorsList.find(v => v.id === id);
     try {
       if (visitor?.username) {
-        const account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        let account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        if (!account) {
+          await refreshCentralUsers();
+          account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        }
         if (account) await atharRemoteAction('setUserStatus', { id: account.id, status: 'inactive' });
       }
       await atharRemoteAction('deleteVisitor', { id });
