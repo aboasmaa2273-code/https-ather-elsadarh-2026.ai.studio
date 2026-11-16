@@ -386,7 +386,7 @@ export default function App() {
               await atharRemoteAction('archiveVisit', { id: visitId });
               await refreshAllData(true);
             } catch (error) {
-              alert(error instanceof Error ? error.message : 'تعذر حذف الزيارة من قاعدة البيانات المركزية.');
+              alert(error instanceof Error ? error.message : 'تعذر أرشفة التقرير في قاعدة البيانات المركزية.');
             }
           }}
         />
