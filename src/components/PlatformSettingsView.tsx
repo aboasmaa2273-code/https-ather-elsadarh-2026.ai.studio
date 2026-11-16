@@ -260,7 +260,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       showFeedback('error', isEn ? 'Name and username are required.' : 'الاسم واسم المستخدم مطلوبان.');
       return;
     }
-    const linkedUser = allUsersList.find(u => (u.username || '').toLowerCase() === visitorFormUsername.trim().toLowerCase());
+    const lookupUsername = (editingVisitor?.username || visitorFormUsername).trim().toLowerCase();
+    const linkedUser = allUsersList.find(u => (u.username || '').toLowerCase() === lookupUsername) || allUsersList.find(u => (u.username || '').toLowerCase() === visitorFormUsername.trim().toLowerCase());
     const accountId = linkedUser?.id;
     if (!accountId && visitorFormPassword.length < 10) {
       showFeedback('error', isEn ? 'Initial password must be at least 10 characters.' : 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.');
@@ -283,7 +284,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         name: visitorFormName.trim(), role: visitorFormRole,
         roleTitle: visitorFormTitle.trim() || undefined, department: visitorFormDept.trim() || undefined,
         jobNumber: visitorFormJobNumber.trim() || undefined, email: visitorFormEmail.trim() || undefined,
-        phone: visitorFormPhone.trim() || undefined
+        phone: visitorFormPhone.trim() || undefined,
+        username: visitorFormUsername.trim().toLowerCase()
       };
       const localResult = AtharStorageService.saveRegisteredVisitor(visitorPayload);
       if (!localResult.success) throw new Error(localResult.error || 'تعذر تحديث دليل الزائرين المحلي.');
