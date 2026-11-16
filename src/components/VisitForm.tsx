@@ -122,14 +122,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     if (editingVisit?.visitors && editingVisit.visitors.length > 0) {
       return editingVisit.visitors;
     }
-    const registeredList = AtharStorageService.getRegisteredVisitors();
-    const matched = registeredList.find(
-      rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
-    );
     let defaultRole: VisitorRole | string = 'evaluator';
-    if (matched) {
-      defaultRole = matched.role;
-    } else if (currentUser.name?.includes('هيئة تدريس المواد العربية') || currentUser.specialization?.includes('المواد العربية')) {
+    if (currentUser.name?.includes('هيئة تدريس المواد العربية') || currentUser.specialization?.includes('المواد العربية')) {
       defaultRole = 'head_of_arabic';
     } else if (currentUser.name?.includes('عائشة الغفلي') || currentUser.specialization?.includes('نطاق')) {
       defaultRole = 'cluster_director';
@@ -155,14 +149,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   useEffect(() => {
     if (!editingVisit && currentUser?.name) {
       setVisitors(prev => {
-        const registeredList = AtharStorageService.getRegisteredVisitors();
-        const matched = registeredList.find(
-          rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
-        );
         let userRole: VisitorRole | string = 'evaluator';
-        if (matched) {
-          userRole = matched.role;
-        } else if (currentUser.name?.includes('هيئة تدريس المواد العربية') || currentUser.specialization?.includes('المواد العربية')) {
+        if (currentUser.name?.includes('هيئة تدريس المواد العربية') || currentUser.specialization?.includes('المواد العربية')) {
           userRole = 'head_of_arabic';
         } else if (currentUser.name?.includes('عائشة الغفلي') || currentUser.specialization?.includes('نطاق')) {
           userRole = 'cluster_director';
