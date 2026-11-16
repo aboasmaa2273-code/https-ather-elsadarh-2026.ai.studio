@@ -142,9 +142,10 @@ export const atharGasBridge = new AtharGasBridgeClient();
 
 
 const GAS_URL_KEY = 'athar_gas_web_app_url_v1';
+const DEFAULT_GAS_URL = 'https://script.google.com/macros/s/AKfycbwllpGW5zoG6jKSvIq_UY2ae49wAejhuoQN9vYSRTlNmTmCcrehA7fth4ZaRHtw6Cv6/exec';
 const GAS_TOKEN_KEY = 'athar_gas_session_token_v1';
 export function configureAtharBridge(): boolean {
-  const url = localStorage.getItem(GAS_URL_KEY) || '';
+  const url = localStorage.getItem(GAS_URL_KEY) || DEFAULT_GAS_URL;
   if (!url) return false;
   atharGasBridge.configure(url);
   return true;
