@@ -74,7 +74,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Registered Visitors Directory State
-  const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>(() => AtharStorageService.getRegisteredVisitors());
+  const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>([]);
   const [isVisitorModalOpen, setIsVisitorModalOpen] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<RegisteredVisitor | null>(null);
   const [visitorFormName, setVisitorFormName] = useState('');
@@ -102,14 +102,38 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
   useEffect(() => {
     let active = true;
-    atharRemoteBootstrap().then((remote: any) => {
-      if (!active) return;
-      setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
-      if (Array.isArray(remote.auditLogs)) setLocalAuditLogs(remote.auditLogs);
-    }).catch((error) => {
-      console.warn('Could not load central users:', error);
-      if (active) setAllUsersList([]);
-    });
+    (async () => {
+      try {
+        let remote: any = await atharRemoteBootstrap();
+        let centralVisitors: RegisteredVisitor[] = Array.isArray(remote.visitors) ? remote.visitors : [];
+        const localVisitors = AtharStorageService.getRegisteredVisitors();
+        const centralIds = new Set(centralVisitors.map(v => v.id));
+        const centralUsernames = new Set(centralVisitors.map(v => (v.username || '').toLowerCase()).filter(Boolean));
+        let migrated = false;
+        for (const visitor of localVisitors) {
+          const username = (visitor.username || '').toLowerCase();
+          if (centralIds.has(visitor.id) || (username && centralUsernames.has(username))) continue;
+          await atharRemoteAction('saveVisitor', {
+            id: visitor.id, name: visitor.name, role: visitor.role, roleTitle: visitor.roleTitle || '',
+            department: visitor.department || '', jobNumber: visitor.jobNumber || '', email: visitor.email || '',
+            phone: visitor.phone || '', username, status: 'active'
+          });
+          migrated = true;
+        }
+        if (migrated) remote = await atharRemoteBootstrap();
+        if (!active) return;
+        setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
+        setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+        setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+        if (localVisitors.length > 0) AtharStorageService.clearRegisteredVisitorsLocal();
+      } catch (error) {
+        console.warn('Could not load central administration data:', error);
+        if (active) {
+          setAllUsersList([]);
+          setVisitorsList([]);
+        }
+      }
+    })();
     return () => { active = false; };
   }, []);
 
@@ -117,6 +141,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     const remote: any = await atharRemoteBootstrap();
     setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
     setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+    setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
   };
 
   // Feedback display helper
@@ -268,12 +293,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         name: visitorFormName.trim(), role: visitorFormRole,
         roleTitle: visitorFormTitle.trim() || undefined, department: visitorFormDept.trim() || undefined,
         jobNumber: visitorFormJobNumber.trim() || undefined, email: visitorFormEmail.trim() || undefined,
-        phone: visitorFormPhone.trim() || undefined,
-        username: visitorFormUsername.trim().toLowerCase()
+        phone: visitorFormPhone.trim() || undefined, username: visitorFormUsername.trim().toLowerCase()
       };
-      const localResult = AtharStorageService.saveRegisteredVisitor(visitorPayload);
-      if (!localResult.success) throw new Error(localResult.error || 'تعذر تحديث دليل الزائرين المحلي.');
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
+      await atharRemoteAction('saveVisitor', { ...visitorPayload, status: 'active' });
       await refreshCentralUsers();
       setVisitorFormPassword('');
       setIsVisitorModalOpen(false);
@@ -292,9 +314,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         const account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
         if (account) await atharRemoteAction('setUserStatus', { id: account.id, status: 'inactive' });
       }
-      const res = AtharStorageService.deleteRegisteredVisitor(id);
-      if (!res.success) throw new Error(res.error || 'تعذر حذف سجل الزائر.');
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
+      await atharRemoteAction('deleteVisitor', { id });
       await refreshCentralUsers();
       showFeedback('success', isEn ? 'Observer removed and linked account disabled.' : 'تم حذف سجل الزائر وتعطيل حسابه المرتبط.');
       onRefreshSettings();
