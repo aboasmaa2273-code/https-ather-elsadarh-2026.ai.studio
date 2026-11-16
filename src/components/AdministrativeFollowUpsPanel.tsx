@@ -37,7 +37,7 @@ export const AdministrativeFollowUpsPanel: React.FC<AdministrativeFollowUpsPanel
   const label=(s:string)=>({not_started:'لم تبدأ',in_progress:'قيد التنفيذ',completed:'مكتملة',needs_follow_up:'تحتاج متابعة'} as Record<string,string>)[s]||s;
   return <section className="space-y-4 rounded-2xl border border-slate-200 bg-white p-5 shadow-sm" dir="rtl">
     <div className="flex items-center gap-2"><CalendarCheck className="h-5 w-5 text-[#B28D4B]"/><h2 className="font-black text-[#172C40]">التوثيق والمتابعة الإدارية</h2></div>
-    <p className="text-xs text-slate-500">سجّل الإجراء والملاحظات والنتيجة والخطوة القادمة نصيًا، دون رفع ملفات أو صور.</p>
+    <p className="text-xs text-slate-500">سجّل الإجراء والملاحظات والنتيجة والخطوة القادمة نصيًا، دون رفع ملفات أو صور.</p><p className="text-[11px] text-slate-500">المسؤول عن المتابعة الحالية: <strong>{currentUser.name}</strong></p>
     <form onSubmit={submit} className="space-y-3 rounded-xl bg-slate-50 p-4">
       <div className="flex items-center justify-between"><h3 className="text-sm font-black">{id?'تعديل سجل متابعة':'إضافة سجل متابعة جديد'}</h3>{id&&<button type="button" onClick={reset} className="inline-flex items-center gap-1 text-xs text-slate-500"><RotateCcw className="h-3.5 w-3.5"/>إلغاء</button>}</div>
       <div className="grid grid-cols-1 gap-3 md:grid-cols-3">
