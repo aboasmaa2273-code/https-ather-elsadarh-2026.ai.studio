@@ -16,6 +16,7 @@ export interface User {
   avatarUrl?: string;
   username?: string;
   password?: string;
+  status?: 'active' | 'inactive';
 }
 
 export interface School {
