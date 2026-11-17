@@ -468,7 +468,9 @@ function saveClassroomVisit_(visitData) {
         throw new Error('لا يمكن تعديل زيارة لا تتبع المدرسة المرتبطة بحسابك.');
       }
       visitRow[25] = data[existingRowIndex - 1][25]; // keep original createdAt
-      recordVisitSnapshot_(ss, visitId, data[existingRowIndex - 1], data[0].map(String), String(visitData.schoolId || 'sch_alsadara_01'), visitData.actorName || visitData.evaluatorName, visitData.actorRole || visitData.evaluatorRole, 'تعديل التقرير');
+      if (visitData.recordHistory === true) {
+        recordVisitSnapshot_(ss, visitId, data[existingRowIndex - 1], data[0].map(String), String(visitData.schoolId || 'sch_alsadara_01'), visitData.actorName || visitData.evaluatorName, visitData.actorRole || visitData.evaluatorRole, 'تعديل التقرير');
+      }
       visitsSheet.getRange(existingRowIndex, 1, 1, visitRow.length).setValues([visitRow]);
     } else {
       visitsSheet.appendRow(visitRow);
