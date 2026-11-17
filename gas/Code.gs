@@ -372,6 +372,21 @@ function determineUserRole_(email) {
 // 5. حفظ واسترجاع الزيارات (Visits Management)
 // ====================================================
 
+function ensureVisitExtendedColumns_(sheet) {
+  if (!sheet) return { success: false, error: 'ورقة الزيارات غير موجودة.' };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(value) { return String(value).trim(); });
+  var required = ['totalStudents', 'attendedStudents', 'absentStudents', 'studentGender', 'visitorRole', 'visitors'];
+  var added = [];
+  required.forEach(function(name) {
+    if (headers.indexOf(name) >= 0) return;
+    var nextColumn = sheet.getLastColumn() + 1;
+    sheet.getRange(1, nextColumn).setValue(name);
+    headers.push(name);
+    added.push(name);
+  });
+  return { success: true, headers: headers, added: added };
+}
+
 function saveClassroomVisit_(visitData) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { success: false, error: 'هناك عملية حفظ أخرى قيد التنفيذ. حاول مرة أخرى.' };
@@ -387,6 +402,8 @@ function saveClassroomVisit_(visitData) {
     if (!visitsSheet || !indSheet) {
       throw new Error('أوراق الزيارات غير موجودة. شغّل initializeDatabase() من محرر Apps Script.');
     }
+    var extendedColumns = ensureVisitExtendedColumns_(visitsSheet);
+    if (!extendedColumns.success) throw new Error(extendedColumns.error);
 
     // حساب نسبة الإنجاز مع استبعاد "لم يُشاهد" تماماً
     var indicators = visitData.indicators || [];
@@ -456,6 +473,21 @@ function saveClassroomVisit_(visitData) {
     } else {
       visitsSheet.appendRow(visitRow);
     }
+
+    // Preserve visit details that were previously present only in browser storage.
+    var savedVisitRow = existingRowIndex > 0 ? existingRowIndex : visitsSheet.getLastRow();
+    var extendedValues = {
+      totalStudents: visitData.totalStudents === undefined ? '' : visitData.totalStudents,
+      attendedStudents: visitData.attendedStudents === undefined ? '' : visitData.attendedStudents,
+      absentStudents: visitData.absentStudents === undefined ? '' : visitData.absentStudents,
+      studentGender: visitData.studentGender || '',
+      visitorRole: visitData.visitorRole || '',
+      visitors: JSON.stringify(visitData.visitors || [])
+    };
+    Object.keys(extendedValues).forEach(function(header) {
+      var column = extendedColumns.headers.indexOf(header);
+      if (column >= 0) visitsSheet.getRange(savedVisitRow, column + 1).setValue(extendedValues[header]);
+    });
 
     // عند تعديل زيارة موجودة، احذف تفاصيل مؤشرّاتها السابقة أولاً حتى لا تتكرر.
     if (existingRowIndex > 0 && indSheet.getLastRow() > 1) {
@@ -856,6 +888,10 @@ function dispatchApiAction_(action, payload, session) {
       });
       try { v.strengths = JSON.parse(v.strengths || '[]'); } catch (e) { v.strengths = []; }
       try { v.improvementAreas = JSON.parse(v.improvementAreas || '[]'); } catch (e) { v.improvementAreas = []; }
+      try { v.visitors = JSON.parse(v.visitors || '[]'); } catch (e) { v.visitors = []; }
+      v.totalStudents = v.totalStudents === '' || v.totalStudents === undefined ? undefined : Number(v.totalStudents);
+      v.attendedStudents = v.attendedStudents === '' || v.attendedStudents === undefined ? undefined : Number(v.attendedStudents);
+      v.absentStudents = v.absentStudents === '' || v.absentStudents === undefined ? undefined : Number(v.absentStudents);
       return v;
     });
     plans = plans.map(function(p) {
