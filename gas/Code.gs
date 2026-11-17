@@ -809,9 +809,7 @@ function apiLogin_(payload) {
       return { success: false, error: 'بيانات الدخول غير صحيحة.' };
     }
 
-    var rawRole = String(row[roleCol] || '').trim().toLowerCase();
-    var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator' };
-    var role = roleAliases[rawRole] || rawRole;
+    var role = normalizeRole_(row[roleCol]);
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
     if (allowed.indexOf(role) < 0) return { success: false, error: 'دور الحساب غير معتمد.' };
 
@@ -896,16 +894,30 @@ function validateSession_(token) {
     var payload = JSON.parse(payloadText);
     if (!payload || !payload.user || !payload.expiresAt || Date.now() >= Number(payload.expiresAt)) return null;
     var user = payload.user;
+    user.role = normalizeRole_(user.role);
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
-    if (allowed.indexOf(String(user.role || '')) < 0 || !user.id || !user.schoolId) return null;
+    if (allowed.indexOf(user.role) < 0 || !user.id || !user.schoolId) return null;
     return user;
   } catch (e) {
     return null;
   }
 }
 
+function normalizeRole_(role) {
+  var raw = String(role || '').trim().toLowerCase().replace(/[\\s-]+/g, '_');
+  var aliases = {
+    admin: 'platform_admin', platformadmin: 'platform_admin', system_admin: 'platform_admin',
+    'مسؤول المنصة': 'platform_admin', 'مسؤول النظام': 'platform_admin', 'مدير المنصة': 'platform_admin',
+    principal: 'school_admin', schooladmin: 'school_admin', 'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin',
+    assistant_principal: 'vice_principal', viceprincipal: 'vice_principal', 'مساعد المدير': 'vice_principal', 'نائب المدير': 'vice_principal',
+    observer: 'evaluator', evaluator: 'evaluator', 'مقيم': 'evaluator', 'مقيّم': 'evaluator', 'مقيم معتمد': 'evaluator', 'مقيّم معتمد': 'evaluator',
+    teacher: 'teacher', 'معلم': 'teacher', 'معلّم': 'teacher'
+  };
+  return aliases[raw] || raw;
+}
+
 function requireRole_(session, roles) {
-  return !!session && roles.indexOf(session.role) >= 0;
+  return !!session && roles.indexOf(normalizeRole_(session.role)) >= 0;
 }
 
 function ensureRegisteredVisitorsSheet_() {
@@ -1761,6 +1773,14 @@ function saveVisitor_(payload, session) {
     status: String(payload.status || 'active'),
     createdAt: String(payload.createdAt || new Date().toISOString())
   };
+  // Reuse an existing directory record for the same login instead of creating duplicates on retries.
+  if (!payload.id && visitor.username) {
+    var existingVisitor = rowsAsObjects_(sheet).filter(function(item) {
+      return String(item.schoolId || '') === String(visitor.schoolId) &&
+        String(item.username || '').trim().toLowerCase() === visitor.username;
+    })[0];
+    if (existingVisitor && existingVisitor.id) visitor.id = String(existingVisitor.id);
+  }
   var result = upsertObjectRow_('RegisteredVisitors', visitor, 'id', visitor.schoolId);
   if (result.success) { invalidatePublicEvaluatorCache_(); logAuditAction(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role); }
   return result;
