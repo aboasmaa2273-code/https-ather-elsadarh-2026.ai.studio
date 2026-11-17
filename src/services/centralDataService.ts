@@ -96,7 +96,8 @@ export async function loadCentralData() {
       jobNumber: String(item.jobNumber || ''),
       email: String(item.email || ''),
       phone: String(item.phone || ''),
-      username: String(item.username || '')
+      username: String(item.username || ''),
+      status: item.status === 'inactive' ? 'inactive' : 'active'
     })) as RegisteredVisitor[],
     academicSettings: parseSetting<AcademicSettings>(data.settings, 'academicSettings', DEFAULT_ACADEMIC_SETTINGS),
     platformSettings: parseSetting<PlatformSettings>(data.settings, 'platformSettings', DEFAULT_PLATFORM_SETTINGS)
