@@ -76,6 +76,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
   const [showLivePreview, setShowLivePreview] = useState(false);
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
+  const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
+  const [isDiagnosing, setIsDiagnosing] = useState(false);
 
   // Registered Visitors Directory State
   const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>([]);
@@ -109,8 +111,11 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     const seen = new Set<string>();
     return items.filter((visitor) => {
       const username = (visitor.username || '').trim().toLowerCase();
-      const fallback = [visitor.name || '', visitor.jobNumber || ''].join('|').trim().toLowerCase();
-      const key = username ? 'user:' + username : 'profile:' + fallback;
+      const jobNumber = (visitor.jobNumber || '').trim().toLowerCase();
+      const name = (visitor.name || '').normalize('NFKC').replace(/[\s\u0640]/g, '').toLowerCase();
+      // Prefer the stable employee number to collapse duplicate profiles even
+      // when legacy rows were created with different usernames.
+      const key = jobNumber ? 'job:' + jobNumber : (username ? 'user:' + username : 'name:' + name);
       if (seen.has(key)) return false;
       seen.add(key);
       return true;
@@ -153,6 +158,19 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setFeedbackMessage({ type, text });
     setTimeout(() => setFeedbackMessage(null), 3500);
+  };
+
+  const runSessionDiagnostics = async () => {
+    setIsDiagnosing(true);
+    setDiagnosticResult(null);
+    try {
+      const response: any = await atharRemoteAction('sessionDiagnostics', {});
+      setDiagnosticResult(response.diagnostics || response);
+    } catch (error) {
+      setDiagnosticResult({ error: error instanceof Error ? error.message : 'تعذر تنفيذ التشخيص.' });
+    } finally {
+      setIsDiagnosing(false);
+    }
   };
 
   // Delete Evaluator Account
@@ -354,7 +372,15 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           </p>
         </div>
 
-        <div className="flex items-center gap-2.5">
+        <div className="flex items-center gap-2.5 flex-wrap">
+          <button
+            type="button"
+            onClick={runSessionDiagnostics}
+            disabled={isDiagnosing}
+            className="px-3.5 py-2 bg-white text-slate-700 border border-slate-300 rounded-lg text-xs font-bold hover:bg-slate-50 disabled:opacity-60"
+          >
+            {isDiagnosing ? 'جارٍ فحص الاتصال…' : 'فحص الاتصال والصلاحيات'}
+          </button>
           {activeSubTab === 'platform' && (
             <>
               <button
@@ -391,6 +417,13 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           )}
         </div>
       </div>
+
+      {diagnosticResult && (
+        <div className="rounded-xl border border-[#C6A66A]/50 bg-white p-4 shadow-sm" dir="rtl">
+          <div className="font-bold text-sm text-[#172C40] mb-2">نتيجة فحص المنظومة</div>
+          <pre className="text-[11px] leading-6 whitespace-pre-wrap break-words text-slate-700">{JSON.stringify(diagnosticResult, null, 2)}</pre>
+        </div>
+      )}
 
       {/* Feedback Alert */}
       {feedbackMessage && (

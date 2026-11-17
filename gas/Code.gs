@@ -676,7 +676,7 @@ function getPublicEvaluators_() {
   users.forEach(function(user) {
     var rawRole = String(user.role || '').trim().toLowerCase();
     var role = normalizeAtharRole_(rawRole);
-    var status = String(user.status || 'active').trim().toLowerCase();
+    var status = normalizeAtharStatus_(user.status);
     var accountSchool = String(user.schoolId || schoolId);
     if (accountSchool === schoolId && eligibleRoles.indexOf(role) >= 0 && (status === 'active' || status === '')) {
       var username = String(user.username || '').trim().toLowerCase();
@@ -692,7 +692,7 @@ function getPublicEvaluators_() {
     var username = String(visitor.username || '').trim().toLowerCase();
     var account = activeAccounts[username];
     var visitorSchool = String(visitor.schoolId || schoolId);
-    var visitorStatus = String(visitor.status || 'active').trim().toLowerCase();
+    var visitorStatus = normalizeAtharStatus_(visitor.status);
     if (!account || visitorSchool !== schoolId || (visitorStatus !== 'active' && visitorStatus !== '')) return;
     var key = String(account.id || username);
     if (seen[key]) return;
@@ -716,7 +716,7 @@ function getPublicEvaluators_() {
   users.forEach(function(user) {
     var rawRole = String(user.role || '').trim().toLowerCase();
     var role = normalizeAtharRole_(rawRole);
-    var status = String(user.status || 'active').trim().toLowerCase();
+    var status = normalizeAtharStatus_(user.status);
     var accountSchool = String(user.schoolId || schoolId);
     var key = String(user.id || '');
     if (accountSchool !== schoolId || eligibleRoles.indexOf(role) < 0 ||
@@ -801,7 +801,7 @@ function apiLogin_(payload) {
     var rowEmail = String(row[emailCol] || '').trim().toLowerCase();
     var rowUsername = String(row[usernameCol] || '').trim().toLowerCase();
     if (rowUsername !== identifier) continue;
-    var status = String(row[statusCol] || 'active').trim().toLowerCase();
+    var status = normalizeAtharStatus_(row[statusCol]);
     if (status !== 'active') return { success: false, error: 'هذا الحساب معطّل أو غير مفعّل.' };
     var salt = String(row[saltCol] || '');
     var expected = String(row[hashCol] || '');
@@ -904,6 +904,13 @@ function validateSession_(token) {
   }
 }
 
+function normalizeAtharStatus_(value) {
+  var raw = String(value === undefined || value === null ? 'active' : value).trim().toLowerCase();
+  if (!raw || ['active', 'enabled', 'نشط', 'مفعل', 'مفعّل', 'فعال'].indexOf(raw) >= 0) return 'active';
+  if (['inactive', 'disabled', 'معطل', 'معطّل', 'غير مفعل', 'غير مفعّل', 'موقوف'].indexOf(raw) >= 0) return 'inactive';
+  return raw;
+}
+
 function normalizeAtharRole_(value) {
   var raw = String(value || '').trim().toLowerCase();
   var aliases = {
@@ -956,12 +963,54 @@ function rowsAsObjects_(sheet) {
 }
 
 function dispatchApiAction_(action, payload, session) {
+  // Canonicalize role and status at every server boundary, including older signed sessions.
+  session.role = normalizeAtharRole_(session.role);
   var ss = getDatabaseSpreadsheet_();
   if (!ss) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
   var schoolId = session.schoolId || 'sch_alsadara_01';
   var adminRoles = ['platform_admin', 'school_admin'];
   var managementRoles = ['platform_admin', 'school_admin', 'vice_principal'];
   var evaluatorRoles = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'];
+
+  if (action === 'sessionDiagnostics') {
+    var diagnosticUsers = rowsAsObjects_(ss.getSheetByName('Users'));
+    var diagnosticVisitors = rowsAsObjects_(ss.getSheetByName('RegisteredVisitors'));
+    var isAdmin = requireRole_(session, adminRoles);
+    var result = {
+      codeVersion: 'ATHAR-2026-11-17-DIAG-1',
+      sessionRole: normalizeAtharRole_(session.role),
+      isAdmin: isAdmin,
+      schoolId: String(session.schoolId || 'sch_alsadara_01')
+    };
+    if (isAdmin) {
+      var targetSchool = result.schoolId;
+      var eligible = ['evaluator', 'vice_principal', 'school_admin'];
+      var activeByRole = {};
+      var activeByUsername = {};
+      diagnosticUsers.forEach(function(u) {
+        var role = normalizeAtharRole_(u.role);
+        var status = normalizeAtharStatus_(u.status);
+        if (String(u.schoolId || 'sch_alsadara_01') !== targetSchool || status !== 'active') return;
+        activeByRole[role] = (activeByRole[role] || 0) + 1;
+        var username = String(u.username || '').trim().toLowerCase();
+        if (username && eligible.indexOf(role) >= 0) activeByUsername[username] = true;
+      });
+      var activeDirectory = diagnosticVisitors.filter(function(v) {
+        var username = String(v.username || '').trim().toLowerCase();
+        return String(v.schoolId || 'sch_alsadara_01') === targetSchool &&
+          normalizeAtharStatus_(v.status) === 'active' && !!activeByUsername[username];
+      }).length;
+      var eligibleAccounts = Object.keys(activeByUsername).length;
+      result.counts = {
+        usersInSchool: diagnosticUsers.filter(function(u) { return String(u.schoolId || 'sch_alsadara_01') === targetSchool; }).length,
+        activeAccountsByRole: activeByRole,
+        visitorRowsInSchool: diagnosticVisitors.filter(function(v) { return String(v.schoolId || 'sch_alsadara_01') === targetSchool; }).length,
+        activeDirectoryRowsMatchedToAccounts: activeDirectory,
+        eligibleActiveAccounts: eligibleAccounts
+      };
+    }
+    return { success: true, diagnostics: result };
+  }
 
   if (action === 'bootstrap') {
     var teachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
@@ -1469,6 +1518,7 @@ function dispatchApiAction_(action, payload, session) {
 }
 
 function saveUserAccount_(payload, session) {
+  session.role = normalizeAtharRole_(session.role);
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss.getSheetByName('Users');
   if (!sheet) return { success: false, error: 'ورقة الحسابات غير موجودة.' };
@@ -1527,6 +1577,7 @@ function saveUserAccount_(payload, session) {
 }
 
 function setUserStatus_(payload, session) {
+  session.role = normalizeAtharRole_(session.role);
   var id = String(payload.id || '');
   if (!id || id === String(session.id)) return { success: false, error: 'لا يمكن تعطيل الحساب الحالي أو أن المعرّف غير صالح.' };
   var sheet = getDatabaseSpreadsheet_().getSheetByName('Users');
@@ -1536,7 +1587,7 @@ function setUserStatus_(payload, session) {
   var roleCol = headers.indexOf('role');
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][idCol]) === id && String(data[i][schoolCol]) === String(session.schoolId)) {
-      var targetRole = String(data[i][roleCol] || '');
+      var targetRole = normalizeAtharRole_(data[i][roleCol]);
       if (session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
         return { success: false, error: 'لا يمكن لإدارة المدرسة تعطيل حساب مسؤول المنصة أو حساب إدارة المدرسة.' };
       }
