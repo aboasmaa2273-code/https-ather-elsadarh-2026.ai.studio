@@ -104,7 +104,7 @@ export const Header: React.FC<HeaderProps> = ({
                   </button>
                 )}
                 <button
-                  onClick={() => onTabChange('teachers')}}
+                  onClick={() => onTabChange('teachers')}
                   className={`px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${
                     activeTab === 'teachers' 
                       ? 'bg-[#C6A66A] text-[#172C40]' 
