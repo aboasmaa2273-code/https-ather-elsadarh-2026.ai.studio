@@ -74,17 +74,25 @@ function runDatabaseHealthCheck_() {
   return getDatabaseHealth_();
 }
 
+var ATHAR_SPREADSHEET_INSTANCE_ = null;
+
 function getDatabaseSpreadsheet_() {
+  // Reuse the open spreadsheet handle during this Apps Script execution.
+  if (ATHAR_SPREADSHEET_INSTANCE_) return ATHAR_SPREADSHEET_INSTANCE_;
   var properties = PropertiesService.getScriptProperties();
   var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
   if (!spreadsheetId) {
     // Use the existing school database rather than silently creating a second database.
-    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMriL9b8AwcYLM';
+    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L9b8AwcYcLM';
     properties.setProperty('ATHAR_DATABASE_SPREADSHEET_ID', spreadsheetId);
   }
-  return SpreadsheetApp.openById(spreadsheetId);
+  ATHAR_SPREADSHEET_INSTANCE_ = SpreadsheetApp.openById(spreadsheetId);
+  return ATHAR_SPREADSHEET_INSTANCE_;
 }
 
+function invalidatePublicEvaluatorCache_() {
+  CacheService.getScriptCache().remove('ATHAR_PUBLIC_EVALUATORS_V1');
+}
 // ====================================================
 // 2. تهيئة قاعدة البيانات وأوراق العمل (19 ورقة عمل)
 // ====================================================
@@ -652,6 +660,11 @@ function logAuditAction(schoolId, userName, action, details, userRole) {
 // Shared public evaluator directory for both the JSON API and iframe bridge.
 // Return only profile fields required by the public homepage and evaluator login selector.
 function getPublicEvaluators_() {
+  var cache = CacheService.getScriptCache();
+  var cached = cache.get('ATHAR_PUBLIC_EVALUATORS_V1');
+  if (cached) {
+    try { return JSON.parse(cached); } catch (e) { cache.remove('ATHAR_PUBLIC_EVALUATORS_V1'); }
+  }
   // Build the public roster from RegisteredVisitors, but expose only people
   // who also have an active login-enabled account in this school.
   var ss = getDatabaseSpreadsheet_();
@@ -726,7 +739,9 @@ function getPublicEvaluators_() {
 
   evaluators = evaluators.filter(function(user) { return user.id && user.name; });
   evaluators.sort(function(a, b) { return a.name.localeCompare(b.name, 'ar'); });
-  return { success: true, evaluators: evaluators };
+  var response = { success: true, evaluators: evaluators };
+  cache.put('ATHAR_PUBLIC_EVALUATORS_V1', JSON.stringify(response), 30);
+  return response;
 }
 function doPost(e) {
   try {
@@ -1374,6 +1389,7 @@ function dispatchApiAction_(action, payload, session) {
   if (action === 'deleteVisitor') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف بيانات الزائرين مقتصر على الإدارة.' };
     var deletedVisitor = deleteById_('RegisteredVisitors', payload.id, schoolId);
+    if (deletedVisitor.success) invalidatePublicEvaluatorCache_();
     if (deletedVisitor.success) logAuditAction(schoolId, session.name, 'حذف زائر', 'تم حذف سجل الزائر ' + payload.id, session.role);
     return deletedVisitor;
   }
@@ -1481,6 +1497,7 @@ function saveUserAccount_(payload, session) {
     sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
     sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
   }
+  invalidatePublicEvaluatorCache_();
   logAuditAction(obj.schoolId, session.name, existing ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')', session.role);
   return { success: true, user: { id: id, schoolId: obj.schoolId, name: name, username: username, email: obj.email,
     role: role, jobNumber: obj.jobNumber, specialization: obj.specialization, status: obj.status, teacherId: obj.teacherId } };
@@ -1743,7 +1760,7 @@ function saveVisitor_(payload, session) {
     createdAt: String(payload.createdAt || new Date().toISOString())
   };
   var result = upsertObjectRow_('RegisteredVisitors', visitor, 'id', visitor.schoolId);
-  if (result.success) logAuditAction(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role);
+  if (result.success) { invalidatePublicEvaluatorCache_(); logAuditAction(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role); }
   return result;
 }
 
