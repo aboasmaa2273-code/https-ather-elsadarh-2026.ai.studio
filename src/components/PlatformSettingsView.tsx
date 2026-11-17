@@ -333,7 +333,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const handleRestoreDemoData = () => {
     if (confirm(isEn ? 'Restore sample demo records for testing and training?' : 'هل تود استرجاع البيانات التجريبية النموذجية لأغراض التدريب والتجربة؟')) {
       AtharStorageService.resetToDefaults();
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
       showFeedback('success', isEn ? 'Sample demo data restored successfully.' : 'تمت استعادة البيانات التجريبية النموذجية بنجاح.');
       onRefreshSettings();
     }
