@@ -904,7 +904,7 @@ function validateSession_(token) {
     var liveUsers = rowsAsObjects_(liveUsersSheet);
     var liveAccount = liveUsers.filter(function(account) {
       return String(account.id || '') === String(user.id) &&
-        String(account.schoolId || '') === String(user.schoolId);
+        String(account.schoolId || 'sch_alsadara_01') === String(user.schoolId);
     })[0];
     if (!liveAccount || normalizeAtharStatus_(liveAccount.status) !== 'active') return null;
     if (normalizeAtharRole_(liveAccount.role) !== user.role) return null;
