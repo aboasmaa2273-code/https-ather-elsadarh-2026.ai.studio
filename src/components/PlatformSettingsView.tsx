@@ -1,5 +1,5 @@
 import React, { useState, useEffect } from 'react';
-import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole } from '../types';
+import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole, normalizeUserRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { atharRemoteAction, atharRemoteBootstrap } from '../services/gasBridgeClient';
 import { 
@@ -52,7 +52,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = currentUser?.role === 'platform_admin' || currentUser?.role === 'school_admin';
+  const currentRole = normalizeUserRole(currentUser?.role);
+  const canEdit = currentRole === 'platform_admin' || currentRole === 'school_admin';
 
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');

@@ -7,7 +7,8 @@ import {
   AcademicSettings, 
   PlatformSettings,
   AuditLogEntry,
-  RegisteredVisitor
+  RegisteredVisitor,
+  normalizeUserRole
 } from './types';
 import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS, DEFAULT_USERS } from './data/defaultData';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
@@ -91,9 +92,11 @@ export default function App() {
 
   // Handle user switch
   const handleUserChange = (newUser: User) => {
-    setCurrentUser(newUser);
+    const normalizedRole = normalizeUserRole(newUser.role);
+    const safeUser = normalizedRole ? { ...newUser, role: normalizedRole } : newUser;
+    setCurrentUser(safeUser);
     // If switched to teacher, make sure they aren't on admin-only tabs
-    if (newUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
+    if (safeUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
       setActiveTab('dashboard');
     }
   };
@@ -164,7 +167,7 @@ export default function App() {
           />
         )}
 
-        {isLoggedIn && activeTab === 'monitoring' && ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+        {isLoggedIn && activeTab === 'monitoring' && ['platform_admin', 'school_admin', 'vice_principal'].includes(normalizeUserRole(currentUser.role) || '') && (
           <MonitoringDashboard
             currentUser={currentUser}
             visits={visits}

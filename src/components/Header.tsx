@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User, PlatformSettings } from '../types';
+import { User, PlatformSettings, normalizeUserRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { 
   UserCheck, 
@@ -38,6 +38,7 @@ export const Header: React.FC<HeaderProps> = ({
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
+  const currentRole = normalizeUserRole(currentUser?.role) || '';
 
   const [logoError, setLogoError] = useState(false);
 
@@ -93,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {t.nav.dashboard}
                 </button>
 
-                {['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+                {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole) && (
                   <button
                     onClick={() => onTabChange('monitoring')}
                     className={`px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5 ${
