@@ -904,12 +904,12 @@ function validateSession_(token) {
 }
 
 function normalizeRole_(role) {
-  var raw = String(role || '').trim().toLowerCase().replace(/[\\s-]+/g, '_');
+  var raw = String(role || '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   var aliases = {
     admin: 'platform_admin', platformadmin: 'platform_admin', system_admin: 'platform_admin',
-    'مسؤول المنصة': 'platform_admin', 'مسؤول_النظام': 'platform_admin', 'مدير_المنصة': 'platform_admin',
-    principal: 'school_admin', schooladmin: 'school_admin', 'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin',
-    assistant_principal: 'vice_principal', viceprincipal: 'vice_principal', 'مساعد المدير': 'vice_principal', 'نائب_المدير': 'vice_principal',
+    'مسؤول_المنصة': 'platform_admin', 'مسؤول_النظام': 'platform_admin', 'مدير_المنصة': 'platform_admin',
+    principal: 'school_admin', schooladmin: 'school_admin', 'مسؤول_المدرسة': 'school_admin', 'مدير_المدرسة': 'school_admin',
+    assistant_principal: 'vice_principal', viceprincipal: 'vice_principal', 'مساعد_المدير': 'vice_principal', 'نائب_المدير': 'vice_principal',
     observer: 'evaluator', evaluator: 'evaluator', 'مقيم': 'evaluator', 'مقيّم': 'evaluator', 'مقيم_معتمد': 'evaluator', 'مقيّم_معتمد': 'evaluator',
     teacher: 'teacher', 'معلم': 'teacher', 'معلّم': 'teacher'
   };
