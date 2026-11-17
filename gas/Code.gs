@@ -1519,6 +1519,7 @@ function setUserStatus_(payload, session) {
       }
       var next = payload.status === 'active' ? 'active' : 'inactive';
       sheet.getRange(i + 1, statusCol + 1).setValue(next);
+      invalidatePublicEvaluatorCache_();
       logAuditAction(session.schoolId, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
       return { success: true, id: id, status: next };
     }
@@ -1573,6 +1574,7 @@ function updateUserCredentials_(payload, session) {
   if (password && (saltCol < 0 || hashCol < 0)) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة.' };
   sheet.getRange(rowIndex, nameCol + 1).setValue(name);
   sheet.getRange(rowIndex, usernameCol + 1).setValue(username);
+  invalidatePublicEvaluatorCache_();
   if (password) {
     var salt = Utilities.getUuid() + Utilities.getUuid();
     sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
