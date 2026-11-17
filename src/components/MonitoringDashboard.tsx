@@ -52,6 +52,8 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
   const [term, setTerm] = useState('all');
   const [subject, setSubject] = useState('all');
   const [grade, setGrade] = useState('all');
+  const [sectionFilter, setSectionFilter] = useState('all');
+  const [performance, setPerformance] = useState('all');
   const [visitStatus, setVisitStatus] = useState('all');
   const [search, setSearch] = useState('');
 
@@ -69,9 +71,11 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
       && (term === 'all' || v.term === term)
       && (subject === 'all' || v.subject === subject)
       && (grade === 'all' || v.grade === grade)
+      && (sectionFilter === 'all' || v.section === sectionFilter)
+      && (performance === 'all' || (performance === 'excellent' ? v.achievementPercentage >= 95 : performance === 'very_good' ? v.achievementPercentage >= 85 && v.achievementPercentage < 95 : performance === 'good' ? v.achievementPercentage >= 75 && v.achievementPercentage < 85 : performance === 'acceptable' ? v.achievementPercentage >= 65 && v.achievementPercentage < 75 : v.achievementPercentage < 65))
       && (visitStatus === 'all' || v.status === visitStatus)
       && (!search || [v.id, v.teacherName, v.evaluatorName, v.subject].some(x => String(x || '').toLowerCase().includes(search.toLowerCase())));
-  }), [activeVisits, evaluator, teacher, visitType, fromDate, toDate, year, term, subject, grade, visitStatus, search]);
+  }), [activeVisits, evaluator, teacher, visitType, fromDate, toDate, year, term, subject, grade, sectionFilter, performance, visitStatus, search]);
 
   const evaluators = useMemo(() => {
     const map = new Map<string, { id: string; name: string; full: number; quick: number; avg: number; count: number }>();
@@ -116,7 +120,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
 
   const resetFilters = () => {
     setEvaluator('all'); setTeacher('all'); setVisitType('all'); setFromDate(''); setToDate('');
-    setYear('all'); setTerm('all'); setSubject('all'); setGrade('all'); setVisitStatus('all'); setSearch('');
+    setYear('all'); setTerm('all'); setSubject('all'); setGrade('all'); setSectionFilter('all'); setPerformance('all'); setVisitStatus('all'); setSearch('');
   };
 
   const exportCsv = () => {
@@ -132,7 +136,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
   const label = (ar: string, en: string) => isEn ? en : ar;
   const statusLabel = (status: string) => ({ draft: label('مسودة','Draft'), in_progress: label('قيد التنفيذ','In progress'), completed: label('مكتملة','Completed'), approved: label('معتمدة','Approved'), archived: label('مؤرشفة','Archived'), not_started: label('لم تبدأ','Not started'), needs_follow_up: label('تحتاج متابعة','Needs follow-up') }[status] || status);
   const card = (title: string, value: string | number, sub?: string) => <div className="rounded-xl border border-slate-200 bg-white p-4 shadow-sm"><div className="text-xs font-bold text-slate-500">{title}</div><div className="mt-2 text-2xl font-black text-[#172C40] tabular-nums">{value}</div>{sub && <div className="mt-1 text-[11px] text-slate-500">{sub}</div>}</div>;
-  const filterSelect = (value: string, setter: (v: string) => void, values: string[], title: string) => <label className="flex min-w-[130px] flex-1 flex-col gap-1 text-[11px] font-bold text-slate-600"><span>{title}</span><select value={value} onChange={e => setter(e.target.value)} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs"><option value="all">{label('الكل','All')}</option>{values.map(v => <option key={v} value={v}>{v}</option>)}</select></label>;
+  const filterSelect = (value: string, setter: (v: string) => void, values: string[], title: string) => <label className="flex min-w-[130px] flex-1 flex-col gap-1 text-[11px] font-bold text-slate-600"><span>{title}</span><select value={value} onChange={e => setter(e.target.value)} className="rounded-lg border border-slate-300 bg-white px-2 py-2 text-xs"><option value="all">{label('الكل','All')}</option>{values.map(v => <option key={v} value={v}>{v === 'full' ? label('كاملة','Full') : v === 'quick' ? label('سريعة','Quick') : v === 'draft' ? label('مسودة','Draft') : v === 'in_progress' ? label('قيد التنفيذ','In progress') : v === 'completed' ? label('مكتملة','Completed') : v === 'approved' ? label('معتمدة','Approved') : v === 'excellent' ? label('متميز','Excellent') : v === 'very_good' ? label('جيد جدًا','Very good') : v === 'good' ? label('جيد','Good') : v === 'acceptable' ? label('مقبول','Acceptable') : v === 'weak' ? label('ضعيف','Weak') : v}</option>)}</select></label>;
 
   return <div className="space-y-5" dir={isEn ? 'ltr' : 'rtl'}>
     <div className="rounded-2xl bg-[#172C40] p-5 text-white shadow-lg">
@@ -157,6 +161,8 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
         {filterSelect(term,setTerm,options('term'),label('الفصل الدراسي','Term'))}
         {filterSelect(subject,setSubject,options('subject'),label('المادة','Subject'))}
         {filterSelect(grade,setGrade,options('grade'),label('الصف','Grade'))}
+        {filterSelect(sectionFilter,setSectionFilter,options('section'),label('الشعبة','Section'))}
+        {filterSelect(performance,setPerformance,['excellent','very_good','good','acceptable','weak'],label('مستوى التقدير','Performance level'))}
         {filterSelect(visitStatus,setVisitStatus,['draft','in_progress','completed','approved'],label('حالة الزيارة','Status'))}
         <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600"><span>{label('من تاريخ','From')}</span><input type="date" value={fromDate} onChange={e=>setFromDate(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-2 text-xs"/></label>
         <label className="flex flex-col gap-1 text-[11px] font-bold text-slate-600"><span>{label('إلى تاريخ','To')}</span><input type="date" value={toDate} onChange={e=>setToDate(e.target.value)} className="rounded-lg border border-slate-300 px-2 py-2 text-xs"/></label>
