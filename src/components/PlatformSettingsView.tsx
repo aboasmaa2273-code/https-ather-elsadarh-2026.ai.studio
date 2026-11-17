@@ -32,6 +32,7 @@ import {
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 import { UserProfileModal } from './UserProfileModal';
+import { isAdminRole, normalizeRole } from '../services/roleUtils';
 
 interface PlatformSettingsViewProps {
   settings: PlatformSettings;
@@ -52,7 +53,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = currentUser?.role === 'platform_admin' || currentUser?.role === 'school_admin';
+  const canEdit = isAdminRole(currentUser?.role);
 
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');
@@ -243,7 +244,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       setVisitorInlineError(isEn ? 'A new account requires a password of at least 10 characters.' : 'إنشاء حساب جديد يتطلب كلمة مرور لا تقل عن 10 أحرف.');
       return;
     }
-    if (linkedUser && ['platform_admin', 'school_admin'].includes(linkedUser.role)) {
+    if (linkedUser && isAdminRole(linkedUser.role)) {
       setVisitorInlineError(isEn
         ? 'This directory cannot modify a school or platform administrator account.'
         : 'لا يمكن تعديل حساب مسؤول المنصة أو مسؤول المدرسة من دليل الزائرين. يُرجى إدارة هذا الحساب من قسم الحسابات الإدارية.');
