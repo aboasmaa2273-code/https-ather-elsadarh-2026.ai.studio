@@ -38,6 +38,7 @@ interface PlatformSettingsViewProps {
   currentUser: User;
   auditLogs: AuditLogEntry[];
   onRefreshSettings: () => void;
+  onCurrentUserUpdate?: (user: User) => void;
   language?: Language;
 }
 
@@ -46,6 +47,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   currentUser,
   auditLogs,
   onRefreshSettings,
+  onCurrentUserUpdate,
   language = 'ar'
 }) => {
   const t = translations[language];
@@ -1380,6 +1382,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           onClose={() => setSelectedUserForCredentials(null)}
           currentUser={selectedUserForCredentials}
           onUserUpdated={(updated) => {
+            if (updated.id === currentUser.id) onCurrentUserUpdate?.(updated);
             void refreshCentralUsers().catch((error) => showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث قائمة الحسابات.'));
             setSelectedUserForCredentials(null);
             showFeedback('success', isEn ? `Credentials updated for ${updated.name}` : `تم تحديث اسم المستخدم وكلمة المرور للمستخدم: ${updated.name}`);
