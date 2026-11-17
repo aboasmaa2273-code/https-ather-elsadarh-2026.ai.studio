@@ -452,7 +452,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       clearTimeout(autoSaveTimerRef.current);
     }
     autoSaveTimerRef.current = setTimeout(() => {
-      void saveVisitToStorage('draft', false);
+      const autosaveStatus: ClassroomVisit['status'] = editingVisit?.status === 'completed' || editingVisit?.status === 'approved'
+        ? editingVisit.status
+        : 'draft';
+      void saveVisitToStorage(autosaveStatus, false);
     }, 1200);
   };
 
@@ -561,7 +564,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
     const visitObj = buildVisitObject(finalStatus);
     try {
-      await saveVisitCentral(visitObj);
+      await saveVisitCentral({ ...visitObj, recordHistory: isExplicitFinish });
       setAutoSaveStatus('saved');
       setLastSavedTime(new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-AE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       if (isExplicitFinish) onSaveSuccess(visitObj);
