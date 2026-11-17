@@ -957,6 +957,21 @@ function ensureRegisteredVisitorsSheet_() {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setBackground('#172C40').setFontColor('#FFFFFF').setFontWeight('bold');
+  } else {
+    // Backward-compatible additive migration: preserve all existing visitor rows
+    // and append the status column only when an older sheet does not have it.
+    var existingLastColumn = sheet.getLastColumn();
+    var existingHeaders = existingLastColumn > 0
+      ? sheet.getRange(1, 1, 1, existingLastColumn).getValues()[0].map(String)
+      : [];
+    if (existingHeaders.indexOf('status') < 0) {
+      var statusColumn = existingLastColumn + 1;
+      sheet.getRange(1, statusColumn).setValue('status');
+      sheet.getRange(1, statusColumn).setBackground('#172C40').setFontColor('#FFFFFF').setFontWeight('bold');
+      if (sheet.getLastRow() > 1) {
+        sheet.getRange(2, statusColumn, sheet.getLastRow() - 1, 1).setValue('active');
+      }
+    }
   }
   return sheet;
 }
