@@ -6,7 +6,8 @@ import {
   ImprovementPlan, 
   AcademicSettings, 
   PlatformSettings,
-  AuditLogEntry
+  AuditLogEntry,
+  RegisteredVisitor
 } from './types';
 import { AtharStorageService } from './services/storageService';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
@@ -63,6 +64,7 @@ export default function App() {
   const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(() => AtharStorageService.getAcademicSettings());
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => AtharStorageService.getPlatformSettings());
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [registeredVisitors, setRegisteredVisitors] = useState<RegisteredVisitor[]>([]);
 
   // Selected sub-views state
   const [selectedVisitForReport, setSelectedVisitForReport] = useState<ClassroomVisit | null>(null);
@@ -79,6 +81,7 @@ export default function App() {
       setAcademicSettings(data.academicSettings);
       setPlatformSettings(data.platformSettings);
       setAuditLogs(data.auditLogs);
+      setRegisteredVisitors(data.registeredVisitors);
     } catch (error) {
       console.error('تعذر تحميل بيانات أَثَر المركزية:', error);
       throw error;
@@ -111,6 +114,7 @@ export default function App() {
     setVisits([]);
     setPlans([]);
     setAuditLogs([]);
+    setRegisteredVisitors([]);
     setActiveTab('home');
   };
 
@@ -203,6 +207,7 @@ export default function App() {
             currentUser={currentUser}
             teachers={teachers}
             academicSettings={academicSettings}
+            registeredVisitors={registeredVisitors}
             editingVisit={editingVisit}
             onSaveSuccess={(saved) => {
               refreshAllData();
