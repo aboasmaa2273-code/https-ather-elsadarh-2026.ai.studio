@@ -86,6 +86,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [visitorFormPhone, setVisitorFormPhone] = useState('');
   const [visitorFormUsername, setVisitorFormUsername] = useState('');
   const [visitorFormPassword, setVisitorFormPassword] = useState('');
+  const [isSavingVisitor, setIsSavingVisitor] = useState(false);
+  const [visitorSaveFeedback, setVisitorSaveFeedback] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Demo Data Management & Cleanup State
 
@@ -275,6 +277,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormPhone('');
     setVisitorFormUsername('');
     setVisitorFormPassword('');
+    setVisitorSaveFeedback(null);
     setIsVisitorModalOpen(true);
   };
 
@@ -289,27 +292,44 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormPhone(vis.phone || '');
     setVisitorFormUsername(vis.username || '');
     setVisitorFormPassword('');
+    setVisitorSaveFeedback(null);
     setIsVisitorModalOpen(true);
   };
 
   const handleSaveVisitorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
+    if (isSavingVisitor) return;
+    setVisitorSaveFeedback(null);
     if (!visitorFormName.trim() || !visitorFormUsername.trim()) {
-      showFeedback('error', isEn ? 'Name and username are required.' : 'الاسم واسم المستخدم مطلوبان.');
+      const message = isEn ? 'Name and username are required.' : 'الاسم واسم المستخدم مطلوبان.';
+      setVisitorSaveFeedback({ type: 'error', text: message });
       return;
     }
-    const lookupUsername = (editingVisitor?.username || visitorFormUsername).trim().toLowerCase();
-    const linkedUser = allUsersList.find(u => (u.username || '').toLowerCase() === lookupUsername) || allUsersList.find(u => (u.username || '').toLowerCase() === visitorFormUsername.trim().toLowerCase());
+
+    const oldUsername = (editingVisitor?.username || '').trim().toLowerCase();
+    const newUsername = visitorFormUsername.trim().toLowerCase();
+    const linkedUser = allUsersList.find(u => (u.username || '').trim().toLowerCase() === oldUsername && !!oldUsername)
+      || allUsersList.find(u => (u.username || '').trim().toLowerCase() === newUsername);
     const accountId = linkedUser?.id;
     if (!accountId && visitorFormPassword.length < 10) {
-      showFeedback('error', isEn ? 'Initial password must be at least 10 characters.' : 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.');
+      const message = isEn
+        ? 'This visitor has no linked login account. Enter an initial password of at least 10 characters to create one.'
+        : 'لم يُعثر على حساب دخول مرتبط بهذا الزائر. أدخل كلمة مرور أولية لا تقل عن 10 أحرف لإنشاء الحساب.';
+      setVisitorSaveFeedback({ type: 'error', text: message });
       return;
     }
+    if (visitorFormPassword && visitorFormPassword.length < 10) {
+      const message = isEn ? 'Password must be at least 10 characters.' : 'كلمة المرور يجب ألا تقل عن 10 أحرف.';
+      setVisitorSaveFeedback({ type: 'error', text: message });
+      return;
+    }
+
+    setIsSavingVisitor(true);
     try {
       await atharRemoteAction('saveUserAccount', {
         id: accountId,
         name: visitorFormName.trim(),
-        username: visitorFormUsername.trim().toLowerCase(),
+        username: newUsername,
         password: visitorFormPassword,
         role: visitorFormRole === 'principal' ? 'school_admin' : visitorFormRole === 'vice_principal' ? 'vice_principal' : 'evaluator',
         specialization: visitorFormTitle.trim(),
@@ -322,16 +342,20 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         name: visitorFormName.trim(), role: visitorFormRole,
         roleTitle: visitorFormTitle.trim() || undefined, department: visitorFormDept.trim() || undefined,
         jobNumber: visitorFormJobNumber.trim() || undefined, email: visitorFormEmail.trim() || undefined,
-        phone: visitorFormPhone.trim() || undefined, username: visitorFormUsername.trim().toLowerCase()
+        phone: visitorFormPhone.trim() || undefined, username: newUsername
       };
       await atharRemoteAction('saveVisitor', { ...visitorPayload, status: 'active' });
       await refreshCentralUsers();
       setVisitorFormPassword('');
+      setVisitorSaveFeedback({ type: 'success', text: isEn ? 'Visitor details and login account saved centrally.' : 'تم حفظ بيانات الزائر وحساب الدخول في قاعدة البيانات المركزية بنجاح.' });
       setIsVisitorModalOpen(false);
-      showFeedback('success', isEn ? 'Central account saved successfully.' : 'تم حفظ حساب المستخدم مركزيًا بنجاح.');
+      showFeedback('success', isEn ? 'Visitor details saved successfully.' : 'تم حفظ بيانات الزائر بنجاح.');
       onRefreshSettings();
     } catch (error) {
-      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Could not save account.' : 'تعذر حفظ الحساب.'));
+      const message = error instanceof Error ? error.message : (isEn ? 'Could not save visitor details.' : 'تعذر حفظ بيانات الزائر.');
+      setVisitorSaveFeedback({ type: 'error', text: message });
+    } finally {
+      setIsSavingVisitor(false);
     }
   };
 
@@ -1061,6 +1085,11 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             </div>
 
             <form onSubmit={handleSaveVisitorSubmit} className="p-5 space-y-4">
+              {visitorSaveFeedback && (
+                <div role="alert" aria-live="polite" className={`rounded-lg border px-3 py-2 text-xs font-bold ${visitorSaveFeedback.type === 'success' ? 'bg-emerald-50 border-emerald-200 text-emerald-900' : 'bg-rose-50 border-rose-200 text-rose-900'}`}>
+                  {visitorSaveFeedback.text}
+                </div>
+              )}
               <div>
                 <label className="block font-bold text-[#172C40] mb-1">
                   {t.visitorsManagement.nameLabel}
@@ -1217,9 +1246,10 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer shadow-sm"
+                  disabled={isSavingVisitor}
+                  className="px-5 py-2 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer shadow-sm disabled:opacity-60 disabled:cursor-not-allowed"
                 >
-                  {t.visitorsManagement.saveBtn}
+                  {isSavingVisitor ? (isEn ? 'Saving…' : 'جارٍ الحفظ…') : t.visitorsManagement.saveBtn}
                 </button>
               </div>
             </form>
