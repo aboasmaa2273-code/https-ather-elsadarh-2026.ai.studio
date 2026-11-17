@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ClassroomVisit, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { changeVisitStatusCentral } from '../services/centralDataService';
 import { 
   Search, 
   PlusCircle, 
@@ -68,24 +69,22 @@ export const VisitsList: React.FC<VisitsListProps> = ({
     return matchesSearch && matchesType && matchesStatus && matchesTerm;
   });
 
-  const handleApproveVisit = (visitId: string) => {
-    const res = AtharStorageService.updateVisitStatus(visitId, 'approved');
-    if (res.success) {
-      onRefreshVisits();
-    } else {
-      alert(res.error);
+  const handleApproveVisit = async (visitId: string) => {
+    try {
+      await changeVisitStatusCentral(visitId, 'approved');
+      await onRefreshVisits();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر اعتماد الزيارة.');
     }
   };
 
-  const handleDeleteVisit = (visitId: string) => {
-    if (!confirm(isEn ? 'Are you sure you want to delete this visit record? This action is restricted to authorized leadership.' : 'هل أنت متأكد من حذف سجل هذه الزيارة نهائياً؟ هذا الإجراء مقتصر على القيادات المخولة فقط.')) {
-      return;
-    }
-    const res = AtharStorageService.deleteVisit(visitId);
-    if (res.success) {
-      onRefreshVisits();
-    } else {
-      alert(res.error);
+  const handleDeleteVisit = async (visitId: string) => {
+    if (!confirm(isEn ? 'Archive this visit record? It will remain available in the history.' : 'هل تريد أرشفة سجل هذه الزيارة مع الاحتفاظ به في السجل التاريخي؟')) return;
+    try {
+      await changeVisitStatusCentral(visitId, 'archived');
+      await onRefreshVisits();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذرت أرشفة الزيارة.');
     }
   };
 
