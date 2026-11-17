@@ -61,12 +61,12 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
   const archivedVisits = useMemo(() => visits.filter(v => v.status === 'archived'), [visits]);
   const options = (key: keyof ClassroomVisit) => Array.from(new Set(activeVisits.map(v => String(v[key] || '')).filter(Boolean))).sort((a,b) => a.localeCompare(b, 'ar'));
   const filtered = useMemo(() => activeVisits.filter(v => {
-    const d = asDate(v.date);
+    const dateKey = String(v.date || '').slice(0, 10);
     return (evaluator === 'all' || v.evaluatorId === evaluator || v.evaluatorName === evaluator)
       && (teacher === 'all' || v.teacherId === teacher || v.teacherName === teacher)
       && (visitType === 'all' || v.visitType === visitType)
-      && (!fromDate || (d && d >= new Date(fromDate + 'T00:00:00')))
-      && (!toDate || (d && d <= new Date(toDate + 'T23:59:59')))
+      && (!fromDate || (dateKey && dateKey >= fromDate))
+      && (!toDate || (dateKey && dateKey <= toDate))
       && (year === 'all' || v.academicYear === year)
       && (term === 'all' || v.term === term)
       && (subject === 'all' || v.subject === subject)
@@ -79,7 +79,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
 
   const evaluators = useMemo(() => {
     const map = new Map<string, { id: string; name: string; full: number; quick: number; avg: number; count: number }>();
-    activeVisits.forEach(v => {
+    filtered.forEach(v => {
       const id = v.evaluatorId || v.evaluatorName || 'unknown';
       const current = map.get(id) || { id, name: v.evaluatorName || id, full: 0, quick: 0, avg: 0, count: 0 };
       if (v.visitType === 'full') current.full++;
@@ -89,7 +89,7 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
       map.set(id, current);
     });
     return Array.from(map.values()).map(x => ({ ...x, avg: x.count ? Math.round(x.avg / x.count) : 0 })).sort((a,b) => b.count-a.count);
-  }, [activeVisits]);
+  }, [filtered]);
 
   const indicatorStats = useMemo(() => {
     const map = new Map<number, { id: number; text: string; yes: number; needs: number; no: number; unseen: number }>();
