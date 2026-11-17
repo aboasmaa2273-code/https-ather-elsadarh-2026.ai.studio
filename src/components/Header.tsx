@@ -93,8 +93,18 @@ export const Header: React.FC<HeaderProps> = ({
                   {t.nav.dashboard}
                 </button>
 
+                {['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+                  <button
+                    onClick={() => onTabChange('monitoring')}
+                    className={`px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5 ${
+                      activeTab === 'monitoring' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/85 hover:text-white hover:bg-white/10'
+                    }`}
+                  >
+                    <span>{t.nav.monitoring}</span>
+                  </button>
+                )}
                 <button
-                  onClick={() => onTabChange('teachers')}
+                  onClick={() => onTabChange('teachers')
                   className={`px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap ${
                     activeTab === 'teachers' 
                       ? 'bg-[#C6A66A] text-[#172C40]' 
@@ -234,8 +244,16 @@ export const Header: React.FC<HeaderProps> = ({
             >
               {t.nav.dashboard}
             </button>
+            {['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+              <button
+                onClick={() => onTabChange('monitoring')}
+                className={`px-3 py-1.5 rounded whitespace-nowrap font-medium ${activeTab === 'monitoring' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/80'}`}
+              >
+                {t.nav.monitoring}
+              </button>
+            )}
             <button
-              onClick={() => onTabChange('teachers')}
+              onClick={() => onTabChange('teachers')
               className={`px-3 py-1.5 rounded whitespace-nowrap font-medium ${activeTab === 'teachers' ? 'bg-[#C6A66A] text-[#172C40]' : 'text-white/80'}`}
             >
               {t.nav.teachers}
