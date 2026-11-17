@@ -239,7 +239,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
                 visibleVisits.map((visit) => {
                   const canEdit = AtharStorageService.canEditVisit(currentUser, visit);
                   const canApprove = AtharStorageService.canApproveVisit(currentUser) && visit.status !== 'approved';
-                  const canDelete = !isTeacher;
+                  const canDelete = ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role);
 
                   return (
                     <tr key={visit.id} className="hover:bg-slate-50/70 transition-colors">
