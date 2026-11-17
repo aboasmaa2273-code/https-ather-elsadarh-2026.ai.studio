@@ -41,19 +41,34 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
   // Load only centrally registered, active evaluator accounts for the public directory.
   const [evaluators, setEvaluators] = useState<User[]>([]);
+  const [directoryLoading, setDirectoryLoading] = useState(true);
+  const [directoryError, setDirectoryError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
-    atharPublicEvaluators()
-      .then((items) => {
-        if (isMounted) setEvaluators(items);
-      })
-      .catch(() => {
-        if (isMounted) setEvaluators([]);
-      });
-    return () => {
-      isMounted = false;
+    const loadDirectory = async () => {
+      let lastError: unknown = null;
+      for (let attempt = 0; attempt < 3; attempt++) {
+        try {
+          const items = await atharPublicEvaluators();
+          if (isMounted) {
+            setEvaluators(items);
+            setDirectoryError('');
+            setDirectoryLoading(false);
+          }
+          return;
+        } catch (error) {
+          lastError = error;
+          if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 900 * (attempt + 1)));
+        }
+      }
+      if (isMounted) {
+        setDirectoryError(lastError instanceof Error ? lastError.message : 'تعذر تحميل دليل المقيمين.');
+        setDirectoryLoading(false);
+      }
     };
+    void loadDirectory();
+    return () => { isMounted = false; };
   }, []);
 
   // Public evaluator cards must never create an authenticated session.
@@ -246,6 +261,9 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
           </div>
         </div>
 
+        {directoryLoading && <div className="rounded-xl border border-slate-200 bg-white p-4 text-center text-xs text-slate-500">{isEn ? 'Loading the verified evaluator directory…' : 'جارٍ تحميل دليل المقيمين المعتمدين…'}</div>}
+        {directoryError && evaluators.length === 0 && <div className="rounded-xl border border-amber-200 bg-amber-50 p-4 text-center text-xs text-amber-800">{directoryError}</div>}
+
         {/* Evaluators Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {evaluators.map((user) => {
@@ -295,9 +313,8 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                     </div>
                   </div>
 
-                  <div className="text-[11px] text-slate-500 font-mono bg-slate-50 p-2 rounded-lg border border-slate-100 flex items-center justify-between">
-                    <span>{isEn ? 'Username:' : 'اليوزرنيم:'}</span>
-                    <span className="font-bold text-[#172C40]" dir="ltr">@{user.username || 'evaluator'}</span>
+                  <div className="text-[11px] text-slate-500 bg-slate-50 p-2 rounded-lg border border-slate-100">
+                    {isEn ? 'Verified account · Sign in with your private credentials' : 'حساب معتمد · سجّل الدخول ببياناتك السرية'}
                   </div>
                 </div>
 
