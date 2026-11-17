@@ -112,7 +112,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     return items.filter((visitor) => {
       const username = (visitor.username || '').trim().toLowerCase();
       const jobNumber = (visitor.jobNumber || '').trim().toLowerCase();
-      const name = (visitor.name || '').normalize('NFKC').replace(/[\\s\\u0640]/g, '').toLowerCase();
+      const name = (visitor.name || '').normalize('NFKC').replace(/[\s\u0640]/g, '').toLowerCase();
       // Prefer the stable employee number to collapse duplicate profiles even
       // when legacy rows were created with different usernames.
       const key = jobNumber ? 'job:' + jobNumber : (username ? 'user:' + username : 'name:' + name);
