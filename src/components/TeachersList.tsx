@@ -13,7 +13,8 @@ import {
   Filter, 
   Plus, 
   X,
-  Trash2
+  Trash2,
+  MessageCircle
 } from 'lucide-react';
 import { TeacherImportModal } from './TeacherImportModal';
 import { translations, Language } from '../i18n/translations';
@@ -135,8 +136,23 @@ export const TeachersList: React.FC<TeachersListProps> = ({
     }
   };
 
+  const handleWhatsAppMessage = (teacher: Teacher) => {
+    const rawPhone = String(teacher.phone || '').replace(/[^0-9]/g, '');
+    if (!rawPhone) {
+      alert(isEn ? 'Add the teacher phone number first.' : 'أضف رقم هاتف المعلم أولاً من تعديل بياناته.');
+      return;
+    }
+    const internationalPhone = rawPhone.startsWith('00') ? rawPhone.slice(2)
+      : rawPhone.startsWith('0') ? `971${rawPhone.slice(1)}`
+      : rawPhone;
+    const message = isEn
+      ? `Hello ${teacher.fullName}, I would like to share feedback regarding your classroom performance. Please let me know a suitable time to discuss it.`
+      : `السلام عليكم أستاذ/ة ${teacher.fullName}، أود التواصل معكم لمناقشة أدائكم في الحصة وتبادل الملاحظات التطويرية. يرجى إفادتي بالوقت المناسب. مع خالص التقدير.`;
+    window.open(`https://wa.me/${internationalPhone}?text=${encodeURIComponent(message)}`, '_blank', 'noopener,noreferrer');
+  };
+
   const handleDeleteTeacher = async (teacherId: string, teacherName: string) => {
-    if (!confirm(isEn ? `Are you sure you want to delete teacher ${teacherName}? This action is restricted to authorized leadership.` : `هل أنت متأكد من رغبتك في حذف المعلم (${teacherName}) نهائياً؟ هذا الإجراء مقتصر على القيادة المدرسية المخولة فقط.`)) {
+    if (!confirm(isEn ? `Deactivate teacher ${teacherName}? Historical visits and reports will be preserved.` : `هل تريد تعطيل سجل المعلم (${teacherName})؟ ستظل الزيارات والتقارير السابقة محفوظة.`)) {
       return;
     }
     try {
@@ -226,7 +242,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
                 <th className="py-3 px-4 font-bold">{t.teachers.colJobNumber}</th>
                 <th className="py-3 px-4 font-bold">{t.teachers.colName}</th>
                 <th className="py-3 px-4 font-bold">{t.teachers.colSpec}</th>
-                <th className="py-3 px-4 font-bold">{t.teachers.colEmailPhone}</th>
+                <th className="py-3 px-4 font-bold">{t.teachers.emailLabel}</th>\n                <th className="py-3 px-4 font-bold">{isEn ? 'Phone' : 'رقم الهاتف'}</th>
                 <th className="py-3 px-4 font-bold">{t.teachers.colStatus}</th>
                 <th className="py-3 px-4 font-bold">{isEn ? 'Date Added' : 'تاريخ الإضافة'}</th>
                 <th className="py-3 px-4 font-bold text-center">{t.teachers.colActions}</th>
@@ -239,7 +255,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
                     <td className="py-3.5 px-4 font-mono font-bold text-[#172C40]">{teacher.jobNumber}</td>
                     <td className="py-3.5 px-4 font-bold text-[#172C40]">{teacher.fullName}</td>
                     <td className="py-3.5 px-4 text-slate-700">{teacher.specialization}</td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">{teacher.email}</td>
+                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">{teacher.email || '—'}</td>\n                    <td className="py-3.5 px-4 text-slate-600 font-mono text-[11px]">{teacher.phone || '—'}</td>
                     <td className="py-3.5 px-4">
                       {teacher.status === 'active' ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded text-[11px]">
@@ -301,7 +317,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
                 ))
               ) : (
                 <tr>
-                  <td colSpan={7} className="py-8 text-center text-slate-400">
+                  <td colSpan={8} className="py-8 text-center text-slate-400">
                     {isEn ? 'No teachers match your search filter.' : 'لا يوجد معلمون يطابقون معايير البحث الحالية.'}
                   </td>
                 </tr>
