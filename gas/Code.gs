@@ -713,7 +713,8 @@ function jsonResponse_(data) {
 }
 
 function apiLogin_(payload) {
-  var identifier = String(payload.username || payload.email || '').trim().toLowerCase();
+  // Authentication is username-only; email is never accepted as a login identifier.
+  var identifier = String(payload.username || '').trim().toLowerCase();
   var password = String(payload.password || '');
   if (!identifier || !password) return { success: false, error: 'أدخل اسم المستخدم وكلمة المرور.' };
 
@@ -738,7 +739,7 @@ function apiLogin_(payload) {
     var row = values[i];
     var rowEmail = String(row[emailCol] || '').trim().toLowerCase();
     var rowUsername = String(row[usernameCol] || '').trim().toLowerCase();
-    if (rowEmail !== identifier && rowUsername !== identifier) continue;
+    if (rowUsername !== identifier) continue;
     var status = String(row[statusCol] || 'active').trim().toLowerCase();
     if (status !== 'active') return { success: false, error: 'هذا الحساب معطّل أو غير مفعّل.' };
     var salt = String(row[saltCol] || '');
