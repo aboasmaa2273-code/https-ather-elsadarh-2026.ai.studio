@@ -249,7 +249,7 @@ export const GENERAL_DOMAINS = [
   { id: 'teaching', name: 'التدريس', nameEn: 'Teaching & Pedagogy' },
   { id: 'assessment', name: 'التقييم', nameEn: 'Assessment & Feedback' },
   { id: 'curriculum', name: 'المنهاج', nameEn: 'Curriculum Implementation' },
-  { id: 'pcgs', name: 'PCGS', nameEn: 'PCGS (Protection, Care, Guidance and Support)' },
+  { id: 'pcgs', name: 'PCGS (الحماية والرعاية والتوجيه والدعم)', nameEn: 'PCGS (Protection, Care, Guidance and Support)' },
   { id: 'leadership', name: 'القيادة والإدارة', nameEn: 'Leadership & Governance' },
   { id: 'other', name: 'أخرى', nameEn: 'Other School Criteria' }
 ];
@@ -404,7 +404,7 @@ export const DEFAULT_PLATFORM_SETTINGS: PlatformSettings = {
   slogan: '«نَرْصُدُ الأَدَاءَ... وَنَصْنَعُ الأَثَرَ»',
   schoolName: 'مدرسة الصدارة بنين - الحلقة الثانية',
   schoolStage: 'الحلقة الثانية (الصفوف 5 - 8)',
-  logoUrl: '/src/assets/images/athar_school_emblem_1793852788755.jpg',
+  logoUrl: 'assets/athar-school-logo.jpg',
   welcomeMessage: 'مرحباً بكم في منصة «أَثَر»، البوابة الرقمية المتطورة للرصد النوعي للممارسات التدريسية الصفية، وتحفيز التطوير المهني المستدام لمعلمي المدرسة وفق أعلى معايير الجودة والتميز المؤسسي.',
   primaryColor: '#172C40',
   secondaryColor: '#C6A66A',

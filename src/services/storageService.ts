@@ -70,7 +70,6 @@ export class AtharStorageService {
 
   static setCurrentUser(user: User): void {
     setStored(STORAGE_KEYS.CURRENT_USER, user);
-    this.logAction(user, 'تسجيل دخول / تبديل دور', `تم تفعيل حساب: ${user.name} كـ (${this.getRoleLabel(user.role)})`);
   }
 
   static getAllUsers(): User[] {
@@ -125,30 +124,57 @@ export class AtharStorageService {
   // Authentication by Username and Password
   static authenticate(username: string, password: string): { success: boolean; user?: User; error?: string } {
     const trimmedUsername = username.trim().toLowerCase();
+    const approvedVisitors = this.getRegisteredVisitors();
+    const approved = approvedVisitors.find(v =>
+      (v.username || '').trim().toLowerCase() === trimmedUsername &&
+      Boolean(v.password) &&
+      v.password === password &&
+      v.role !== 'teacher'
+    );
+
+    if (!approved) {
+      return {
+        success: false,
+        error: 'بيانات الدخول غير مطابقة لقائمة المقيمين والزائرين المعتمدين. يرجى مراجعة إدارة المنظومة.'
+      };
+    }
+
     const allUsers = this.getAllUsers();
+    let matchedUser = allUsers.find(u =>
+      (u.username || '').trim().toLowerCase() === trimmedUsername
+    );
 
-    const matchedUser = allUsers.find(u => {
-      const uName = (u.username || '').trim().toLowerCase();
-      const uEmail = (u.email || '').trim().toLowerCase();
-      return uName === trimmedUsername || uEmail === trimmedUsername;
-    });
-
+    // Keep the approved directory as the source of truth and provision or
+    // refresh the matching local profile after credentials have been verified.
+    const approvedRole: UserRole = approved.role === 'principal' ? 'school_admin'
+      : approved.role === 'vice_principal' ? 'vice_principal' : 'evaluator';
     if (!matchedUser) {
-      return { 
-        success: false, 
-        error: 'اسم المستخدم غير مسجل في المنظومة. يرجى التحقق من صحة الاسم المدخل.' 
+      matchedUser = {
+        id: approved.id,
+        name: approved.name,
+        email: approved.email || `${trimmedUsername}@alsadara.sch.ae`,
+        role: approvedRole,
+        schoolId: 'sch_alsadara_01',
+        specialization: approved.roleTitle || approved.department || 'مقيّم معتمد',
+        username: trimmedUsername,
+        password: approved.password
+      };
+      const custom = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
+      custom.push(matchedUser);
+      setStored(STORAGE_KEYS.CUSTOM_USERS, custom);
+    } else {
+      matchedUser = {
+        ...matchedUser,
+        name: approved.name,
+        role: approvedRole,
+        specialization: approved.roleTitle || approved.department || matchedUser.specialization,
+        username: trimmedUsername,
+        password: approved.password
       };
     }
 
-    // Verify password (default to '123' or '123456' if not set)
-    const expectedPassword = matchedUser.password || '123';
-    if (password !== expectedPassword) {
-      return { 
-        success: false, 
-        error: 'كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى أو مراجعة بيانات الاعتماد.' 
-      };
-    }
-
+    // Credentials are checked against the approved roster, never against an
+    // arbitrary account or the public self-registration form.
     this.setCurrentUser(matchedUser);
     this.logAction(matchedUser, 'تسجيل دخول ناجح', `تم تسجيل دخول المستخدم (${matchedUser.name}) بنجاح`);
     return { success: true, user: matchedUser };
@@ -208,6 +234,23 @@ export class AtharStorageService {
 
     const updatedUser = { ...existing, ...updatedFields };
     
+    // Keep the approved evaluator directory synchronized with credential edits.
+    const approvedVisitors = this.getRegisteredVisitors();
+    const visitorIndex = approvedVisitors.findIndex(v =>
+      v.id === userId ||
+      (existing.username && (v.username || '').trim().toLowerCase() === existing.username.trim().toLowerCase()) ||
+      v.name === existing.name
+    );
+    if (visitorIndex >= 0) {
+      approvedVisitors[visitorIndex] = {
+        ...approvedVisitors[visitorIndex],
+        name: newName?.trim() || approvedVisitors[visitorIndex].name,
+        username: trimmedUsername,
+        password: newPassword?.trim() || approvedVisitors[visitorIndex].password
+      };
+      setStored(STORAGE_KEYS.REGISTERED_VISITORS, approvedVisitors);
+    }
+
     // Update current user if this user is the active one
     const current = getStored<User | null>(STORAGE_KEYS.CURRENT_USER, null);
     if (current && current.id === userId) {
@@ -474,23 +517,47 @@ export class AtharStorageService {
     let needsImprovementCount = 0;
     let noCount = 0;
     let notObservedCount = 0;
+    let score = 0;
 
     indicators.forEach(ind => {
-      if (ind.rating === 'yes') yesCount++;
-      else if (ind.rating === 'needs_improvement') needsImprovementCount++;
-      else if (ind.rating === 'no') noCount++;
-      else if (ind.rating === 'not_observed') notObservedCount++;
+      switch (ind.rating) {
+        case 'not_observed':
+          notObservedCount++;
+          break;
+        case 'outstanding':
+          yesCount++;
+          score += 5;
+          break;
+        case 'very_good':
+          yesCount++;
+          score += 4;
+          break;
+        case 'good':
+          yesCount++;
+          score += 3;
+          break;
+        case 'acceptable':
+        case 'needs_improvement':
+          needsImprovementCount++;
+          score += 2;
+          break;
+        case 'weak':
+        case 'no':
+          noCount++;
+          score += 1;
+          break;
+        case 'yes':
+          yesCount++;
+          score += 5;
+          break;
+      }
     });
 
     const observedCount = yesCount + needsImprovementCount + noCount;
     const totalCount = indicators.length;
-
-    let percentage = 0;
-    if (observedCount > 0) {
-      // Yes = 1, Needs Improvement = 0.5, No = 0
-      const score = (yesCount * 1.0) + (needsImprovementCount * 0.5);
-      percentage = Math.round((score / observedCount) * 1000) / 10; // 1 decimal place
-    }
+    const percentage = observedCount > 0
+      ? Math.round((score / (observedCount * 5)) * 1000) / 10
+      : 0;
 
     return {
       percentage,
@@ -697,7 +764,14 @@ export class AtharStorageService {
 
   // Platform Settings
   static getPlatformSettings(): PlatformSettings {
-    return getStored<PlatformSettings>(STORAGE_KEYS.PLATFORM_SETTINGS, DEFAULT_PLATFORM_SETTINGS);
+    const saved = getStored<Partial<PlatformSettings> | null>(STORAGE_KEYS.PLATFORM_SETTINGS, null);
+    // Merge newly introduced identity fields into existing installations without
+    // overwriting any school-specific values already saved by the administrator.
+    return {
+      ...DEFAULT_PLATFORM_SETTINGS,
+      ...(saved || {}),
+      logoUrl: saved?.logoUrl || DEFAULT_PLATFORM_SETTINGS.logoUrl
+    };
   }
 
   static savePlatformSettings(settings: PlatformSettings): { success: boolean; error?: string } {
@@ -740,6 +814,10 @@ export class AtharStorageService {
   }
 
   // Registered Visitors Management (دليل الزائرين والمقيمين المعتمدين)
+  static clearRegisteredVisitorsLocal(): void {
+    setStored(STORAGE_KEYS.REGISTERED_VISITORS, []);
+  }
+
   static getRegisteredVisitors(): RegisteredVisitor[] {
     const list = getStored<RegisteredVisitor[]>(STORAGE_KEYS.REGISTERED_VISITORS, DEFAULT_REGISTERED_VISITORS);
     return list.map(v => {
@@ -776,34 +854,7 @@ export class AtharStorageService {
       this.logAction(currentUser, 'إضافة زائر جديد', `تم تسجيل الزائر: ${visitor.name} بصفة (${this.getVisitorRoleLabel(visitor.role)})`);
     }
 
-    // Synchronize login credentials for the evaluator if username and password provided
-    if (visitor.username && visitor.username.trim()) {
-      const cleanUsername = visitor.username.trim().toLowerCase();
-      const cleanPassword = visitor.password?.trim() || '123';
-      const customUsers = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
-      const userIndex = customUsers.findIndex(u => u.username?.toLowerCase() === cleanUsername || u.name === visitor.name);
-
-      if (userIndex >= 0) {
-        customUsers[userIndex].name = visitor.name;
-        customUsers[userIndex].username = cleanUsername;
-        customUsers[userIndex].password = cleanPassword;
-        customUsers[userIndex].specialization = visitor.roleTitle || visitor.department || 'مقيّم معتمد';
-        setStored(STORAGE_KEYS.CUSTOM_USERS, customUsers);
-      } else {
-        const newEvaluatorUser: User = {
-          id: `user_eval_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-          name: visitor.name,
-          username: cleanUsername,
-          password: cleanPassword,
-          role: 'evaluator',
-          schoolId: 'sch_alsadara_01',
-          email: visitor.email || `${cleanUsername}@alsadara.sch.ae`,
-          specialization: visitor.roleTitle || visitor.department || 'مقيّم معتمد'
-        };
-        customUsers.push(newEvaluatorUser);
-        setStored(STORAGE_KEYS.CUSTOM_USERS, customUsers);
-      }
-    }
+    // Login accounts are managed only by the central Apps Script database.
 
     setStored(STORAGE_KEYS.REGISTERED_VISITORS, visitors);
     return { success: true };
@@ -897,12 +948,12 @@ export class AtharStorageService {
   static canManageTeachers(user: User): boolean {
     if (!user) return false;
     // Teachers and unauthorized users are strictly blocked
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    return ['school_admin', 'platform_admin', 'vice_principal'].includes(user.role);
   }
 
   static canDeleteTeacher(user: User): boolean {
     if (!user) return false;
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    return ['school_admin', 'platform_admin'].includes(user.role);
   }
 
   static canCreateVisit(user: User): boolean {
@@ -917,7 +968,7 @@ export class AtharStorageService {
     if (user.role === 'evaluator') {
       if (!visit) return true;
       // Evaluator can edit their own visit or draft visit
-      return visit.evaluatorId === user.id || visit.evaluatorName === user.name || visit.status === 'draft' || ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+      return visit.evaluatorId === user.id || visit.evaluatorName === user.name || visit.status === 'draft';
     }
     return false;
   }
@@ -941,7 +992,7 @@ export class AtharStorageService {
   static canEditSettings(user: User): boolean {
     if (!user) return false;
     // Authorized leadership and evaluators can manage platform settings and directory
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    return ['school_admin', 'platform_admin'].includes(user.role);
   }
 
   static canDeleteDemoData(user: User): boolean {

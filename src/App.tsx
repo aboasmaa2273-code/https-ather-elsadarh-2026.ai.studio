@@ -6,12 +6,20 @@ import {
   ImprovementPlan, 
   AcademicSettings, 
   PlatformSettings,
-  AuditLogEntry
+  AuditLogEntry,
+  InternalNote,
+  InternalNoteHistory,
+  AdministrativeFollowUp,
+  VisitHistoryEntry
 } from './types';
 import { AtharStorageService } from './services/storageService';
+import { atharRemoteBootstrap, atharRemoteAction, atharPublicEvaluators, clearAtharRemoteSession } from './services/gasBridgeClient';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
+import { PublicConnectionSetup } from './components/PublicConnectionSetup';
 import { Dashboard } from './components/Dashboard';
+import { FollowUpDashboard } from './components/FollowUpDashboard';
+import { InternalNotesView } from './components/InternalNotesView';
 import { TeachersList } from './components/TeachersList';
 import { VisitsList } from './components/VisitsList';
 import { VisitForm } from './components/VisitForm';
@@ -33,6 +41,7 @@ import {
   Database
 } from 'lucide-react';
 import { translations, Language } from './i18n/translations';
+import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS } from './data/defaultData';
 
 export default function App() {
   // Language State with persistence
@@ -50,17 +59,24 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User>(() => AtharStorageService.getCurrentUser());
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [selectedEvaluatorForLogin, setSelectedEvaluatorForLogin] = useState<User | null>(null);
 
   // Active Navigation Tab - Starts on the Home page with the hero picture
   const [activeTab, setActiveTab] = useState<string>('home');
 
   // Application Data State
   const [teachers, setTeachers] = useState<Teacher[]>([]);
+  const [publicEvaluators, setPublicEvaluators] = useState<User[]>([]);
   const [visits, setVisits] = useState<ClassroomVisit[]>([]);
   const [plans, setPlans] = useState<ImprovementPlan[]>([]);
-  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(() => AtharStorageService.getAcademicSettings());
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => AtharStorageService.getPlatformSettings());
+  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [internalNotes, setInternalNotes] = useState<InternalNote[]>([]);
+  const [internalNoteHistory, setInternalNoteHistory] = useState<InternalNoteHistory[]>([]);
+  const [administrativeFollowUps, setAdministrativeFollowUps] = useState<AdministrativeFollowUp[]>([]);
+  const [visitHistory, setVisitHistory] = useState<VisitHistoryEntry[]>([]);
+  const [dataConnectionError, setDataConnectionError] = useState<string>('');
 
   // Selected sub-views state
   const [selectedVisitForReport, setSelectedVisitForReport] = useState<ClassroomVisit | null>(null);
@@ -68,17 +84,54 @@ export default function App() {
   const [editingVisit, setEditingVisit] = useState<ClassroomVisit | null>(null);
 
   // Load initial data
-  const refreshAllData = () => {
-    setTeachers(AtharStorageService.getTeachers());
-    setVisits(AtharStorageService.getVisits());
-    setPlans(AtharStorageService.getPlans());
-    setAcademicSettings(AtharStorageService.getAcademicSettings());
-    setPlatformSettings(AtharStorageService.getPlatformSettings());
-    setAuditLogs(AtharStorageService.getAuditLogs());
+  const refreshAllData = async (requireCentral = isLoggedIn) => {
+    setAcademicSettings(DEFAULT_ACADEMIC_SETTINGS);
+    setPlatformSettings(DEFAULT_PLATFORM_SETTINGS);
+    setAuditLogs([]);
+    try {
+      const remote = await atharRemoteBootstrap() as any;
+      setTeachers(Array.isArray(remote.teachers) ? remote.teachers : []);
+      setVisits(Array.isArray(remote.visits) ? remote.visits : []);
+      setPlans(Array.isArray(remote.plans) ? remote.plans : []);
+      setAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+      setInternalNotes(Array.isArray(remote.internalNotes) ? remote.internalNotes : []);
+      setInternalNoteHistory(Array.isArray(remote.internalNoteHistory) ? remote.internalNoteHistory : []);
+      setAdministrativeFollowUps(Array.isArray(remote.administrativeFollowUps) ? remote.administrativeFollowUps : []);
+      setVisitHistory(Array.isArray(remote.visitHistory) ? remote.visitHistory : []);
+      const centralSettings: Record<string, any> = {};
+      (Array.isArray(remote.settings) ? remote.settings : []).forEach((item: any) => {
+        if (!item || !item.key) return;
+        try { centralSettings[String(item.key)] = typeof item.value === 'string' ? JSON.parse(item.value) : item.value; }
+        catch { centralSettings[String(item.key)] = item.value; }
+      });
+      if (centralSettings.academicSettings) setAcademicSettings(centralSettings.academicSettings);
+      if (centralSettings.platformSettings) setPlatformSettings(centralSettings.platformSettings);
+      setDataConnectionError('');
+    } catch (error) {
+      // Public landing remains usable; once authenticated, show the actual connection error.
+      console.warn('Athar central data load:', error);
+      if (requireCentral) {
+        setTeachers([]);
+        setVisits([]);
+        setPlans([]);
+        setInternalNotes([]); setInternalNoteHistory([]); setAdministrativeFollowUps([]); setVisitHistory([]);
+        setDataConnectionError(error instanceof Error ? error.message : 'تعذر تحميل البيانات المركزية.');
+      } else {
+        setTeachers([]);
+        setVisits([]);
+        setPlans([]);
+        setInternalNotes([]); setInternalNoteHistory([]); setAdministrativeFollowUps([]); setVisitHistory([]);
+      }
+    }
   };
 
   useEffect(() => {
     refreshAllData();
+    let cancelled = false;
+    atharPublicEvaluators()
+      .then((items) => { if (!cancelled) setPublicEvaluators(items); })
+      .catch((error) => console.warn('Athar public evaluator directory:', error));
+    return () => { cancelled = true; };
   }, []);
 
   // Handle user switch
@@ -95,12 +148,14 @@ export default function App() {
   const handleSelectRoleToLogin = (user: User) => {
     handleUserChange(user);
     setIsLoggedIn(true);
+    void refreshAllData(true);
     setIsLoginModalOpen(false);
     setActiveTab('dashboard');
   };
 
   // Logout handler
   const handleLogout = () => {
+    clearAtharRemoteSession();
     setIsLoggedIn(false);
     setActiveTab('home');
   };
@@ -133,29 +188,41 @@ export default function App() {
         onLanguageChange={setLanguage}
       />
 
-      {/* Main Viewport */}
+      {dataConnectionError && isLoggedIn && (
+        <div role="alert" className="mx-auto mt-3 w-full max-w-7xl px-4">
+          <div className="rounded-lg border border-red-200 bg-red-50 px-4 py-3 text-sm font-bold text-red-800">
+            تعذر الاتصال بقاعدة بيانات أَثَر المركزية. لم نعرض بيانات الجهاز المحلية بدلاً منها، حتى لا تظهر سجلات غير محدثة أو تخص مستخدمًا آخر. التفاصيل: {dataConnectionError}
+          </div>
+        </div>
+      )}
+
+            {/* Main Viewport */}
       <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6">
+        {!isLoggedIn && <PublicConnectionSetup language={language} />}
         
         {/* View 1: Public Homepage */}
         {(!isLoggedIn || activeTab === 'home') && (
           <PublicHome
             platformSettings={platformSettings}
-            onLoginClick={() => setIsLoginModalOpen(true)}
-            onSelectEvaluator={(user, destination) => {
-              handleUserChange(user);
-              setIsLoggedIn(true);
-              if (destination === 'new-visit') {
-                setEditingVisit(null);
-                setActiveTab('new-visit');
-              } else {
-                setActiveTab('dashboard');
-              }
+            evaluators={publicEvaluators}
+            onLoginClick={() => { setSelectedEvaluatorForLogin(null); setIsLoginModalOpen(true); }}
+            onSelectEvaluator={(user) => {
+              setSelectedEvaluatorForLogin(user);
+              setIsLoginModalOpen(true);
             }}
             language={language}
           />
         )}
 
         {/* When Logged In: Core Educational Modules */}
+        {isLoggedIn && activeTab === 'internal-notes' && ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role) && (
+          <InternalNotesView currentUser={currentUser} teachers={teachers} visits={visits} notes={internalNotes} history={internalNoteHistory} onRefresh={() => refreshAllData(true)} />
+        )}
+
+        {isLoggedIn && activeTab === 'follow-up' && ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+          <FollowUpDashboard currentUser={currentUser} visits={visits} teachers={teachers} plans={plans} followUps={administrativeFollowUps} visitHistory={visitHistory} onRefresh={() => refreshAllData(true)} onOpenVisitReport={(v) => setSelectedVisitForReport(v)} />
+        )}
+
         {isLoggedIn && activeTab === 'dashboard' && (
           <Dashboard
             currentUser={currentUser}
@@ -283,13 +350,51 @@ export default function App() {
           platformSettings={platformSettings}
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
-          canDelete={currentUser.role !== 'teacher'}
-          onDeleteReport={(visitId) => {
-            const res = AtharStorageService.deleteVisit(visitId);
-            if (res.success) {
-              refreshAllData();
-            } else {
-              alert(res.error);
+          canArchive={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          canManageStatus={['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role)}
+          canSendApprovedReport={['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)}
+          teacherEmail={teachers.find((teacher) => teacher.id === selectedVisitForReport.teacherId)?.email || ''}
+          teacherPhone={teachers.find((teacher) => teacher.id === selectedVisitForReport.teacherId)?.phone || ''}
+          onSendApprovedReport={async (visitId, message) => {
+            try {
+              const result = await atharRemoteAction('sendApprovedVisitReport', { id: visitId, message, confirmResend: true });
+              alert(String(result.message || 'تم إرسال التقرير المعتمد إلى بريد المعلم.'));
+              await refreshAllData(true);
+            } catch (error) {
+              alert(error instanceof Error ? error.message : 'تعذر إرسال التقرير إلى بريد المعلم.');
+            }
+          }}
+          canSendTeacherNotes={['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)}
+          onSendTeacherNotes={async (visitId, notes) => {
+            try {
+              const result = await atharRemoteAction('sendTeacherVisitNotes', { id: visitId, notes });
+              alert(String(result.message || 'تم إرسال الملاحظات إلى بريد المعلم.'));
+              await refreshAllData(true);
+            } catch (error) {
+              alert(error instanceof Error ? error.message : 'تعذر إرسال الملاحظات إلى بريد المعلم.');
+            }
+          }}
+          onLogWhatsAppOpen={async (visitId, messageType) => {
+            try {
+              await atharRemoteAction('logWhatsAppOpen', { id: visitId, messageType });
+            } catch (error) {
+              console.error('تعذر تسجيل فتح واتساب في سجل العمليات:', error);
+            }
+          }}
+          onRestoreReport={async (visitId) => {
+            try { await atharRemoteAction('restoreVisit', { id: visitId }); await refreshAllData(true); }
+            catch (error) { alert(error instanceof Error ? error.message : 'تعذر استعادة التقرير من الأرشيف.'); }
+          }}
+          onUnapproveReport={async (visitId) => {
+            try { await atharRemoteAction('unapproveVisit', { id: visitId }); await refreshAllData(true); }
+            catch (error) { alert(error instanceof Error ? error.message : 'تعذر إلغاء اعتماد التقرير.'); }
+          }}
+          onArchiveReport={async (visitId) => {
+            try {
+              await atharRemoteAction('archiveVisit', { id: visitId });
+              await refreshAllData(true);
+            } catch (error) {
+              alert(error instanceof Error ? error.message : 'تعذر أرشفة التقرير في قاعدة البيانات المركزية.');
             }
           }}
         />
@@ -299,11 +404,14 @@ export default function App() {
       {isLoginModalOpen && (
         <LoginModal
           isOpen={isLoginModalOpen}
-          onClose={() => setIsLoginModalOpen(false)}
+          onClose={() => { setIsLoginModalOpen(false); setSelectedEvaluatorForLogin(null); }}
+          selectedEvaluator={selectedEvaluatorForLogin}
           onLoginSuccess={(user) => {
             handleUserChange(user);
+            void refreshAllData(true);
             setIsLoggedIn(true);
             setIsLoginModalOpen(false);
+            setSelectedEvaluatorForLogin(null);
             setActiveTab('dashboard');
           }}
           language={language}

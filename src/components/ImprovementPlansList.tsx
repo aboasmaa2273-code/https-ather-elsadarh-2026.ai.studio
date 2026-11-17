@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ImprovementPlan, Teacher, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { OFFICIAL_INDICATORS } from '../data/defaultData';
 import { 
   PlusCircle, 
@@ -11,7 +12,8 @@ import {
   Calendar, 
   TrendingUp, 
   X,
-  FileCheck
+  FileCheck,
+  Trash2
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 
@@ -34,6 +36,7 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([]);
   
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(initiallyOpenCreate);
@@ -81,31 +84,64 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     return matchesSearch && matchesStatus;
   });
 
-  const handleCreatePlanSubmit = (e: React.FormEvent) => {
+  const handleCreatePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tch = teachers.find(t => t.id === teacherId);
     if (!tch) return;
 
-    const res = AtharStorageService.savePlan({
-      schoolId: 'sch_alsadara_01',
-      teacherId: tch.id,
-      teacherName: tch.fullName,
-      teacherJobNumber: tch.jobNumber,
-      improvementArea,
-      relatedIndicatorText,
-      developmentalGoal,
-      actionProcedure,
-      responsiblePerson,
-      duration,
-      followUpDate,
-      status: 'in_progress'
-    });
-
-    if (res.success) {
+    try {
+      await atharRemoteAction('savePlan', {
+        schoolId: 'sch_alsadara_01',
+        teacherId: tch.id,
+        teacherName: tch.fullName,
+        teacherJobNumber: tch.jobNumber,
+        improvementArea,
+        relatedIndicatorText,
+        developmentalGoal,
+        actionProcedure,
+        responsiblePerson,
+        duration,
+        followUpDate,
+        status: 'in_progress'
+      });
       setIsCreateModalOpen(false);
       onRefreshPlans();
-    } else {
-      alert(res.error);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر حفظ خطة التطوير في قاعدة البيانات المركزية.');
+    }
+  };
+
+  const togglePlanSelection = (planId: string) => {
+    setSelectedPlanIds((current) => current.includes(planId)
+      ? current.filter((id) => id !== planId)
+      : [...current, planId]);
+  };
+
+  const toggleSelectAllVisible = () => {
+    const visibleIds = visiblePlans.map((plan) => plan.id);
+    const allVisibleSelected = visibleIds.length > 0 && visibleIds.every((id) => selectedPlanIds.includes(id));
+    setSelectedPlanIds((current) => allVisibleSelected
+      ? current.filter((id) => !visibleIds.includes(id))
+      : Array.from(new Set([...current, ...visibleIds])));
+  };
+
+  const handleDeletePlans = async (deleteAll: boolean) => {
+    const ids = deleteAll ? [] : selectedPlanIds;
+    if (!deleteAll && ids.length === 0) {
+      alert(isEn ? 'Select at least one plan first.' : 'حدد خطة واحدة على الأقل أولاً.');
+      return;
+    }
+    const message = deleteAll
+      ? (isEn ? 'Permanently delete ALL improvement plans for this school, including their follow-up records?' : 'هل تريد حذف جميع خطط التطوير الخاصة بالمدرسة الحالية وسجلات متابعتها نهائيًا؟')
+      : (isEn ? 'Permanently delete the selected improvement plans and their follow-up records?' : 'هل تريد حذف الخطط المحددة وسجلات متابعتها نهائيًا؟');
+    if (!confirm(message)) return;
+    try {
+      const result = await atharRemoteAction('deletePlans', { ids });
+      setSelectedPlanIds([]);
+      await onRefreshPlans();
+      alert((isEn ? 'Deleted plans: ' : 'عدد الخطط المحذوفة: ') + String(result.deletedCount || 0));
+    } catch (error) {
+      alert(error instanceof Error ? error.message : (isEn ? 'Unable to delete improvement plans.' : 'تعذر حذف خطط التطوير.'));
     }
   };
 
@@ -117,21 +153,21 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     setIsFollowUpModalOpen(true);
   };
 
-  const handleFollowUpSubmit = (e: React.FormEvent) => {
+  const handleFollowUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanForFollowUp) return;
-
-    const res = AtharStorageService.updatePlanFollowUp(selectedPlanForFollowUp.id, {
-      status: followUpStatus,
-      followUpResult,
-      followUpNotes
-    });
-
-    if (res.success) {
+    try {
+      await atharRemoteAction('savePlanFollowUp', {
+        planId: selectedPlanForFollowUp.id,
+        status: followUpStatus,
+        followUpResult,
+        followUpNotes,
+        followUpDate: new Date().toISOString()
+      });
       setIsFollowUpModalOpen(false);
       onRefreshPlans();
-    } else {
-      alert(res.error);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر حفظ متابعة الخطة مركزياً.');
     }
   };
 
@@ -146,15 +182,30 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
           </p>
         </div>
 
-        {canCreate && (
-          <button
-            onClick={() => setIsCreateModalOpen(true)}
-            className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
-          >
-            <PlusCircle className="w-4 h-4 text-[#C6A66A]" />
-            <span>{t.plans.addNewPlan}</span>
-          </button>
-        )}
+        <div className="flex flex-wrap items-center gap-2">
+          {!isTeacher && plans.length > 0 && (
+            <>
+              <button onClick={toggleSelectAllVisible} disabled={visiblePlans.length === 0} className="px-3 py-2 border border-slate-300 text-slate-700 rounded-lg text-xs font-bold hover:bg-slate-50">
+                {visiblePlans.every((plan) => selectedPlanIds.includes(plan.id))
+                  ? (isEn ? 'Deselect visible' : 'إلغاء تحديد الظاهر')
+                  : (isEn ? 'Select all visible' : 'تحديد كل الظاهر')}
+              </button>
+              <button onClick={() => void handleDeletePlans(false)} disabled={selectedPlanIds.length === 0} className="px-3 py-2 bg-rose-700 text-white rounded-lg text-xs font-bold hover:bg-rose-800 disabled:opacity-40 disabled:cursor-not-allowed flex items-center gap-1.5">
+                <Trash2 className="w-4 h-4" />
+                <span>{isEn ? `Delete selected (${selectedPlanIds.length})` : `حذف المحدد (${selectedPlanIds.length})`}</span>
+              </button>
+              <button onClick={() => void handleDeletePlans(true)} className="px-3 py-2 border border-rose-300 text-rose-700 rounded-lg text-xs font-bold hover:bg-rose-50">
+                {isEn ? 'Delete all' : 'حذف الكل'}
+              </button>
+            </>
+          )}
+          {canCreate && (
+            <button onClick={() => setIsCreateModalOpen(true)} className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] transition-colors flex items-center gap-2 shadow-sm cursor-pointer">
+              <PlusCircle className="w-4 h-4 text-[#C6A66A]" />
+              <span>{t.plans.addNewPlan}</span>
+            </button>
+          )}
+        </div>
       </div>
 
       {/* Search and Filters Bar */}
@@ -188,14 +239,19 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
         {visiblePlans.length > 0 ? (
           visiblePlans.map((plan) => (
-            <div key={plan.id} className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm space-y-4 hover:border-[#C6A66A] transition-all">
+            <div key={plan.id} className={`bg-white border rounded-xl p-5 shadow-sm space-y-4 hover:border-[#C6A66A] transition-all ${selectedPlanIds.includes(plan.id) ? 'border-rose-400 ring-1 ring-rose-200' : 'border-[#E2E8F0]'}`}>
               <div className="flex items-start justify-between gap-3">
-                <div>
+                <div className="flex items-start gap-2">
+                  {!isTeacher && (
+                    <input type="checkbox" checked={selectedPlanIds.includes(plan.id)} onChange={() => togglePlanSelection(plan.id)} aria-label={isEn ? 'Select plan' : 'تحديد الخطة للحذف'} className="mt-1 h-4 w-4 accent-rose-700 cursor-pointer" />
+                  )}
+                  <div>
                   <span className="font-mono text-[10px] text-slate-400 block">{plan.id}</span>
                   <h3 className="font-bold text-sm text-[#172C40] mt-0.5">{plan.teacherName}</h3>
                   <span className="text-[10px] text-slate-400 font-mono">
                     {t.teachers.colJobNumber}: {plan.teacherJobNumber}
                   </span>
+                  </div>
                 </div>
 
                 <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { Teacher, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   Search, 
   UserPlus, 
@@ -96,7 +97,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
     setIsEditModalOpen(true);
   };
 
-  const handleSaveTeacher = (e: React.FormEvent) => {
+  const handleSaveTeacher = async (e: React.FormEvent) => {
     e.preventDefault();
     setFormError('');
 
@@ -105,31 +106,32 @@ export const TeachersList: React.FC<TeachersListProps> = ({
       return;
     }
 
-    const res = AtharStorageService.saveTeacher({
-      id: editingTeacher?.id,
-      schoolId: 'sch_alsadara_01',
-      fullName: fullName.trim(),
-      jobNumber: jobNumber.trim(),
-      specialization: specialization.trim(),
-      email: email.trim(),
-      phone: phone.trim(),
-      status: editingTeacher ? editingTeacher.status : 'active'
-    });
-
-    if (res.success) {
+    try {
+      await atharRemoteAction('saveTeacher', {
+        id: editingTeacher?.id,
+        schoolId: 'sch_alsadara_01',
+        fullName: fullName.trim(),
+        jobNumber: jobNumber.trim(),
+        specialization: specialization.trim(),
+        email: email.trim(),
+        phone: phone.trim(),
+        status: editingTeacher ? editingTeacher.status : 'active'
+      });
       setIsEditModalOpen(false);
       onRefreshTeachers();
-    } else {
-      setFormError(res.error || (isEn ? 'An error occurred while saving.' : 'حدث خطأ أثناء حفظ المعلم.'));
+    } catch (error) {
+      setFormError(error instanceof Error ? error.message : (isEn ? 'Central save failed.' : 'تعذر الحفظ المركزي.'));
     }
   };
 
-  const handleToggleStatus = (id: string) => {
-    const res = AtharStorageService.toggleTeacherStatus(id);
-    if (res.success) {
+  const handleToggleStatus = async (id: string) => {
+    const teacher = teachers.find(item => item.id === id);
+    if (!teacher) return;
+    try {
+      await atharRemoteAction('toggleTeacherStatus', { id, status: teacher.status === 'active' ? 'inactive' : 'active' });
       onRefreshTeachers();
-    } else {
-      alert(res.error);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر تحديث حالة المعلم مركزياً.');
     }
   };
 
@@ -137,12 +139,9 @@ export const TeachersList: React.FC<TeachersListProps> = ({
     if (!confirm(isEn ? `Are you sure you want to delete teacher ${teacherName}? This action is restricted to authorized leadership.` : `هل أنت متأكد من رغبتك في حذف المعلم (${teacherName}) نهائياً؟ هذا الإجراء مقتصر على القيادة المدرسية المخولة فقط.`)) {
       return;
     }
-    const res = AtharStorageService.deleteTeacher(teacherId);
-    if (res.success) {
-      onRefreshTeachers();
-    } else {
-      alert(res.error);
-    }
+    void atharRemoteAction('deleteTeacher', { id: teacherId })
+      .then(() => onRefreshTeachers())
+      .catch(error => alert(error instanceof Error ? error.message : 'تعذر حذف المعلم من قاعدة البيانات المركزية.'));
   };
 
   return (
@@ -415,7 +414,6 @@ export const TeachersList: React.FC<TeachersListProps> = ({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImportComplete={() => {
-          setIsImportModalOpen(false);
           onRefreshTeachers();
         }}
         language={language}

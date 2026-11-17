@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AcademicSettings, User } from '../types';
-import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   Settings, 
   Check, 
@@ -37,6 +37,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   const [newSubject, setNewSubject] = useState('');
 
   const [academicYears, setAcademicYears] = useState<string[]>(settings.academicYears);
+  const [newAcademicYear, setNewAcademicYear] = useState('');
   const [currentYear, setCurrentYear] = useState(settings.currentAcademicYear);
 
   const [terms, setTerms] = useState<string[]>(settings.terms);
@@ -47,7 +48,19 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
 
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = currentUser?.role !== 'teacher';
+  const canEdit = ['platform_admin', 'school_admin'].includes(currentUser?.role || '');
+
+  const persistAcademicSettings = async (updated: AcademicSettings) => {
+    setSaveError('');
+    try {
+      await atharRemoteAction('saveSettings', { academicSettings: updated });
+      setSaveSuccess(true);
+      onRefreshSettings();
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : 'تعذر حفظ الإعدادات الأكاديمية مركزياً.');
+    }
+  };
 
   const handleAddGrade = () => {
     const trimmed = newGrade.trim();
@@ -65,10 +78,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
         terms,
         currentTerm
       };
-      AtharStorageService.saveAcademicSettings(updated);
-      onRefreshSettings();
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
+      void persistAcademicSettings(updated);
     }
   };
 
@@ -88,10 +98,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
       terms,
       currentTerm
     };
-    AtharStorageService.saveAcademicSettings(updated);
-    onRefreshSettings();
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    void persistAcademicSettings(updated);
   };
 
   const handleAddSubject = () => {
@@ -110,10 +117,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
         terms,
         currentTerm
       };
-      AtharStorageService.saveAcademicSettings(updated);
-      onRefreshSettings();
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
+      void persistAcademicSettings(updated);
     }
   };
 
@@ -133,10 +137,35 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
       terms,
       currentTerm
     };
-    AtharStorageService.saveAcademicSettings(updated);
-    onRefreshSettings();
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    void persistAcademicSettings(updated);
+  };
+
+  const handleAddAcademicYear = () => {
+    const value = newAcademicYear.trim().replace(/\s+/g, ' ');
+    if (!/^\d{4}\s-\s\d{4}$/.test(value)) {
+      setSaveError(isEn ? 'Enter the year in YYYY - YYYY format.' : 'أدخل العام الدراسي بالصيغة 2027 - 2028.');
+      return;
+    }
+    if (academicYears.includes(value)) {
+      setSaveError(isEn ? 'This academic year already exists.' : 'هذا العام الدراسي موجود بالفعل.');
+      return;
+    }
+    const updatedYears = [...academicYears, value].sort((a,b)=>a.localeCompare(b));
+    setAcademicYears(updatedYears);
+    setNewAcademicYear('');
+    void persistAcademicSettings({ grades, sectionsCount, subjects, academicYears: updatedYears, currentAcademicYear: currentYear, terms, currentTerm });
+  };
+
+  const handleRemoveAcademicYear = (year: string) => {
+    if (year === currentYear) {
+      setSaveError(isEn ? 'Select another current year before removing this one.' : 'اختر عامًا دراسيًا آخر قبل حذف العام النشط.');
+      return;
+    }
+    if (academicYears.length <= 1) return;
+    if (!confirm(isEn ? 'Remove this academic year from the available list?' : 'هل تريد حذف هذا العام من قائمة الأعوام المتاحة؟')) return;
+    const updatedYears = academicYears.filter(y => y !== year);
+    setAcademicYears(updatedYears);
+    void persistAcademicSettings({ grades, sectionsCount, subjects, academicYears: updatedYears, currentAcademicYear: currentYear, terms, currentTerm });
   };
 
   const handleSave = () => {
@@ -153,14 +182,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
       currentTerm
     };
 
-    const res = AtharStorageService.saveAcademicSettings(updated);
-    if (res.success) {
-      setSaveSuccess(true);
-      onRefreshSettings();
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } else {
-      setSaveError(res.error || (isEn ? 'Error occurred while saving settings.' : 'حدث خطأ أثناء حفظ الإعدادات.'));
-    }
+    void persistAcademicSettings(updated);
   };
 
   return (
@@ -343,6 +365,24 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
               ))}
             </select>
           </div>
+
+          {canEdit && (
+            <div className="space-y-2">
+              <label className="block font-bold text-[#172C40] mb-1">{isEn ? 'Manage available academic years' : 'إدارة الأعوام الدراسية المتاحة'}:</label>
+              <div className="flex flex-wrap gap-2">
+                {academicYears.map(year => (
+                  <span key={year} className="inline-flex items-center gap-2 rounded-lg border border-slate-200 bg-slate-50 px-3 py-1.5 text-xs font-bold">
+                    {year}
+                    {year !== currentYear && <button type="button" onClick={() => handleRemoveAcademicYear(year)} className="text-rose-600 hover:text-rose-800" title={isEn ? 'Remove year' : 'حذف العام'}><Trash2 className="h-3.5 w-3.5"/></button>}
+                  </span>
+                ))}
+              </div>
+              <div className="flex flex-col gap-2 sm:flex-row">
+                <input value={newAcademicYear} onChange={e=>setNewAcademicYear(e.target.value)} placeholder={isEn ? 'Example: 2031 - 2032' : 'مثال: 2031 - 2032'} className="w-full rounded-lg border border-slate-300 px-3 py-2 text-sm"/>
+                <button type="button" onClick={handleAddAcademicYear} className="inline-flex shrink-0 items-center justify-center gap-1 rounded-lg bg-[#172C40] px-4 py-2 text-xs font-bold text-white"><Plus className="h-4 w-4"/>{isEn ? 'Add year' : 'إضافة عام دراسي'}</button>
+              </div>
+            </div>
+          )}
 
           <div>
             <label className="block font-bold text-[#172C40] mb-1">{t.settings.currentTermLabel}:</label>

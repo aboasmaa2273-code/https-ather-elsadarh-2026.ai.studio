@@ -1,0 +1,67 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <base target="_top">
+  <meta charset="utf-8">
+</head>
+<body>
+<script>
+(function () {
+  'use strict';
+
+  // Google Apps Script HtmlService nests this page inside Google-owned
+  // sandbox frames. The actual platform is the top-level window.
+  var ALLOWED_PARENT_ORIGIN = 'https://aboasmaa2273-code.github.io';
+
+  function send(id, result) {
+    window.top.postMessage({
+      channel: 'ATHAR_GAS_BRIDGE',
+      id: id,
+      result: result
+    }, ALLOWED_PARENT_ORIGIN);
+  }
+
+  window.addEventListener('message', function (event) {
+    // The platform sends directly to this nested frame. Accept messages
+    // only from the expected top-level GitHub Pages origin.
+    if (event.source !== window.top) return;
+    if (event.origin !== ALLOWED_PARENT_ORIGIN) return;
+
+    var message = event.data;
+    if (
+      !message ||
+      message.channel !== 'ATHAR_GAS_REQUEST' ||
+      !message.id ||
+      !message.request
+    ) return;
+
+    try {
+      google.script.run
+        .withSuccessHandler(function (result) {
+          send(message.id, result);
+        })
+        .withFailureHandler(function (error) {
+          send(message.id, {
+            success: false,
+            error: error && error.message
+              ? error.message
+              : 'تعذر الاتصال بخادم أَثَر.'
+          });
+        })
+        .dispatchBridgeRequest(message.request);
+    } catch (error) {
+      send(message.id, {
+        success: false,
+        error: 'تعذر تشغيل خدمة الاتصال: ' + error.message
+      });
+    }
+  });
+
+  // Notify the top-level platform, not the immediate Google sandbox parent.
+  window.top.postMessage({
+    channel: 'ATHAR_GAS_BRIDGE_READY'
+  }, ALLOWED_PARENT_ORIGIN);
+})();
+</script>
+</body>
+</html>

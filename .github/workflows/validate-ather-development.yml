@@ -1,0 +1,32 @@
+name: Validate Ather Development
+on:
+  push:
+    branches: [ather-development]
+permissions:
+  contents: read
+jobs:
+  validate:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - run: npm install --legacy-peer-deps
+      - run: npm run lint
+      - run: npm run build
+      - name: Verify visit form requires an explicit teacher selection
+        run: |
+          node <<'NODE'
+          const fs = require('fs');
+          const source = fs.readFileSync('src/components/VisitForm.tsx', 'utf8');
+          const checks = [
+            [source.includes("isEn ? 'Select a teacher' : 'اختر المعلم'"), 'Teacher placeholder is present'],
+            [source.includes("if (!selectedTeacherId || !teachers.some(teacher => teacher.id === selectedTeacherId))"), 'Saving is blocked until a valid teacher is selected'],
+            [!source.includes("setSelectedTeacherId(firstTeacher.id)"), 'No automatic first-teacher selection remains']
+          ];
+          for (const [ok, message] of checks) {
+            if (!ok) throw new Error(message);
+            console.log('PASS: ' + message);
+          }
+          NODE

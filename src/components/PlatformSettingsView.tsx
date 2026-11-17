@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction, atharRemoteBootstrap } from '../services/gasBridgeClient';
 import { 
   Sliders, 
   Check, 
@@ -30,7 +31,6 @@ import {
   Search
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
-import { UserProfileModal } from './UserProfileModal';
 
 interface PlatformSettingsViewProps {
   settings: PlatformSettings;
@@ -49,12 +49,11 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = AtharStorageService.canEditSettings(currentUser) || currentUser?.role !== 'teacher';
+  const canEdit = ['platform_admin', 'school_admin'].includes(currentUser?.role || '');
 
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');
-  const [allUsersList, setAllUsersList] = useState<User[]>(() => AtharStorageService.getAllUsers());
-  const [selectedUserForCredentials, setSelectedUserForCredentials] = useState<User | null>(null);
+  const [allUsersList, setAllUsersList] = useState<User[]>([]);
 
   // Platform Identity State
   const [platformName, setPlatformName] = useState(settings.platformName);
@@ -64,6 +63,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [schoolStage, setSchoolStage] = useState(settings.schoolStage);
   const [principalName, setPrincipalName] = useState(settings.principalName || '');
   const [logoUrl, setLogoUrl] = useState(settings.logoUrl || '');
+  const [homeImageUrl, setHomeImageUrl] = useState(settings.homeImageUrl || '');
   const [welcomeMessage, setWelcomeMessage] = useState(settings.welcomeMessage);
   const [primaryColor, setPrimaryColor] = useState(settings.primaryColor);
   const [secondaryColor, setSecondaryColor] = useState(settings.secondaryColor);
@@ -74,7 +74,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Registered Visitors Directory State
-  const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>(() => AtharStorageService.getRegisteredVisitors());
+  const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>([]);
   const [isVisitorModalOpen, setIsVisitorModalOpen] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<RegisteredVisitor | null>(null);
   const [visitorFormName, setVisitorFormName] = useState('');
@@ -85,11 +85,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [visitorFormEmail, setVisitorFormEmail] = useState('');
   const [visitorFormPhone, setVisitorFormPhone] = useState('');
   const [visitorFormUsername, setVisitorFormUsername] = useState('');
-  const [visitorFormPassword, setVisitorFormPassword] = useState('123');
+  const [visitorFormPassword, setVisitorFormPassword] = useState('');
 
   // Demo Data Management & Cleanup State
-  const [purgeTarget, setPurgeTarget] = useState<'visits' | 'plans' | 'teachers' | 'all' | null>(null);
-  const [isPurgeModalOpen, setIsPurgeModalOpen] = useState(false);
 
   // Audit Log Filtering & Sorting State
   const [auditSearch, setAuditSearch] = useState('');
@@ -97,10 +95,83 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [auditUserFilter, setAuditUserFilter] = useState('ALL');
   const [auditSortAsc, setAuditSortAsc] = useState(false);
   const [localAuditLogs, setLocalAuditLogs] = useState<AuditLogEntry[]>(auditLogs);
+  const [selectedAuditLogIds, setSelectedAuditLogIds] = useState<string[]>([]);
+  const [isDeletingAuditLogs, setIsDeletingAuditLogs] = useState(false);
 
   useEffect(() => {
     setLocalAuditLogs(auditLogs);
   }, [auditLogs]);
+
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        let remote: any = await atharRemoteBootstrap();
+        let centralVisitors: RegisteredVisitor[] = Array.isArray(remote.visitors) ? remote.visitors : [];
+        const localVisitors = AtharStorageService.getRegisteredVisitors();
+        const centralIds = new Set(centralVisitors.map(v => v.id));
+        const centralUsernames = new Set(centralVisitors.map(v => (v.username || '').toLowerCase()).filter(Boolean));
+        let migrated = false;
+        for (const visitor of localVisitors) {
+          const username = (visitor.username || '').toLowerCase();
+          if (centralIds.has(visitor.id) || (username && centralUsernames.has(username))) continue;
+          await atharRemoteAction('saveVisitor', {
+            id: visitor.id, name: visitor.name, role: visitor.role, roleTitle: visitor.roleTitle || '',
+            department: visitor.department || '', jobNumber: visitor.jobNumber || '', email: visitor.email || '',
+            phone: visitor.phone || '', username, status: 'active'
+          });
+          migrated = true;
+          centralIds.add(visitor.id);
+          if (username) centralUsernames.add(username);
+        }
+        if (migrated) remote = await atharRemoteBootstrap();
+        if (!active) return;
+        setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
+        setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+        setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+        if (localVisitors.length > 0) AtharStorageService.clearRegisteredVisitorsLocal();
+      } catch (error) {
+        console.warn('Could not load central administration data:', error);
+        if (active) {
+          setAllUsersList([]);
+          setVisitorsList([]);
+        }
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const refreshCentralUsers = async () => {
+    const remote: any = await atharRemoteBootstrap();
+    setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
+    setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+    setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+  };
+
+  const handleDeleteAuditLogs = async (ids?: string[]) => {
+    const selectedIds = Array.isArray(ids) ? ids : [];
+    const deletingAll = !Array.isArray(ids);
+    if (deletingAll && !confirm(isEn ? 'Permanently delete every audit log for this school? This cannot be undone.' : 'هل تريد حذف سجل العمليات بالكامل لهذه المدرسة نهائيًا؟ لا يمكن التراجع عن هذا الإجراء.')) return;
+    if (!deletingAll && selectedIds.length === 0) {
+      showFeedback('error', isEn ? 'Select at least one log entry.' : 'حدد سجلًا واحدًا على الأقل للحذف.');
+      return;
+    }
+    if (!deletingAll && !confirm(isEn ? `Delete ${selectedIds.length} selected log entries?` : `هل تريد حذف ${selectedIds.length} سجلًا محددًا؟`)) return;
+    setIsDeletingAuditLogs(true);
+    try {
+      const result: any = await atharRemoteAction('deleteAuditLogs', { ids: deletingAll ? [] : selectedIds });
+      const remote: any = await atharRemoteBootstrap();
+      const refreshed = Array.isArray(remote.auditLogs) ? remote.auditLogs : [];
+      setLocalAuditLogs(refreshed);
+      setSelectedAuditLogIds([]);
+      showFeedback('success', isEn ? `${result.deletedCount || 0} log entries deleted.` : `تم حذف ${result.deletedCount || 0} سجل من سجل العمليات.`);
+      onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Could not delete audit logs.' : 'تعذر حذف سجلات العمليات.'));
+    } finally {
+      setIsDeletingAuditLogs(false);
+    }
+  };
 
   // Feedback display helper
   const showFeedback = (type: 'success' | 'error', text: string) => {
@@ -108,39 +179,65 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setTimeout(() => setFeedbackMessage(null), 3500);
   };
 
-  // Delete Evaluator Account
-  const handleDeleteUser = (userId: string, userName: string) => {
-    if (!confirm(isEn ? `Are you sure you want to delete evaluator "${userName}"?` : `هل أنت متأكد من رغبتك في حذف حساب المقيم "${userName}" نهائياً من المنظومة؟`)) {
+  // Upload optimized-size image assets into the platform's saved settings.
+  const handleImageUpload = (file: File | undefined, target: 'logo' | 'home') => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showFeedback('error', isEn ? 'Please choose an image file.' : 'يرجى اختيار ملف صورة صالح.');
       return;
     }
-    const res = AtharStorageService.deleteUser(userId);
-    if (res.success) {
-      setAllUsersList(AtharStorageService.getAllUsers());
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      showFeedback('success', isEn ? `Evaluator ${userName} deleted successfully.` : `تم حذف حساب المقيم (${userName}) بنجاح.`);
+    if (file.size > 1200 * 1024) {
+      showFeedback('error', isEn ? 'Image must be 1.2 MB or smaller.' : 'يجب ألا يتجاوز حجم الصورة 1.2 ميجابايت.');
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const value = String(reader.result || '');
+      if (target === 'logo') setLogoUrl(value);
+      else setHomeImageUrl(value);
+      showFeedback('success', isEn ? 'Image selected. Save platform settings to apply it.' : 'تم اختيار الصورة. احفظ إعدادات المنصة لتطبيقها.');
+    };
+    reader.onerror = () => showFeedback('error', isEn ? 'Could not read the image.' : 'تعذرت قراءة الصورة.');
+    reader.readAsDataURL(file);
+  };
+
+  // Disable central account without deleting historical ownership references.
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(isEn ? `Disable account "${userName}"?` : `هل تريد تعطيل حساب "${userName}" ومنع تسجيل الدخول به؟`)) return;
+    try {
+      await atharRemoteAction('setUserStatus', { id: userId, status: 'inactive' });
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Account disabled.' : 'تم تعطيل الحساب مركزيًا.');
       onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to delete evaluator.' : 'تعذر حذف المقيم.'));
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'تعذر تغيير حالة الحساب.');
     }
   };
 
-  // Clear Audit Log History
-  const handleClearAuditLogs = () => {
-    if (!confirm(isEn ? 'Are you sure you want to permanently clear the audit log history?' : 'هل أنت متأكد من رغبتك في مسح كافة سجلات العمليات والأمان نهائياً؟')) {
+  const handleResetCentralCredentials = async (user: User) => {
+    const password = prompt(isEn ? 'Enter a new password (at least 10 characters):' : 'أدخل كلمة مرور جديدة (10 أحرف على الأقل):');
+    if (!password) return;
+    if (password.length < 10) {
+      showFeedback('error', isEn ? 'Password must be at least 10 characters.' : 'كلمة المرور يجب ألا تقل عن 10 أحرف.');
       return;
     }
-    const res = AtharStorageService.clearAuditLogs();
-    if (res.success) {
-      setLocalAuditLogs([]);
-      showFeedback('success', isEn ? 'Audit log cleared successfully.' : 'تم مسح كامل سجل العمليات والأمان بنجاح.');
-      onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to clear logs.' : 'تعذر مسح السجل.'));
+    try {
+      await atharRemoteAction('saveUserAccount', {
+        id: user.id, name: user.name, username: user.username, password,
+        role: user.role, email: user.email || '', jobNumber: user.jobNumber || '',
+        specialization: user.specialization || '', status: user.status || 'active',
+        teacherId: user.teacherId || ''
+      });
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Password updated securely.' : 'تم تحديث كلمة المرور المشفرة مركزيًا.');
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث كلمة المرور.');
     }
   };
+
 
   // Save Platform Identity
-  const handleSavePlatform = () => {
+  const handleSavePlatform = async () => {
     const updated: PlatformSettings = {
       platformName,
       platformTitle,
@@ -149,6 +246,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       schoolStage,
       principalName,
       logoUrl,
+      homeImageUrl,
       welcomeMessage,
       primaryColor,
       secondaryColor,
@@ -156,12 +254,12 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       contactPhone
     };
 
-    const res = AtharStorageService.savePlatformSettings(updated);
-    if (res.success) {
-      showFeedback('success', isEn ? 'Platform identity and settings saved successfully.' : 'تم حفظ هوية وإعدادات المنصة بنجاح.');
+    try {
+      await atharRemoteAction('saveSettings', { platformSettings: updated });
+      showFeedback('success', isEn ? 'Platform identity and settings saved successfully.' : 'تم حفظ هوية وإعدادات المنصة مركزياً بنجاح.');
       onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Error occurred while saving.' : 'حدث خطأ أثناء الحفظ.'));
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Central save failed.' : 'تعذر الحفظ في قاعدة البيانات المركزية.'));
     }
   };
 
@@ -176,7 +274,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormEmail('');
     setVisitorFormPhone('');
     setVisitorFormUsername('');
-    setVisitorFormPassword('123');
+    setVisitorFormPassword('');
     setIsVisitorModalOpen(true);
   };
 
@@ -190,86 +288,76 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormEmail(vis.email || '');
     setVisitorFormPhone(vis.phone || '');
     setVisitorFormUsername(vis.username || '');
-    setVisitorFormPassword(vis.password || '123');
+    setVisitorFormPassword('');
     setIsVisitorModalOpen(true);
   };
 
-  const handleSaveVisitorSubmit = (e: React.FormEvent) => {
+  const handleSaveVisitorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!visitorFormName.trim()) {
-      showFeedback('error', isEn ? 'Visitor name is required.' : 'اسم الزائر مطلوب.');
+    if (!visitorFormName.trim() || !visitorFormUsername.trim()) {
+      showFeedback('error', isEn ? 'Name and username are required.' : 'الاسم واسم المستخدم مطلوبان.');
       return;
     }
-
-    const payload: RegisteredVisitor = {
-      id: editingVisitor ? editingVisitor.id : `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      name: visitorFormName.trim(),
-      role: visitorFormRole,
-      roleTitle: visitorFormTitle.trim() || undefined,
-      department: visitorFormDept.trim() || undefined,
-      jobNumber: visitorFormJobNumber.trim() || undefined,
-      email: visitorFormEmail.trim() || undefined,
-      phone: visitorFormPhone.trim() || undefined,
-      username: visitorFormUsername.trim() || undefined,
-      password: visitorFormPassword.trim() || undefined
-    };
-
-    const res = AtharStorageService.saveRegisteredVisitor(payload);
-    if (res.success) {
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      setAllUsersList(AtharStorageService.getAllUsers());
+    const lookupUsername = (editingVisitor?.username || visitorFormUsername).trim().toLowerCase();
+    const linkedUser = allUsersList.find(u => (u.username || '').toLowerCase() === lookupUsername) || allUsersList.find(u => (u.username || '').toLowerCase() === visitorFormUsername.trim().toLowerCase());
+    const accountId = linkedUser?.id;
+    if (!accountId && visitorFormPassword.length < 10) {
+      showFeedback('error', isEn ? 'Initial password must be at least 10 characters.' : 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.');
+      return;
+    }
+    try {
+      await atharRemoteAction('saveUserAccount', {
+        id: accountId,
+        name: visitorFormName.trim(),
+        username: visitorFormUsername.trim().toLowerCase(),
+        password: visitorFormPassword,
+        role: visitorFormRole === 'principal' ? 'school_admin' : visitorFormRole === 'vice_principal' ? 'vice_principal' : 'evaluator',
+        specialization: visitorFormTitle.trim(),
+        jobNumber: visitorFormJobNumber.trim(),
+        email: visitorFormEmail.trim(),
+        status: 'active'
+      });
+      const visitorPayload: RegisteredVisitor = {
+        id: editingVisitor ? editingVisitor.id : `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: visitorFormName.trim(), role: visitorFormRole,
+        roleTitle: visitorFormTitle.trim() || undefined, department: visitorFormDept.trim() || undefined,
+        jobNumber: visitorFormJobNumber.trim() || undefined, email: visitorFormEmail.trim() || undefined,
+        phone: visitorFormPhone.trim() || undefined, username: visitorFormUsername.trim().toLowerCase()
+      };
+      await atharRemoteAction('saveVisitor', { ...visitorPayload, status: 'active' });
+      await refreshCentralUsers();
+      setVisitorFormPassword('');
       setIsVisitorModalOpen(false);
-      showFeedback('success', isEn ? 'Observer & credentials saved successfully.' : 'تم حفظ بيانات المقيم وبيانات الدخول (اليوزرنيم والباسوورد) بنجاح.');
+      showFeedback('success', isEn ? 'Central account saved successfully.' : 'تم حفظ حساب المستخدم مركزيًا بنجاح.');
       onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to save observer.' : 'تعذر حفظ بيانات الزائر.'));
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Could not save account.' : 'تعذر حفظ الحساب.'));
     }
   };
 
-  const handleDeleteVisitor = (id: string) => {
-    if (confirm(t.visitorsManagement.deleteConfirm)) {
-      const res = AtharStorageService.deleteRegisteredVisitor(id);
-      if (res.success) {
-        setVisitorsList(AtharStorageService.getRegisteredVisitors());
-        showFeedback('success', isEn ? 'Observer deleted successfully.' : 'تم حذف الزائر بنجاح.');
-        onRefreshSettings();
-      } else {
-        showFeedback('error', res.error || (isEn ? 'Failed to delete.' : 'تعذر حذف الزائر.'));
+  const handleDeleteVisitor = async (id: string) => {
+    if (!confirm(t.visitorsManagement.deleteConfirm)) return;
+    const visitor = visitorsList.find(v => v.id === id);
+    try {
+      if (visitor?.username) {
+        let account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        if (!account) {
+          const remote: any = await atharRemoteBootstrap();
+          const latestUsers = Array.isArray(remote.users) ? remote.users as User[] : [];
+          setAllUsersList(latestUsers);
+          account = latestUsers.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        }
+        if (account) await atharRemoteAction('setUserStatus', { id: account.id, status: 'inactive' });
       }
-    }
-  };
-
-  // Demo Data Purge Execution
-  const handleExecutePurge = () => {
-    if (!purgeTarget) return;
-
-    if (purgeTarget === 'visits') {
-      const res = AtharStorageService.clearDemoVisits();
-      showFeedback('success', isEn ? `Cleared ${res.count} visits successfully.` : `تم مسح ${res.count} زيارة صفية بنجاح.`);
-    } else if (purgeTarget === 'plans') {
-      const res = AtharStorageService.clearDemoPlans();
-      showFeedback('success', isEn ? `Cleared ${res.count} improvement plans successfully.` : `تم مسح ${res.count} خطة تطوير مهني بنجاح.`);
-    } else if (purgeTarget === 'teachers') {
-      const res = AtharStorageService.clearDemoTeachers();
-      showFeedback('success', isEn ? `Cleared ${res.count} teachers successfully.` : `تم مسح ${res.count} معلماً تجريبياً بنجاح.`);
-    } else if (purgeTarget === 'all') {
-      AtharStorageService.resetAllDataToClean();
-      showFeedback('success', isEn ? 'Purged all demo records. System initialized with clean slate.' : 'تم تفريغ كامل البيانات التجريبية والبدء بسجل رسمي نظيف.');
-    }
-
-    setIsPurgeModalOpen(false);
-    setPurgeTarget(null);
-    onRefreshSettings();
-  };
-
-  const handleRestoreDemoData = () => {
-    if (confirm(isEn ? 'Restore sample demo records for testing and training?' : 'هل تود استرجاع البيانات التجريبية النموذجية لأغراض التدريب والتجربة؟')) {
-      AtharStorageService.resetToDefaults();
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      showFeedback('success', isEn ? 'Sample demo data restored successfully.' : 'تمت استعادة البيانات التجريبية النموذجية بنجاح.');
+      await atharRemoteAction('deleteVisitor', { id });
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Observer removed and linked account disabled.' : 'تم حذف سجل الزائر وتعطيل حسابه المرتبط.');
       onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to delete.' : 'تعذر حذف الزائر.'));
     }
   };
+
 
   return (
     <div className="space-y-6 text-xs text-[#172C40]">
@@ -366,8 +454,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         <button
           type="button"
           onClick={() => {
-            setAllUsersList(AtharStorageService.getAllUsers());
             setActiveSubTab('users');
+            void refreshCentralUsers();
           }}
           className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
             activeSubTab === 'users'
@@ -381,6 +469,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             {allUsersList.length}
           </span>
         </button>
+
 
         <button
           type="button"
@@ -527,15 +616,20 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 />
               </div>
 
-              <div className="md:col-span-2">
-                <label className="block font-bold text-[#172C40] mb-1">{t.settings.logoUrlLabel}</label>
-                <input
-                  type="text"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]"
-                />
+              <div className="md:col-span-2 p-4 rounded-xl border border-[#C6A66A]/40 bg-[#F2EBDD]/30 space-y-3">
+                <div>
+                  <label className="block font-bold text-[#172C40] mb-2">{isEn ? 'School Logo' : 'شعار المدرسة'}</label>
+                  <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files?.[0], 'logo')} className="w-full text-xs file:me-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-[#172C40] file:text-white" />
+                  <input type="text" value={logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder={isEn ? 'Or paste an image URL...' : 'أو ألصق رابط صورة الشعار...'} className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]" />
+                  {logoUrl && <img src={logoUrl} alt="معاينة شعار المدرسة" className="mt-2 h-20 max-w-40 object-contain bg-white border rounded-lg p-2" />}
+                </div>
+                <div className="border-t border-[#C6A66A]/30 pt-3">
+                  <label className="block font-bold text-[#172C40] mb-2">{isEn ? 'Homepage Hero Image' : 'صورة الصفحة الرئيسة'}</label>
+                  <input type="file" accept="image/*" onChange={(e) => handleImageUpload(e.target.files?.[0], 'home')} className="w-full text-xs file:me-3 file:px-3 file:py-2 file:rounded-lg file:border-0 file:bg-[#172C40] file:text-white" />
+                  <input type="text" value={homeImageUrl} onChange={(e) => setHomeImageUrl(e.target.value)} placeholder={isEn ? 'Or paste an image URL...' : 'أو ألصق رابط صورة الصفحة الرئيسة...'} className="mt-2 w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]" />
+                  {homeImageUrl && <img src={homeImageUrl} alt="معاينة صورة الصفحة الرئيسة" className="mt-2 w-full max-h-36 object-cover rounded-lg border" />}
+                  <p className="text-[10px] text-slate-500 mt-1">{isEn ? 'Image uploads up to 1.2 MB are supported.' : 'يمكن إرفاق صور لا يتجاوز حجمها 1.2 ميجابايت.'}</p>
+                </div>
               </div>
 
               <div>
@@ -647,8 +741,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           <KeyRound className="w-3 h-3 text-[#C6A66A]" />
                           <span>@{vis.username}</span>
                         </span>
-                        <span className="text-[9px] text-slate-500 font-mono" dir="ltr">
-                          pass: {vis.password || '123'}
+                        <span className="text-[9px] text-slate-500 font-mono">
+                          {isEn ? 'Account credentials are stored securely.' : 'بيانات الدخول محفوظة بصورة مشفرة.'}
                         </span>
                       </div>
                     )}
@@ -688,7 +782,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           title={isEn ? 'Delete Evaluator' : 'حذف المقيم أو الزائر'}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>{isEn ? 'Delete' : 'حذف'}</span>
+                          <span>{isEn ? 'Disable' : 'تعطيل'}</span>
                         </button>
                       </div>
                     )}
@@ -718,22 +812,16 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                const name = prompt(isEn ? 'Enter full name for new evaluator:' : 'أدخل الاسم الكامل للمقيم الجديد:');
-                if (name && name.trim()) {
-                  const added = AtharStorageService.addCustomEvaluator(name.trim());
-                  setAllUsersList(AtharStorageService.getAllUsers());
-                  showFeedback('success', isEn ? `Evaluator ${name} created.` : `تمت إضافة المقيم: ${name}`);
-                  setSelectedUserForCredentials(added);
-                }
-              }}
-              className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
-            >
-              <UserPlus className="w-4 h-4 text-[#C6A66A]" />
-              <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={handleOpenAddVisitor}
+                className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
+              >
+                <UserPlus className="w-4 h-4 text-[#C6A66A]" />
+                <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -763,26 +851,26 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-slate-600">
                     <span className="text-[10px] text-slate-400 font-sans">{isEn ? 'Password:' : 'كلمة المرور:'}</span>
-                    <span className="font-bold text-slate-700" dir="ltr">{user.password || '123'}</span>
+                    <span className="font-bold text-slate-700">{isEn ? 'Stored securely' : 'مشفرة في قاعدة البيانات'}</span>
                   </div>
                 </div>
 
                 <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2">
                   <button
                     type="button"
-                    onClick={() => setSelectedUserForCredentials(user)}
+                    onClick={() => void handleResetCentralCredentials(user)}
                     className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-[#172C40] text-slate-700 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
-                    title={isEn ? 'Edit Credentials & Details' : 'تعديل البيانات واليوزرنيم والباسوورد'}
+                    title={isEn ? 'Reset Password' : 'إعادة تعيين كلمة المرور'}
                   >
                     <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
-                    <span>{isEn ? 'Edit Details' : 'تعديل البيانات'}</span>
+                    <span>{isEn ? 'Reset Password' : 'إعادة تعيين كلمة المرور'}</span>
                   </button>
 
                   <button
                     type="button"
                     onClick={() => handleDeleteUser(user.id, user.name)}
                     className="py-1.5 px-3 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-rose-200"
-                    title={isEn ? 'Delete Evaluator' : 'حذف المقيم'}
+                    title={isEn ? 'Disable Account' : 'تعطيل الحساب'}
                   >
                     <Trash2 className="w-3.5 h-3.5" />
                     <span>{isEn ? 'Delete' : 'حذف'}</span>
@@ -794,130 +882,11 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* SUB-TAB 3: Demo Data & Records Management (حذف البيانات)       */}
-      {/* ============================================================== */}
       {activeSubTab === 'data' && (
-        <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-6">
-          <div className="border-b border-slate-100 pb-3">
-            <h3 className="text-base font-bold text-[#172C40] font-['Tajawal'] flex items-center gap-2">
-              <Database className="w-5 h-5 text-[#C6A66A]" />
-              <span>{t.demoDataManagement.title}</span>
-            </h3>
-            <p className="text-slate-500 text-xs mt-0.5">
-              {t.demoDataManagement.subtitle}
-            </p>
-          </div>
-
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-            {/* 1. Clear Demo Visits */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-[#172C40] text-sm block">
-                  {t.demoDataManagement.clearVisitsBtn}
-                </span>
-                <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.clearVisitsDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('visits');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs self-start"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{t.demoDataManagement.clearVisitsBtn}</span>
-              </button>
-            </div>
-
-            {/* 2. Clear Demo Plans */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-[#172C40] text-sm block">
-                  {t.demoDataManagement.clearPlansBtn}
-                </span>
-                <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.clearPlansDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('plans');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs self-start"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{t.demoDataManagement.clearPlansBtn}</span>
-              </button>
-            </div>
-
-            {/* 3. Clear Demo Teachers */}
-            <div className="p-4 rounded-xl border border-slate-200 bg-slate-50/60 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-[#172C40] text-sm block">
-                  {t.demoDataManagement.clearTeachersBtn}
-                </span>
-                <p className="text-slate-500 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.clearTeachersDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('teachers');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-white text-rose-700 border border-rose-300 hover:bg-rose-50 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-2xs self-start"
-              >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{t.demoDataManagement.clearTeachersBtn}</span>
-              </button>
-            </div>
-
-            {/* 4. Complete Clean Slate Purge */}
-            <div className="p-4 rounded-xl border border-rose-300 bg-rose-50/40 flex flex-col justify-between space-y-3">
-              <div>
-                <span className="font-bold text-rose-950 text-sm block">
-                  {t.demoDataManagement.cleanStartBtn}
-                </span>
-                <p className="text-rose-900/80 text-[11px] mt-1 leading-relaxed">
-                  {t.demoDataManagement.cleanStartDesc}
-                </p>
-              </div>
-              <button
-                type="button"
-                onClick={() => {
-                  setPurgeTarget('all');
-                  setIsPurgeModalOpen(true);
-                }}
-                className="px-4 py-2 bg-rose-700 text-white hover:bg-rose-800 rounded-lg font-bold flex items-center justify-center gap-1.5 cursor-pointer shadow-xs self-start"
-              >
-                <AlertTriangle className="w-3.5 h-3.5 text-amber-300" />
-                <span>{t.demoDataManagement.cleanStartBtn}</span>
-              </button>
-            </div>
-          </div>
-
-          {/* Restore sample demo records */}
-          <div className="pt-4 border-t border-slate-200 flex flex-col sm:flex-row sm:items-center justify-between gap-3 bg-[#F2EBDD]/40 p-4 rounded-xl border border-[#C6A66A]/40">
-            <div>
-              <span className="font-bold text-[#172C40] block">{t.demoDataManagement.restoreDemoBtn}</span>
-              <p className="text-slate-600 text-[11px] mt-0.5">{t.demoDataManagement.restoreDemoDesc}</p>
-            </div>
-            <button
-              type="button"
-              onClick={handleRestoreDemoData}
-              className="px-4 py-2 bg-white text-[#172C40] border border-[#C6A66A] rounded-lg font-bold hover:bg-[#F2EBDD] flex items-center gap-1.5 cursor-pointer shrink-0"
-            >
-              <RotateCcw className="w-3.5 h-3.5 text-[#C6A66A]" />
-              <span>{t.demoDataManagement.restoreDemoBtn}</span>
-            </button>
-          </div>
+        <div className="rounded-xl border border-amber-200 bg-amber-50 p-5 text-sm text-amber-900">
+          {isEn
+            ? 'Data cleanup and demo restoration are temporarily disabled until these actions are connected to the central database. No shared records will be changed from this screen.'
+            : 'أُوقِفت أدوات تفريغ البيانات التجريبية واستعادتها مؤقتًا إلى أن تُربط بقاعدة البيانات المركزية؛ لن تُحذف أي سجلات مشتركة من هذه الشاشة.'}
         </div>
       )}
 
@@ -942,7 +911,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             return matchesSearch && matchesAction && matchesUser;
           })
           .sort((a, b) => {
-            return auditSortAsc ? a.id.localeCompare(b.id) : b.id.localeCompare(a.id);
+            return auditSortAsc ? a.timestamp.localeCompare(b.timestamp) : b.timestamp.localeCompare(a.timestamp);
           });
 
         return (
@@ -961,19 +930,13 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Action Buttons: Clear Audit Log */}
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={handleClearAuditLogs}
-                  disabled={localAuditLogs.length === 0}
-                  className="px-3.5 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-rose-200 shadow-2xs self-start sm:self-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={isEn ? 'Clear Entire Audit Log' : 'مسح كامل سجل العمليات'}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{isEn ? 'Clear Audit Log' : 'مسح السجل'}</span>
-                </button>
-              )}
+              <div className="flex flex-wrap items-center gap-2">
+                <span className="text-[10px] text-slate-500">{isEn ? 'Manage central audit records.' : 'إدارة سجلات العمليات المركزية.'}</span>
+                {canEdit && <>
+                  <button type="button" disabled={isDeletingAuditLogs || localAuditLogs.length === 0} onClick={() => handleDeleteAuditLogs(selectedAuditLogIds)} className="px-3 py-2 rounded-lg border border-amber-300 bg-amber-50 text-amber-800 hover:bg-amber-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs">{isEn ? `Delete selected (${selectedAuditLogIds.length})` : `حذف المحدد (${selectedAuditLogIds.length})`}</button>
+                  <button type="button" disabled={isDeletingAuditLogs || localAuditLogs.length === 0} onClick={() => handleDeleteAuditLogs()} className="px-3 py-2 rounded-lg border border-rose-300 bg-rose-50 text-rose-700 hover:bg-rose-100 disabled:opacity-40 disabled:cursor-not-allowed font-bold text-xs">{isEn ? 'Delete all logs' : 'حذف السجل بالكامل'}</button>
+                </>}
+              </div>
             </div>
 
             {/* Filter and Sorting Controls Toolbar */}
@@ -1037,6 +1000,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
               <table className={`w-full ${isEn ? 'text-left' : 'text-right'} border-collapse text-xs`}>
                 <thead className="bg-[#F8FAFC] sticky top-0 text-[#172C40] border-b border-slate-200">
                   <tr>
+                    {canEdit && <th className="py-2.5 px-3"><input type="checkbox" aria-label={isEn ? 'Select all visible logs' : 'تحديد كل السجلات الظاهرة'} checked={filteredAuditLogs.length > 0 && filteredAuditLogs.every(log => selectedAuditLogIds.includes(log.id))} onChange={(e) => setSelectedAuditLogIds(e.target.checked ? Array.from(new Set([...selectedAuditLogIds, ...filteredAuditLogs.map(log => log.id)])) : selectedAuditLogIds.filter(id => !filteredAuditLogs.some(log => log.id === id)))} /></th>}
                     <th className="py-2.5 px-4 font-bold">{isEn ? 'Timestamp' : 'الوقت والتاريخ'}</th>
                     <th className="py-2.5 px-4 font-bold">{isEn ? 'User' : 'المستخدم'}</th>
                     <th className="py-2.5 px-4 font-bold">{isEn ? 'Role' : 'الدور'}</th>
@@ -1047,13 +1011,14 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 <tbody className="divide-y divide-slate-100">
                   {filteredAuditLogs.length === 0 ? (
                     <tr>
-                      <td colSpan={5} className="py-8 text-center text-slate-400">
+                      <td colSpan={canEdit ? 6 : 5} className="py-8 text-center text-slate-400">
                         {isEn ? 'No log entries match your filter.' : 'لا توجد عمليات مطابقة لخيارات الفرز الحالية.'}
                       </td>
                     </tr>
                   ) : (
                     filteredAuditLogs.map((log) => (
                       <tr key={log.id} className="hover:bg-slate-50/70">
+                        {canEdit && <td className="py-2.5 px-3"><input type="checkbox" aria-label={isEn ? `Select log by ${log.userName}` : `تحديد سجل ${log.userName}`} checked={selectedAuditLogIds.includes(log.id)} onChange={(e) => setSelectedAuditLogIds(e.target.checked ? [...selectedAuditLogIds, log.id] : selectedAuditLogIds.filter(id => id !== log.id))} /></td>}
                         <td className="py-2.5 px-4 font-mono text-slate-500 text-[11px] whitespace-nowrap">{log.timestamp}</td>
                         <td className="py-2.5 px-4 font-bold text-[#172C40] whitespace-nowrap">{log.userName}</td>
                         <td className="py-2.5 px-4 text-slate-600 whitespace-nowrap">{log.userRole}</td>
@@ -1231,10 +1196,10 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                       {isEn ? 'Password' : 'كلمة المرور (الباسوورد)'}
                     </label>
                     <input
-                      type="text"
+                      type="password"
                       value={visitorFormPassword}
                       onChange={(e) => setVisitorFormPassword(e.target.value)}
-                      placeholder="123"
+                      placeholder={isEn ? "At least 10 characters" : "10 أحرف على الأقل"}
                       dir="ltr"
                       className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white"
                     />
@@ -1262,74 +1227,6 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         </div>
       )}
 
-      {/* ============================================================== */}
-      {/* MODAL 2: Safety Confirm Purge Modal                            */}
-      {/* ============================================================== */}
-      {isPurgeModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#172C40]/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-rose-300 max-w-md w-full shadow-2xl overflow-hidden">
-            <div className="p-4 bg-rose-700 text-white flex items-center justify-between">
-              <div className="flex items-center gap-2">
-                <AlertTriangle className="w-5 h-5 text-amber-300" />
-                <h3 className="font-bold text-sm font-['Tajawal']">{t.demoDataManagement.confirmModalTitle}</h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsPurgeModalOpen(false)}
-                className="p-1 hover:bg-white/10 rounded-lg text-white"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <div className="p-6 space-y-4">
-              <p className="text-slate-700 leading-relaxed text-xs">
-                {t.demoDataManagement.confirmWarning}
-              </p>
-
-              <div className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-900 font-bold text-xs">
-                {purgeTarget === 'visits' && (isEn ? 'All recorded classroom observation visits will be wiped.' : 'سيتم حذف كافة سجلات الزيارات الصفية المسجلة.')}
-                {purgeTarget === 'plans' && (isEn ? 'All improvement plans and follow-ups will be wiped.' : 'سيتم حذف كافة خطط التطوير المهني والمتابعات.')}
-                {purgeTarget === 'teachers' && (isEn ? 'All demo teachers will be deleted to allow faculty CSV import.' : 'سيتم تفريغ سجل المعلمين بالكامل لإفساح المجال للاستيراد الفعلي.')}
-                {purgeTarget === 'all' && (isEn ? 'All demo visits, plans, and teachers will be wiped for a clean institutional start.' : 'سيتم تفريغ كافة البيانات التجريبية (الزيارات، المعلمين، الخطط) دفعة واحدة.')}
-              </div>
-
-              <div className="pt-2 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsPurgeModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 cursor-pointer"
-                >
-                  {t.common.cancel}
-                </button>
-                <button
-                  type="button"
-                  onClick={handleExecutePurge}
-                  className="px-5 py-2 bg-rose-700 hover:bg-rose-800 text-white rounded-lg font-bold cursor-pointer shadow-xs"
-                >
-                  {t.demoDataManagement.confirmActionBtn}
-                </button>
-              </div>
-            </div>
-          </div>
-        </div>
-      )}
-
-      {/* Modal: Change Username & Password for Selected User */}
-      {selectedUserForCredentials && (
-        <UserProfileModal
-          isOpen={!!selectedUserForCredentials}
-          onClose={() => setSelectedUserForCredentials(null)}
-          currentUser={selectedUserForCredentials}
-          onUserUpdated={(updated) => {
-            setAllUsersList(AtharStorageService.getAllUsers());
-            setSelectedUserForCredentials(null);
-            showFeedback('success', isEn ? `Credentials updated for ${updated.name}` : `تم تحديث اسم المستخدم وكلمة المرور للمستخدم: ${updated.name}`);
-            onRefreshSettings();
-          }}
-          language={language}
-        />
-      )}
 
     </div>
   );

@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ClassroomVisit, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   Search, 
   PlusCircle, 
@@ -14,7 +15,7 @@ import {
   AlertCircle,
   Users,
   GraduationCap,
-  Trash2
+  Archive
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 import { translateSubject, translateGrade, translateSection } from '../utils/bilingualHelper';
@@ -68,24 +69,22 @@ export const VisitsList: React.FC<VisitsListProps> = ({
     return matchesSearch && matchesType && matchesStatus && matchesTerm;
   });
 
-  const handleApproveVisit = (visitId: string) => {
-    const res = AtharStorageService.updateVisitStatus(visitId, 'approved');
-    if (res.success) {
-      onRefreshVisits();
-    } else {
-      alert(res.error);
+  const handleApproveVisit = async (visitId: string) => {
+    try {
+      await atharRemoteAction('approveVisit', { id: visitId });
+      await onRefreshVisits();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر اعتماد الزيارة مركزيًا.');
     }
   };
 
-  const handleDeleteVisit = (visitId: string) => {
-    if (!confirm(isEn ? 'Are you sure you want to delete this visit record? This action is restricted to authorized leadership.' : 'هل أنت متأكد من حذف سجل هذه الزيارة نهائياً؟ هذا الإجراء مقتصر على القيادات المخولة فقط.')) {
-      return;
-    }
-    const res = AtharStorageService.deleteVisit(visitId);
-    if (res.success) {
-      onRefreshVisits();
-    } else {
-      alert(res.error);
+  const handleArchiveVisit = async (visitId: string) => {
+    if (!confirm(isEn ? 'Archive this visit? The record will remain in the historical archive.' : 'هل تريد أرشفة هذه الزيارة؟ سيظل التقرير محفوظًا في السجل التاريخي.')) return;
+    try {
+      await atharRemoteAction('archiveVisit', { id: visitId });
+      await onRefreshVisits();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذرت أرشفة التقرير في قاعدة البيانات المركزية.');
     }
   };
 
@@ -238,9 +237,9 @@ export const VisitsList: React.FC<VisitsListProps> = ({
             <tbody className="divide-y divide-slate-100">
               {visibleVisits.length > 0 ? (
                 visibleVisits.map((visit) => {
-                  const canEdit = AtharStorageService.canEditVisit(currentUser, visit);
-                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && visit.status !== 'approved';
-                  const canDelete = !isTeacher;
+                  const canEdit = visit.status !== 'archived' && AtharStorageService.canEditVisit(currentUser, visit);
+                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && !['approved', 'archived'].includes(visit.status);
+                  const canArchive = ['school_admin', 'platform_admin', 'vice_principal'].includes(currentUser.role);
 
                   return (
                     <tr key={visit.id} className="hover:bg-slate-50/70 transition-colors">
@@ -346,13 +345,13 @@ export const VisitsList: React.FC<VisitsListProps> = ({
                             </button>
                           )}
 
-                          {canDelete && (
+                          {canArchive && visit.status !== 'archived' && (
                             <button
-                              onClick={() => handleDeleteVisit(visit.id)}
+                              onClick={() => handleArchiveVisit(visit.id)}
                               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border border-rose-200 transition-colors cursor-pointer"
-                              title={isEn ? 'Delete Report' : 'حذف التقرير'}
+                              title={isEn ? 'Archive Report' : 'أرشفة التقرير'}
                             >
-                              <Trash2 className="w-3.5 h-3.5" />
+                              <Archive className="w-3.5 h-3.5" />
                             </button>
                           )}
                         </div>

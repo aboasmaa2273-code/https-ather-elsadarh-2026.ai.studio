@@ -1,4 +1,5 @@
 import React, { useState } from 'react';
+import { atharGasBridge } from '../services/gasBridgeClient';
 import { GAS_FILES, GasFile } from '../services/gasCodeGenerator';
 import { 
   Database, 
@@ -22,9 +23,11 @@ interface GasIntegrationHubProps {
 export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language = 'ar' }) => {
   const [selectedFile, setSelectedFile] = useState<GasFile>(GAS_FILES[0]);
   const [copiedFileName, setCopiedFileName] = useState<string | null>(null);
+  const [webAppUrl, setWebAppUrl] = useState<string>(() => localStorage.getItem('athar_gas_web_app_url_v1') || '');
+  const [connectionMessage, setConnectionMessage] = useState<string>('');
   
-  // Database initialization simulation state
-  const [isInitializing, setIsInitializing] = useState(false);
+  // This page only provides Apps Script source files. It is not connected
+  // to a deployed Apps Script project, so never report a simulated success.
   const [initResult, setInitResult] = useState<any | null>(null);
 
   const isAr = language === 'ar';
@@ -67,22 +70,15 @@ export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language =
     URL.revokeObjectURL(url);
   };
 
-  const handleSimulateInit = () => {
-    setIsInitializing(true);
-    setInitResult(null);
-
-    setTimeout(() => {
-      setIsInitializing(false);
-      setInitResult({
-        success: true,
-        sheetsCreated: 18,
-        indicatorsSeeded: 22,
-        timeZone: 'Asia/Dubai',
-        message: isAr 
-          ? 'تمت تهيئة قاعدة البيانات وأوراق العمل الـ 18 بنجاح تام وفق Schema منظومة أَثَر.' 
-          : 'Database initialized successfully! All 18 sheets generated matching ATHAR schema.'
-      });
-    }, 1500);
+  const handleSimulateInit = async () => {
+    try {
+      atharGasBridge.configure(webAppUrl);
+      localStorage.setItem('athar_gas_web_app_url_v1', webAppUrl.trim());
+      const result = await atharGasBridge.request({ action: 'health' });
+      setInitResult({ success: result.success, message: result.success ? 'تم الاتصال بخادم Apps Script بنجاح.' : (result.error || 'تعذر الاتصال.') });
+    } catch (error) {
+      setInitResult({ success: false, message: error instanceof Error ? error.message : 'تعذر الاتصال.' });
+    }
   };
 
   return (
@@ -99,9 +95,9 @@ export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language =
           </h2>
           <p className="text-slate-500 mt-1">
             {isAr ? (
-              <>جميع الأكواد المجهزة المتوافقة 100% مع Google Apps Script Web App، دوال <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">doGet()</code>، <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">initializeDatabase()</code>، و <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">google.script.run</code>.</>
+              <>ملفات خادم Google Apps Script الجاهزة للتحديث الآمن للمشروع القائم، مع جسر الاتصال وقاعدة البيانات الحالية. لا تشغّل دالة التهيئة عند تحديث المنصة.</>
             ) : (
-              <>Complete source code ready for Google Apps Script Web App: <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">doGet()</code>, <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">initializeDatabase()</code>, and <code className="font-mono bg-slate-100 px-1 py-0.5 rounded">google.script.run</code>.</>
+              <>Google Apps Script files for safely updating the existing project and preserving its current database. Do not run the database initialization function during routine updates.</>
             )}
           </p>
         </div>
@@ -109,29 +105,29 @@ export const GasIntegrationHub: React.FC<GasIntegrationHubProps> = ({ language =
         <div className="flex items-center gap-2 shrink-0">
           <button
             onClick={handleSimulateInit}
-            disabled={isInitializing}
-            className="px-4 py-2 bg-[#C6A66A] text-[#172C40] rounded-lg font-bold hover:bg-[#b8975b] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs disabled:opacity-50"
+            className="px-4 py-2 bg-[#C6A66A] text-[#172C40] rounded-lg font-bold hover:bg-[#b8975b] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
           >
             <Play className="w-3.5 h-3.5 fill-current" />
-            <span>{isInitializing ? (isAr ? 'جاري اختبار التهيئة...' : 'Testing Initialization...') : (isAr ? 'تشغيل اختبار initializeDatabase()' : 'Run initializeDatabase() Test')}</span>
+            <span>{isAr ? 'التحقق من حالة الاتصال' : 'Check Connection Status'}</span>
           </button>
         </div>
       </div>
 
+      <div className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm space-y-3">
+        <h3 className="font-bold text-sm text-[#172C40]">{isAr ? 'إعداد الاتصال المركزي بقاعدة البيانات' : 'Central Database Connection'}</h3>
+        <label className="block text-xs font-bold text-slate-600">{isAr ? 'رابط نشر تطبيق Google Apps Script المنتهي بـ /exec' : 'Google Apps Script deployment URL ending in /exec'}</label>
+        <input value={webAppUrl} onChange={e => setWebAppUrl(e.target.value)} placeholder="https://script.google.com/macros/s/.../exec" dir="ltr" className="w-full border border-slate-300 rounded-lg px-3 py-2 text-sm" />
+        <button onClick={handleSimulateInit} className="px-4 py-2 rounded-lg bg-[#172C40] text-white font-bold">{isAr ? 'حفظ الرابط واختبار الاتصال' : 'Save URL & Test Connection'}</button>
+        {connectionMessage && <p className="text-xs">{connectionMessage}</p>}
+      </div>
+
       {/* Simulator feedback */}
       {initResult && (
-        <div className="p-4 rounded-xl bg-emerald-50 border border-emerald-200 text-emerald-900 space-y-1">
+        <div className="p-4 rounded-xl bg-amber-50 border border-amber-200 text-amber-950 space-y-1">
           <div className="flex items-center gap-2 font-bold text-sm">
-            <Check className="w-4 h-4 text-emerald-700" />
+            <HelpCircle className="w-4 h-4 text-amber-700" />
             <span>{initResult.message}</span>
           </div>
-          <p className="text-[11px] text-emerald-800">
-            {isAr ? (
-              <>تم فحص وإنشاء وتنسيق الـ ({initResult.sheetsCreated}) ورقة مع الرؤوس الملونة بخلفية كحلية `#172C40`، وتعبئة ({initResult.indicatorsSeeded}) مؤشراً في ورقة <code className="font-mono">IndicatorLibrary</code> بتوقيت دبي.</>
-            ) : (
-              <>Verified and formatted all ({initResult.sheetsCreated}) sheets with navy headers `#172C40`, and seeded ({initResult.indicatorsSeeded}) indicators into <code className="font-mono">IndicatorLibrary</code> (Asia/Dubai timezone).</>
-            )}
-          </p>
         </div>
       )}
 

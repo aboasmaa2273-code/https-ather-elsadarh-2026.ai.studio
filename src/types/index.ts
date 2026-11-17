@@ -16,6 +16,11 @@ export interface User {
   avatarUrl?: string;
   username?: string;
   password?: string;
+  status?: 'active' | 'inactive';
+  teacherId?: string;
+  roleTitle?: string;
+  department?: string;
+  profileSummary?: string;
 }
 
 export interface School {
@@ -42,7 +47,7 @@ export interface Teacher {
   dateAdded: string;
 }
 
-export type IndicatorRating = 'yes' | 'no' | 'needs_improvement' | 'not_observed';
+export type IndicatorRating = 'outstanding' | 'very_good' | 'good' | 'acceptable' | 'weak' | 'not_observed' | 'yes' | 'no' | 'needs_improvement';
 
 export interface IndicatorDefinition {
   id: number;
@@ -215,12 +220,71 @@ export interface PlatformSettings {
   schoolStage: string;
   principalName?: string;
   logoUrl?: string;
+  homeImageUrl?: string;
   welcomeMessage: string;
   primaryColor: string;
   secondaryColor: string;
   contactEmail: string;
   contactPhone: string;
   googleWebAppUrl?: string; // Optional real Google Apps Script webhook
+}
+
+export interface InternalNote {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  teacherName: string;
+  visitId?: string;
+  noteText: string;
+  createdBy: string;
+  createdByRole: string;
+  createdAt: string;
+  updatedBy?: string;
+  updatedByRole?: string;
+  updatedAt?: string;
+  status?: 'active' | 'archived';
+}
+
+export interface InternalNoteHistory {
+  id: string;
+  schoolId: string;
+  noteId: string;
+  changedBy: string;
+  changedByRole: string;
+  changedAt: string;
+  oldText: string;
+  newText: string;
+}
+
+export interface AdministrativeFollowUp {
+  id: string;
+  schoolId: string;
+  teacherId: string;
+  teacherName: string;
+  visitId?: string;
+  followUpDate: string;
+  action: string;
+  notes: string;
+  recommendations: string;
+  result: string;
+  nextAction: string;
+  nextDate: string;
+  status: string;
+  createdBy: string;
+  createdByRole: string;
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface VisitHistoryEntry {
+  id: string;
+  schoolId: string;
+  visitId: string;
+  changedBy: string;
+  changedByRole: string;
+  changedAt: string;
+  action: string;
+  snapshotJson: string;
 }
 
 export interface AuditLogEntry {

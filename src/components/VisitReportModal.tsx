@@ -14,7 +14,9 @@ import {
   Compass,
   Users,
   GraduationCap,
-  Trash2
+  Archive,
+  Undo2,
+  MessageCircle
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 import { 
@@ -34,8 +36,18 @@ interface VisitReportModalProps {
   platformSettings: PlatformSettings;
   onClose: () => void;
   language?: Language;
-  canDelete?: boolean;
-  onDeleteReport?: (visitId: string) => void;
+  canArchive?: boolean;
+  onArchiveReport?: (visitId: string) => void;
+  canManageStatus?: boolean;
+  onUnapproveReport?: (visitId: string) => void;
+  onRestoreReport?: (visitId: string) => void;
+  canSendApprovedReport?: boolean;
+  teacherEmail?: string;
+  teacherPhone?: string;
+  onSendApprovedReport?: (visitId: string, message: string) => Promise<void>;
+  canSendTeacherNotes?: boolean;
+  onSendTeacherNotes?: (visitId: string, notes: string) => Promise<void>;
+  onLogWhatsAppOpen?: (visitId: string, messageType: string) => Promise<void>;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -43,16 +55,72 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
   platformSettings,
   onClose,
   language = 'ar',
-  canDelete = false,
-  onDeleteReport
+  canArchive = false,
+  onArchiveReport,
+  canManageStatus = false,
+  onUnapproveReport,
+  onRestoreReport,
+  canSendApprovedReport = false,
+  teacherEmail = '',
+  teacherPhone = '',
+  onSendApprovedReport,
+  canSendTeacherNotes = false,
+  onSendTeacherNotes,
+  onLogWhatsAppOpen
 }) => {
   if (!visit) return null;
+  const activeVisit = visit;
+  const activeVisitId = activeVisit.id;
 
   const t = translations[language];
   const isEn = language === 'en';
 
   const handlePrint = () => {
     window.print();
+  };
+
+  const getWhatsAppNumber = () => {
+    let number = String(teacherPhone || '').replace(/\D/g, '');
+    if (number.startsWith('00')) number = number.slice(2);
+    if (number.startsWith('0')) number = '971' + number.slice(1);
+    else if (number.startsWith('5') && number.length === 9) number = '971' + number;
+    return number;
+  };
+
+  const openTeacherWhatsApp = (message: string) => {
+    const number = getWhatsAppNumber();
+    if (!number || number.length < 10) {
+      alert(isEn ? 'No valid WhatsApp number is registered for this teacher.' : 'لا يوجد رقم هاتف صحيح مسجل لهذا المعلم. أضف رقم الهاتف في ملف المعلم أولاً.');
+      return;
+    }
+    const extraMessage = window.prompt(isEn ? 'Optional additional message (leave blank to skip):' : 'رسالة إضافية اختيارية (اتركها فارغة للتخطي):', '');
+    if (extraMessage === null) return;
+    const finalMessage = extraMessage.trim() ? message + '\n\n' + (isEn ? 'Additional message:' : 'رسالة إضافية:') + '\n' + extraMessage.trim() : message;
+    const preview = (isEn ? 'Review the message below. WhatsApp will open; you must press Send there.\n\n' : 'معاينة الرسالة قبل فتح واتساب. ستحتاج إلى الضغط على إرسال داخل واتساب بنفسك.\n\n') + finalMessage;
+    if (!confirm(preview)) return;
+    const opened = window.open('https://wa.me/' + number + '?text=' + encodeURIComponent(finalMessage), '_blank', 'noopener,noreferrer');
+    if (opened && onLogWhatsAppOpen) {
+      void onLogWhatsAppOpen(visit.id, message.indexOf('تقرير الزيارة الصفية') >= 0 ? 'تقرير كامل' : 'ملاحظات مختارة').catch((error) => console.error('WhatsApp open logging failed:', error));
+    }
+  };
+
+  const buildVisitWhatsAppMessage = () => {
+    const lines = [
+      'السلام عليكم أستاذ/ ' + visit.teacherName,
+      'تقرير الزيارة الصفية – منظومة أَثَر',
+      'المدرسة: ' + platformSettings.schoolName,
+      'المادة: ' + visit.subject + ' | الصف والشعبة: ' + visit.grade + ' / ' + visit.section,
+      'تاريخ الزيارة: ' + visit.date,
+      'المقيم: ' + visit.evaluatorName,
+      'نسبة الإنجاز: ' + visit.achievementPercentage + '%',
+      '',
+      'مؤشرات الزيارة:'
+    ];
+    (visit.indicators || []).forEach((item) => lines.push('• ' + item.indicatorText + ' — ' + item.rating + (item.notes ? ' | ' + item.notes : '')));
+    lines.push('', 'جوانب التميز:', ...(visit.strengths || []).map((item) => '• ' + item));
+    lines.push('', 'فرص التحسين:', ...(visit.improvementAreas || []).map((item) => '• ' + item));
+    lines.push('', 'التوصيات:', visit.practicalRecommendations || '—', '', 'مع خالص التقدير،', 'منظومة أَثَر');
+    return lines.join('\n');
   };
 
   // Group indicators for clean report presentation
@@ -149,6 +217,32 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             </h3>
           </div>
           <div className="flex items-center gap-2">
+            {canSendTeacherNotes && (
+              <>
+                <button
+                  onClick={() => openTeacherWhatsApp(buildVisitWhatsAppMessage())}
+                  disabled={!teacherPhone}
+                  className="px-3 py-1.5 bg-[#25D366] text-white rounded-lg font-bold text-xs hover:bg-[#1fb85a] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  title={teacherPhone || (isEn ? 'Teacher phone is missing' : 'رقم هاتف المعلم غير مسجل')}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{isEn ? 'Share report on WhatsApp' : 'إرسال التقرير عبر واتساب'}</span>
+                </button>
+                <button
+                  onClick={() => {
+                    const notes = window.prompt(isEn ? 'Write the visit notes to send:' : 'اكتب الملاحظات التي تريد إرسالها إلى المعلم:');
+                    if (notes === null || !notes.trim()) return;
+                    openTeacherWhatsApp('السلام عليكم أستاذ/ ' + visit.teacherName + '\nملاحظات الزيارة الصفية – ' + visit.date + '\n\n' + notes.trim() + '\n\nمع خالص التقدير،\n' + visit.evaluatorName + '\nمنظومة أَثَر');
+                  }}
+                  disabled={!teacherPhone}
+                  className="px-3 py-1.5 bg-[#128C7E] text-white rounded-lg font-bold text-xs hover:bg-[#0e796d] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                  title={teacherPhone || (isEn ? 'Teacher phone is missing' : 'رقم هاتف المعلم غير مسجل')}
+                >
+                  <MessageCircle className="w-4 h-4" />
+                  <span>{isEn ? 'Send selected notes' : 'إرسال ملاحظات عبر واتساب'}</span>
+                </button>
+              </>
+            )}
             <button
               onClick={handlePrint}
               className="px-4 py-1.5 bg-[#C6A66A] text-[#172C40] rounded-lg font-bold text-xs hover:bg-[#b5955a] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
@@ -156,19 +250,75 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <Printer className="w-4 h-4" />
               <span>{t.visitReportModal.printBtn}</span>
             </button>
-            {canDelete && onDeleteReport && (
+            {canManageStatus && activeVisit.status === 'archived' && onRestoreReport && (
+              <button onClick={() => { if (confirm(isEn ? 'Restore this report from archive?' : 'هل تريد استعادة هذا التقرير من الأرشيف؟')) { onRestoreReport(activeVisitId); onClose(); } }} className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Restore report' : 'استعادة من الأرشيف'}</span></button>
+            )}
+            {false && canSendApprovedReport && activeVisit.status === 'approved' && onSendApprovedReport && (
               <button
                 onClick={() => {
-                  if (confirm(isEn ? 'Are you sure you want to delete this report permanently?' : 'هل أنت متأكد من رغبتك في حذف هذا التقرير نهائياً؟')) {
-                    onDeleteReport(visit.id);
+                  if (!teacherEmail || !/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(teacherEmail)) {
+                    alert(isEn ? 'No valid teacher email is registered.' : 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.');
+                    return;
+                  }
+                  const note = window.prompt(
+                    isEn ? 'Optional message to include with the approved report:' : 'أضف رسالة تربوية اختيارية تظهر في البريد المرسل مع التقرير:',
+                    ''
+                  );
+                  if (note === null) return;
+                  const confirmed = confirm(
+                    (isEn ? 'Send the approved PDF report to ' : 'تأكيد إرسال تقرير الزيارة المعتمد إلى ') +
+                    teacherEmail + (isEn ? '?' : '؟')
+                  );
+                  if (confirmed) void onSendApprovedReport?.(activeVisitId, note.trim());
+                }}
+                disabled={!teacherEmail}
+                className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                title={teacherEmail || (isEn ? 'Teacher email is missing' : 'البريد الإلكتروني للمعلم غير مسجل')}
+              >
+                <span>{isEn ? 'Send to teacher' : 'إرسال التقرير للمعلم'}</span>
+              </button>
+            )}
+            {false && canSendTeacherNotes && onSendTeacherNotes && (
+              <button
+                onClick={() => {
+                  if (!teacherEmail || !/^[^\\s@]+@[^\\s@]+\\.[^\\s@]+$/.test(teacherEmail)) {
+                    alert(isEn ? 'No valid teacher email is registered.' : 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.');
+                    return;
+                  }
+                  const notes = window.prompt(
+                    isEn ? 'Write the specific visit notes you want to send to the teacher:' : 'اكتب الملاحظات المحددة التي تريد إرسالها إلى المعلم:',
+                    ''
+                  );
+                  if (notes === null || !notes.trim()) return;
+                  const confirmed = confirm(
+                    (isEn ? 'Send these notes to ' : 'تأكيد إرسال هذه الملاحظات إلى ') +
+                    teacherEmail + (isEn ? '?' : '؟')
+                  );
+                  if (confirmed) void onSendTeacherNotes?.(activeVisitId, notes.trim());
+                }}
+                disabled={!teacherEmail}
+                className="px-3 py-1.5 bg-[#172C40] text-white rounded-lg font-bold text-xs hover:bg-[#101F2D] disabled:opacity-50 disabled:cursor-not-allowed flex items-center gap-1.5"
+                title={teacherEmail || (isEn ? 'Teacher email is missing' : 'البريد الإلكتروني للمعلم غير مسجل')}
+              >
+                <span>{isEn ? 'Send selected notes' : 'إرسال ملاحظات للمعلم'}</span>
+              </button>
+            )}
+            {canManageStatus && activeVisit.status === 'approved' && onUnapproveReport && (
+              <button onClick={() => { if (confirm(isEn ? 'Remove approval and return this report for review?' : 'هل تريد إلغاء اعتماد التقرير وإعادته للمراجعة؟')) { onUnapproveReport(visit.id); onClose(); } }} className="px-3 py-1.5 bg-amber-500 text-[#172C40] rounded-lg font-bold text-xs hover:bg-amber-400 flex items-center gap-1.5"><Undo2 className="w-3.5 h-3.5"/><span>{isEn ? 'Unapprove' : 'إلغاء الاعتماد'}</span></button>
+            )}
+            {canArchive && visit.status !== 'archived' && onArchiveReport && (
+              <button
+                onClick={() => {
+                  if (confirm(isEn ? 'Archive this report? It will remain in the historical record.' : 'هل تريد أرشفة هذا التقرير؟ سيظل محفوظًا في السجل التاريخي.')) {
+                    onArchiveReport(visit.id);
                     onClose();
                   }
                 }}
-                className="px-3 py-1.5 bg-rose-600/90 text-white rounded-lg font-bold text-xs hover:bg-rose-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs border border-rose-400/40"
-                title={isEn ? 'Delete Report' : 'حذف التقرير'}
+                className="px-3 py-1.5 bg-[#668575] text-white rounded-lg font-bold text-xs hover:bg-[#557363] transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs"
+                title={isEn ? 'Archive Report' : 'أرشفة التقرير'}
               >
-                <Trash2 className="w-3.5 h-3.5" />
-                <span>{isEn ? 'Delete Report' : 'حذف التقرير'}</span>
+                <Archive className="w-3.5 h-3.5" />
+                <span>{isEn ? 'Archive Report' : 'أرشفة التقرير'}</span>
               </button>
             )}
             <button
@@ -393,10 +543,15 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                           {translateIndicatorText(ind.indicatorId, ind.indicatorText, language)}
                         </td>
                         <td className="p-2 border border-slate-300 text-center font-bold">
-                          {ind.rating === 'yes' && <span className="text-emerald-700">{t.ratings.yes}</span>}
-                          {ind.rating === 'needs_improvement' && <span className="text-amber-700">{t.ratings.needs_improvement}</span>}
-                          {ind.rating === 'no' && <span className="text-rose-700">{t.ratings.no}</span>}
-                          {ind.rating === 'not_observed' && <span className="text-slate-400">{t.ratings.not_observed}</span>}
+                          {ind.rating === 'outstanding' && <span className="text-emerald-800">ممتاز</span>}
+                          {ind.rating === 'very_good' && <span className="text-emerald-700">جيد جداً</span>}
+                          {ind.rating === 'good' && <span className="text-sky-700">جيد</span>}
+                          {ind.rating === 'acceptable' && <span className="text-amber-700">مقبول</span>}
+                          {ind.rating === 'weak' && <span className="text-rose-700">ضعيف</span>}
+                          {ind.rating === 'not_observed' && <span className="text-slate-400">لم يُشاهد</span>}
+                          {ind.rating === 'yes' && <span className="text-emerald-700">ممتاز</span>}
+                          {ind.rating === 'needs_improvement' && <span className="text-amber-700">مقبول</span>}
+                          {ind.rating === 'no' && <span className="text-rose-700">ضعيف</span>}
                         </td>
                         <td className="p-2 border border-slate-300 text-slate-600">
                           {ind.notes || '—'}
@@ -487,31 +642,21 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             </div>
           )}
 
-          {/* Official Signatures Strip with Multi-Visitors Support */}
+          {/* Official evaluator signatures and school approval */}
           <div className="pt-8 border-t border-slate-300 grid grid-cols-1 sm:grid-cols-3 gap-6 text-center text-xs print:pt-12">
             <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.evaluatorSig}:</span>
-              <div className="space-y-1 border-t border-slate-300 pt-1">
-                {visit.visitors && visit.visitors.length > 0 ? (
-                  visit.visitors.map((v, i) => (
-                    <div key={i} className="font-bold text-[#172C40]">
-                      {v.name} ({v.roleTitle || AtharStorageService.getVisitorRoleLabel(v.role, language)})
-                    </div>
-                  ))
-                ) : (
-                  <div className="font-bold text-[#172C40]">{visit.evaluatorName}</div>
-                )}
-              </div>
+              <span className="text-slate-500 block mb-6">{isEn ? 'Visitor / Evaluator Signature:' : 'توقيع الزائر / المقيّم:'}</span>
+              <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">{visit.evaluatorName}</div>
             </div>
             <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.teacherSig}:</span>
-              <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">{visit.teacherName}</div>
-            </div>
-            <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.principalSig}:</span>
+              <span className="text-slate-500 block mb-6">{isEn ? 'Visitor / Evaluator Signature:' : 'توقيع الزائر / المقيّم:'}</span>
               <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">
-                {platformSettings.principalName || (isEn ? 'School Leadership' : 'إدارة مدرسة الصدارة')}
+                {visit.visitors?.find(v => v.id !== visit.visitors?.[0]?.id)?.name || visit.evaluatorName}
               </div>
+            </div>
+            <div>
+              <span className="text-slate-500 block mb-6">{isEn ? 'School Approval:' : 'اعتماد إدارة مدرسة الصدارة'}</span>
+              <div className="min-h-7 border-t border-slate-300 pt-1" aria-label={isEn ? 'School approval area' : 'مساحة اعتماد إدارة المدرسة'}></div>
             </div>
           </div>
 
