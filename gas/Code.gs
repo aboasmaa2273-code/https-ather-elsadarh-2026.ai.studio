@@ -1488,7 +1488,7 @@ function dispatchApiAction_(action, payload, session) {
     if (!targetAccount || normalizeAtharRole_(targetAccount.role) !== 'evaluator') return { success: false, error: 'لم يتم العثور على حساب مقيم أو زائر بهذا الاسم.' };
     var statusResult = setUserStatus_({ id: targetAccount.id, status: requestedStatus }, session);
     if (!statusResult.success) return statusResult;
-    var directorySheetForStatus = ss.getSheetByName('RegisteredVisitors');
+    var directorySheetForStatus = ensureRegisteredVisitorsSheet_();
     if (directorySheetForStatus && directorySheetForStatus.getLastRow() > 1) {
       var directoryDataForStatus = directorySheetForStatus.getDataRange().getValues();
       var directoryHeadersForStatus = directoryDataForStatus[0].map(String);
