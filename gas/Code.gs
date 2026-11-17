@@ -603,6 +603,11 @@ function logAuditAction_(schoolId, userName, action, details, userRole) {
   }
 }
 
+// Backward-compatible public name used by existing API actions.
+function logAuditAction(schoolId, userName, action, details, userRole) {
+  return logAuditAction_(schoolId, userName, action, details, userRole);
+}
+
 
 // ====================================================
 // 8. واجهة API مركزية للمنصة الخارجية (React)
