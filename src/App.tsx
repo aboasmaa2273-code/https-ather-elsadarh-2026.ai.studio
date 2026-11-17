@@ -97,15 +97,6 @@ export default function App() {
     }
   };
 
-  // Login handler
-  const handleSelectRoleToLogin = (user: User) => {
-    handleUserChange(user);
-    setIsLoggedIn(true);
-    setIsLoginModalOpen(false);
-    setActiveTab('dashboard');
-    void refreshAllData().catch((error) => alert(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنصة.'));
-  };
-
   // Logout handler
   const handleLogout = () => {
     clearAtharRemoteSession();
