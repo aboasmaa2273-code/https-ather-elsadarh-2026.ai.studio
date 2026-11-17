@@ -1,6 +1,5 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { AtharStorageService } from '../services/storageService';
 import { atharRemoteLogin } from '../services/gasBridgeClient';
 import { 
   Shield, 
@@ -63,7 +62,6 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         const remote = await atharRemoteLogin(username, password);
         if (remote.success && remote.user) {
           const user = remote.user as User;
-          AtharStorageService.setCurrentUser(user);
           onLoginSuccess(user);
           onClose();
         } else {
