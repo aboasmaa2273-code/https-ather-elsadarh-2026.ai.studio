@@ -1447,6 +1447,10 @@ function updateUserCredentials_(payload, session) {
   }
   if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود في المدرسة المرتبطة بك.' };
   var row = data[rowIndex - 1];
+  var targetRole = String(row[roleCol] || '');
+  if (!isSelf && session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
+    return { success: false, error: 'لا يمكن لإدارة المدرسة تعديل بيانات حساب مسؤول المنصة أو مسؤول المدرسة.' };
+  }
   var name = String(payload.name || '').trim();
   var username = String(payload.username || '').trim().toLowerCase();
   var password = String(payload.password || '');
