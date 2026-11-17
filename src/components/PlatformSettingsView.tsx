@@ -1380,7 +1380,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           onClose={() => setSelectedUserForCredentials(null)}
           currentUser={selectedUserForCredentials}
           onUserUpdated={(updated) => {
-            setAllUsersList(AtharStorageService.getAllUsers());
+            void refreshCentralUsers().catch((error) => showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث قائمة الحسابات.'));
             setSelectedUserForCredentials(null);
             showFeedback('success', isEn ? `Credentials updated for ${updated.name}` : `تم تحديث اسم المستخدم وكلمة المرور للمستخدم: ${updated.name}`);
             onRefreshSettings();
