@@ -110,6 +110,7 @@ export default function App() {
   const handleLogout = () => {
     clearAtharRemoteSession();
     setIsLoggedIn(false);
+    setCurrentUser(DEFAULT_USERS[0]);
     setTeachers([]);
     setVisits([]);
     setPlans([]);
