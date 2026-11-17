@@ -12,7 +12,8 @@ import {
   StudentGender,
   VisitVisitor,
   VisitorRole,
-  RegisteredVisitor
+  RegisteredVisitor,
+  normalizeUserRole
 } from '../types';
 import { OFFICIAL_INDICATORS, GENERAL_DOMAINS, POTENTIAL_VISIT_GOALS, PRESET_RECOMMENDATION_BANKS } from '../data/defaultData';
 import { AtharStorageService } from '../services/storageService';
@@ -122,7 +123,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     editingVisit?.studentGender || 'boys'
   );
 
-  const canManageVisitAccounts = ['platform_admin', 'school_admin'].includes(currentUser.role);
+  const canManageVisitAccounts = ['platform_admin', 'school_admin'].includes(normalizeUserRole(currentUser.role) || '');
   const activeRegisteredVisitors = registeredVisitors.filter(visitor => visitor.status !== 'inactive');
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [accountName, setAccountName] = useState('');
