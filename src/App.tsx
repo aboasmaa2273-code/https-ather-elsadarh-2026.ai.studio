@@ -288,7 +288,7 @@ export default function App() {
           platformSettings={platformSettings}
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
-          canDelete={currentUser.role !== 'teacher'}
+          canDelete={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
           onDeleteReport={(visitId) => {
             void changeVisitStatusCentral(visitId, 'archived')
               .then(() => refreshAllData())
