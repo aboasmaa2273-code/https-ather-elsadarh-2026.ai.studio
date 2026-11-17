@@ -212,7 +212,10 @@ export async function atharRemoteBootstrap() {
   if (!result.success) throw new Error(result.error || 'تعذر تحميل بيانات قاعدة البيانات.');
   return result;
 }
-export function clearAtharRemoteSession() { localStorage.removeItem(GAS_TOKEN_KEY); }
+export function clearAtharRemoteSession() {
+  localStorage.removeItem(GAS_TOKEN_KEY);
+  atharGasBridge.dispose();
+}
 
 export async function atharRemoteAction(action: string, payload: Record<string, unknown>) {
   if (!configureAtharBridge()) throw new Error('رابط قاعدة البيانات غير مضبوط.');
