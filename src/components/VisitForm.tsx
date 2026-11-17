@@ -200,7 +200,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
         return updated;
       });
     }
-  }, [currentUser, editingVisit, activeRegisteredVisitors]);
+  }, [currentUser, editingVisit, registeredVisitors]);
 
   // Handle total / attended changes with auto-calc of absentees
   const handleTotalStudentsChange = (val: string) => {
