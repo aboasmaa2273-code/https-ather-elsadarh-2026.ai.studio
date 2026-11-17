@@ -1,7 +1,7 @@
 export type RoleLike = { role?: string | null };
 
 export function normalizeRole(role: unknown): string {
-  const raw = String(role ?? '').trim().toLowerCase().replace(/[\\s-]+/g, '_');
+  const raw = String(role ?? '').trim().toLowerCase().replace(/[\s-]+/g, '_');
   const aliases: Record<string, string> = {
     admin: 'platform_admin', platformadmin: 'platform_admin', system_admin: 'platform_admin',
     'مسؤول_المنصة': 'platform_admin', 'مسؤول_النظام': 'platform_admin', 'مدير_المنصة': 'platform_admin',
