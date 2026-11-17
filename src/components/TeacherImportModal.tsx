@@ -73,6 +73,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
       return;
     }
 
+    const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
     const rows: any[] = [];
     const errors: string[] = [];
     const existingTeachers = teachers;
@@ -83,7 +84,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
       const line = lines[i].trim();
       if (!line) continue;
 
-      const parts = line.split(',').map(p => p.trim());
+      const parts = line.split(delimiter).map(p => p.trim().replace(/^\"|\"$/g, ''));
       const fullName = parts[0] || '';
       const jobNumber = parts[1] || '';
       const specialization = parts[2] || '';
