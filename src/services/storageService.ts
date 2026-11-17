@@ -888,13 +888,11 @@ export class AtharStorageService {
   }
 
   static canEditVisit(user: User, visit?: ClassroomVisit): boolean {
-    if (!user || user.role === 'teacher') return false; // Teachers can NEVER edit visits
-    if (['school_admin', 'platform_admin'].includes(user.role)) return true;
-    if (user.role === 'vice_principal') return true;
+    if (!user || user.role === 'teacher') return false;
+    if (['school_admin', 'platform_admin', 'vice_principal'].includes(user.role)) return true;
     if (user.role === 'evaluator') {
-      if (!visit) return true;
-      // Evaluator can edit their own visit or draft visit
-      return visit.evaluatorId === user.id || visit.evaluatorName === user.name || visit.status === 'draft' || ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+      // The central API authorizes evaluators to edit only their own visits.
+      return !visit || visit.evaluatorId === user.id;
     }
     return false;
   }
