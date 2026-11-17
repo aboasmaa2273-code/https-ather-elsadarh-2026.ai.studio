@@ -145,6 +145,7 @@ export interface RegisteredVisitor {
   isCustom?: boolean;
   username?: string;
   password?: string;
+  status?: 'active' | 'inactive';
 }
 
 export interface ClassroomVisit {

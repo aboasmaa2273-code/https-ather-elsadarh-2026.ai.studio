@@ -223,6 +223,7 @@ export default function App() {
               setActiveTab('visits');
             }}
             onCancel={() => setActiveTab('visits')}
+            onRefreshData={refreshAllData}
             language={language}
           />
         )}

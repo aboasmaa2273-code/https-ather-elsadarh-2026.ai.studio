@@ -17,6 +17,7 @@ import {
 import { OFFICIAL_INDICATORS, GENERAL_DOMAINS, POTENTIAL_VISIT_GOALS, PRESET_RECOMMENDATION_BANKS } from '../data/defaultData';
 import { AtharStorageService } from '../services/storageService';
 import { saveVisitCentral } from '../services/centralDataService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   Save, 
   CheckCircle2, 
@@ -54,6 +55,7 @@ interface VisitFormProps {
   editingVisit?: ClassroomVisit | null;
   onSaveSuccess: (savedVisit: ClassroomVisit) => void;
   onCancel: () => void;
+  onRefreshData: () => Promise<void>;
   language?: Language;
 }
 
@@ -65,6 +67,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   editingVisit,
   onSaveSuccess,
   onCancel,
+  onRefreshData,
   language = 'ar'
 }) => {
   const t = translations[language];
@@ -119,12 +122,22 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     editingVisit?.studentGender || 'boys'
   );
 
+  const canManageVisitAccounts = ['platform_admin', 'school_admin'].includes(currentUser.role);
+  const activeRegisteredVisitors = registeredVisitors.filter(visitor => visitor.status !== 'inactive');
+  const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
+  const [accountName, setAccountName] = useState('');
+  const [accountUsername, setAccountUsername] = useState('');
+  const [accountPassword, setAccountPassword] = useState('');
+  const [accountType, setAccountType] = useState<'evaluator' | 'visitor'>('evaluator');
+  const [accountError, setAccountError] = useState('');
+  const [isCreatingAccount, setIsCreatingAccount] = useState(false);
+
   // Visitors & Multiple Observers (تعدد الزائرين)
   const [visitors, setVisitors] = useState<VisitVisitor[]>(() => {
     if (editingVisit?.visitors && editingVisit.visitors.length > 0) {
       return editingVisit.visitors;
     }
-    const registeredList = registeredVisitors;
+    const registeredList = activeRegisteredVisitors;
     const matched = registeredList.find(
       rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
     );
@@ -156,7 +169,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   useEffect(() => {
     if (!editingVisit && currentUser?.name) {
       setVisitors(prev => {
-        const registeredList = registeredVisitors;
+        const registeredList = activeRegisteredVisitors;
         const matched = registeredList.find(
           rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
         );
@@ -187,7 +200,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
         return updated;
       });
     }
-  }, [currentUser, editingVisit]);
+  }, [currentUser, editingVisit, registeredVisitors]);
 
   // Handle total / attended changes with auto-calc of absentees
   const handleTotalStudentsChange = (val: string) => {
@@ -212,6 +225,52 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     const num = val === '' ? '' : Math.max(0, parseInt(val, 10) || 0);
     setAbsentStudents(num);
     triggerAutoSave();
+  };
+
+  const handleToggleVisitAccount = async (visitor: RegisteredVisitor) => {
+    if (!visitor.username) return;
+    const nextStatus = visitor.status === 'inactive' ? 'active' : 'inactive';
+    const prompt = nextStatus === 'inactive'
+      ? (isEn ? 'Deactivate this login account? Previous visit reports will remain.' : 'هل تريد تعطيل حساب الدخول؟ ستبقى تقارير الزيارات السابقة محفوظة.')
+      : (isEn ? 'Reactivate this login account?' : 'هل تريد إعادة تفعيل حساب الدخول؟');
+    if (!window.confirm(prompt)) return;
+    try {
+      const result: any = await atharRemoteAction('setVisitAccountStatus', { username: visitor.username, status: nextStatus });
+      if (!result || result.success !== true) throw new Error(result?.error || 'تعذر تحديث حالة الحساب.');
+      await onRefreshData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر تحديث حالة الحساب.');
+    }
+  };
+
+  const handleCreateVisitAccount = async (e: React.FormEvent) => {
+    e.preventDefault();
+    setAccountError('');
+    if (!accountName.trim() || !accountUsername.trim() || accountPassword.length < 10) {
+      setAccountError(isEn ? 'Enter the full name, username, and a password of at least 10 characters.' : 'أدخل الاسم الكامل واسم المستخدم وكلمة مرور لا تقل عن 10 أحرف.');
+      return;
+    }
+    setIsCreatingAccount(true);
+    try {
+      const result: any = await atharRemoteAction('createVisitAccount', {
+        name: accountName.trim(),
+        username: accountUsername.trim().toLowerCase(),
+        password: accountPassword,
+        accountType: accountType
+      });
+      if (!result || result.success !== true) throw new Error(result?.error || 'تعذر إنشاء الحساب.');
+      setIsAccountModalOpen(false);
+      setAccountName('');
+      setAccountUsername('');
+      setAccountPassword('');
+      setAccountType('evaluator');
+      await onRefreshData();
+      alert(isEn ? 'Account created successfully. Share the username and initial password securely with its owner.' : 'تم إنشاء الحساب بنجاح. سلّم اسم المستخدم وكلمة المرور الأولية لصاحب الحساب بطريقة آمنة.');
+    } catch (error) {
+      setAccountError(error instanceof Error ? error.message : 'تعذر إنشاء الحساب.');
+    } finally {
+      setIsCreatingAccount(false);
+    }
   };
 
   // Add / remove / update visitors
@@ -996,14 +1055,27 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                 </div>
               </div>
 
-              <button
-                type="button"
-                onClick={handleAddVisitor}
-                className="px-3 py-1.5 bg-[#172C40] text-white hover:bg-[#101F2D] rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors self-start sm:self-auto"
-              >
-                <UserPlus className="w-3.5 h-3.5 text-[#C6A66A]" />
-                <span>{t.visitorsSection.addVisitor}</span>
-              </button>
+              <div className="flex flex-wrap items-center gap-2">
+                {canManageVisitAccounts && (
+                  <button
+                    type="button"
+                    onClick={() => { setAccountError(''); setIsAccountModalOpen(true); }}
+                    className="px-3 py-1.5 bg-white text-[#172C40] border border-[#C6A66A] hover:bg-[#F2EBDD] rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer transition-colors"
+                    title={isEn ? 'Create a login account for an evaluator or visitor' : 'إضافة حساب دخول لمقيم أو زائر جديد'}
+                  >
+                    <UserPlus className="w-3.5 h-3.5 text-[#C6A66A]" />
+                    <span>{isEn ? 'Add evaluator / visitor account' : 'إضافة حساب مقيم / زائر'}</span>
+                  </button>
+                )}
+                <button
+                  type="button"
+                  onClick={handleAddVisitor}
+                  className="px-3 py-1.5 bg-[#172C40] text-white hover:bg-[#101F2D] rounded-lg font-bold text-xs flex items-center gap-1.5 cursor-pointer shadow-xs transition-colors self-start sm:self-auto"
+                >
+                  <UserPlus className="w-3.5 h-3.5 text-[#C6A66A]" />
+                  <span>{t.visitorsSection.addVisitor}</span>
+                </button>
+              </div>
             </div>
 
             {/* List of visitors */}
@@ -1041,12 +1113,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         )}
                       </div>
 
-                      {registeredVisitors.length > 0 && (
+                      {activeRegisteredVisitors.length > 0 && (
                         <div className="flex items-center justify-between text-[10px] text-slate-500">
                           <span>{t.visitorsManagement.quickPick}:</span>
                           <select
                             onChange={(e) => {
-                              const found = registeredVisitors.find(rv => rv.id === e.target.value);
+                              const found = activeRegisteredVisitors.find(rv => rv.id === e.target.value);
                               if (found) {
                                 handleVisitorChange(visitor.id, 'name', found.name);
                                 handleVisitorChange(visitor.id, 'role', found.role);
@@ -1056,9 +1128,9 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                             className="bg-[#F2EBDD]/60 border border-[#C6A66A]/50 rounded px-1.5 py-0.5 text-[10px] font-bold text-[#172C40] focus:outline-none"
                           >
                             <option value="">{isEn ? '-- Select from directory --' : '-- اختيار من الدليل المعتمد --'}</option>
-                            {registeredVisitors.map(rv => (
+                            {activeRegisteredVisitors.map(rv => (
                               <option key={rv.id} value={rv.id}>
-                                {rv.name} ({isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role)})
+                                {rv.name} ({rv.roleTitle || (isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role))})
                               </option>
                             ))}
                           </select>
@@ -1994,6 +2066,65 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                 <span>{isEn ? 'Complete Visit & Issue Official Report' : 'حفظ وإنهاء الزيارة وإصدار التقرير'}</span>
               </button>
             </div>
+          </div>
+        </div>
+      )}
+      {isAccountModalOpen && canManageVisitAccounts && (
+        <div className="fixed inset-0 z-[70] bg-[#172C40]/60 backdrop-blur-xs flex items-center justify-center p-4">
+          <div className="bg-white rounded-2xl border border-slate-200 max-w-lg w-full shadow-2xl overflow-hidden" dir={isEn ? 'ltr' : 'rtl'}>
+            <div className="p-4 bg-[#172C40] text-white flex items-center justify-between">
+              <h3 className="font-bold text-sm">{isEn ? 'Create evaluator / visitor login' : 'إنشاء حساب دخول لمقيم أو زائر'}</h3>
+              <button type="button" onClick={() => setIsAccountModalOpen(false)} className="p-1 rounded hover:bg-white/10" aria-label={isEn ? 'Close' : 'إغلاق'}>×</button>
+            </div>
+            <form onSubmit={handleCreateVisitAccount} className="p-5 space-y-3 text-xs">
+              <p className="text-slate-600 leading-6">{isEn ? 'The new account owner will sign in and use this same classroom visit form. The existing visit fields and design are unchanged.' : 'سيستخدم صاحب الحساب الجديد صفحة الزيارة الصفية نفسها والبيانات نفسها بعد تسجيل الدخول، دون إنشاء نموذج زيارة منفصل.'}</p>
+              {accountError && <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 rounded-lg">{accountError}</div>}
+              <div>
+                <label className="block font-bold mb-1 text-[#172C40]">{isEn ? 'Account type' : 'نوع الحساب'}</label>
+                <select value={accountType} onChange={e => setAccountType(e.target.value as 'evaluator' | 'visitor')} className="w-full p-2.5 border border-slate-300 rounded-lg bg-white">
+                  <option value="evaluator">{isEn ? 'Evaluator' : 'مقيم'}</option>
+                  <option value="visitor">{isEn ? 'Visitor' : 'زائر'}</option>
+                </select>
+              </div>
+              <div>
+                <label className="block font-bold mb-1 text-[#172C40]">{isEn ? 'Full name' : 'الاسم الكامل'}</label>
+                <input required value={accountName} onChange={e => setAccountName(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg" autoComplete="off" />
+              </div>
+              <div>
+                <label className="block font-bold mb-1 text-[#172C40]">{isEn ? 'Username' : 'اسم المستخدم'}</label>
+                <input required value={accountUsername} onChange={e => setAccountUsername(e.target.value)} pattern="[A-Za-z0-9._-]{3,40}" className="w-full p-2.5 border border-slate-300 rounded-lg" autoComplete="off" dir="ltr" />
+                <p className="text-[10px] text-slate-500 mt-1">{isEn ? '3–40 English letters, numbers, dot, underscore or hyphen.' : 'من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا أو نقطة أو شرطة.'}</p>
+              </div>
+              <div>
+                <label className="block font-bold mb-1 text-[#172C40]">{isEn ? 'Initial password' : 'كلمة المرور الأولية'}</label>
+                <input required type="password" minLength={10} value={accountPassword} onChange={e => setAccountPassword(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg" autoComplete="new-password" dir="ltr" />
+                <p className="text-[10px] text-slate-500 mt-1">{isEn ? 'At least 10 characters. The password is stored as a salted hash on the server.' : '10 أحرف على الأقل. تُحفظ كلمة المرور في الخادم بصيغة تجزئة مملحة، ولا تُعرض في سجل الحسابات.'}</p>
+              </div>
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <h4 className="font-bold text-[#172C40]">{isEn ? 'Existing evaluator / visitor accounts' : 'حسابات المقيمين والزائرين الحالية'}</h4>
+                {registeredVisitors.filter(item => item.username).length === 0 ? (
+                  <p className="text-slate-500">{isEn ? 'No linked accounts in the directory yet.' : 'لا توجد حسابات مرتبطة بالدليل حتى الآن.'}</p>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                    {registeredVisitors.filter(item => item.username).map(item => (
+                      <div key={item.id} className="flex items-center justify-between gap-3 p-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-[#172C40] truncate">{item.name}</p>
+                          <p className="text-[10px] text-slate-500" dir="ltr">{item.username} · {item.roleTitle || (isEn ? 'Evaluator' : 'مقيم')}</p>
+                        </div>
+                        <button type="button" onClick={() => void handleToggleVisitAccount(item)} className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold ${item.status === 'inactive' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                          {item.status === 'inactive' ? (isEn ? 'Reactivate' : 'إعادة تفعيل') : (isEn ? 'Deactivate' : 'تعطيل')}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
+              </div>
+              <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
+                <button type="button" onClick={() => setIsAccountModalOpen(false)} className="px-4 py-2 border border-slate-300 rounded-lg">{isEn ? 'Cancel' : 'إلغاء'}</button>
+                <button type="submit" disabled={isCreatingAccount} className="px-5 py-2 bg-[#172C40] text-white rounded-lg font-bold disabled:opacity-50">{isCreatingAccount ? (isEn ? 'Creating...' : 'جارٍ الإنشاء...') : (isEn ? 'Create account' : 'إنشاء الحساب')}</button>
+              </div>
+            </form>
           </div>
         </div>
       )}

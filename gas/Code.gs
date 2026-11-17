@@ -898,6 +898,16 @@ function validateSession_(token) {
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
     user.role = normalizeAtharRole_(user.role);
     if (allowed.indexOf(user.role) < 0 || !user.id || !user.schoolId) return null;
+    // Re-check the live account on every request so deactivation takes effect
+    // immediately instead of leaving an otherwise valid signed token usable.
+    var liveUsersSheet = getDatabaseSpreadsheet_().getSheetByName('Users');
+    var liveUsers = rowsAsObjects_(liveUsersSheet);
+    var liveAccount = liveUsers.filter(function(account) {
+      return String(account.id || '') === String(user.id) &&
+        String(account.schoolId || '') === String(user.schoolId);
+    })[0];
+    if (!liveAccount || normalizeAtharStatus_(liveAccount.status) !== 'active') return null;
+    if (normalizeAtharRole_(liveAccount.role) !== user.role) return null;
     return user;
   } catch (e) {
     return null;
@@ -947,6 +957,21 @@ function ensureRegisteredVisitorsSheet_() {
     sheet.getRange(1, 1, 1, headers.length).setValues([headers]);
     sheet.setFrozenRows(1);
     sheet.getRange(1, 1, 1, headers.length).setBackground('#172C40').setFontColor('#FFFFFF').setFontWeight('bold');
+  } else {
+    // Backward-compatible additive migration: preserve all existing visitor rows
+    // and append the status column only when an older sheet does not have it.
+    var existingLastColumn = sheet.getLastColumn();
+    var existingHeaders = existingLastColumn > 0
+      ? sheet.getRange(1, 1, 1, existingLastColumn).getValues()[0].map(String)
+      : [];
+    if (existingHeaders.indexOf('status') < 0) {
+      var statusColumn = existingLastColumn + 1;
+      sheet.getRange(1, statusColumn).setValue('status');
+      sheet.getRange(1, statusColumn).setBackground('#172C40').setFontColor('#FFFFFF').setFontWeight('bold');
+      if (sheet.getLastRow() > 1) {
+        sheet.getRange(2, statusColumn, sheet.getLastRow() - 1, 1).setValue('active');
+      }
+    }
   }
   return sheet;
 }
@@ -1450,6 +1475,61 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة الحسابات مقتصرة على مسؤول المنصة أو إدارة المدرسة.' };
     return saveUserAccount_(payload, session);
   }
+  if (action === 'setVisitAccountStatus') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة حسابات المقيمين والزائرين مقتصرة على الإدارة.' };
+    var targetUsername = String(payload.username || '').trim().toLowerCase();
+    if (!targetUsername) return { success: false, error: 'اسم المستخدم مطلوب.' };
+    var requestedStatus = payload.status === 'active' ? 'active' : 'inactive';
+    var usersSheetForStatus = ss.getSheetByName('Users');
+    var accountRowsForStatus = rowsAsObjects_(usersSheetForStatus);
+    var targetAccount = accountRowsForStatus.filter(function(u) {
+      return String(u.schoolId) === String(schoolId) && String(u.username || '').trim().toLowerCase() === targetUsername;
+    })[0];
+    if (!targetAccount || normalizeAtharRole_(targetAccount.role) !== 'evaluator') return { success: false, error: 'لم يتم العثور على حساب مقيم أو زائر بهذا الاسم.' };
+    var statusResult = setUserStatus_({ id: targetAccount.id, status: requestedStatus }, session);
+    if (!statusResult.success) return statusResult;
+    var directorySheetForStatus = ensureRegisteredVisitorsSheet_();
+    if (directorySheetForStatus && directorySheetForStatus.getLastRow() > 1) {
+      var directoryDataForStatus = directorySheetForStatus.getDataRange().getValues();
+      var directoryHeadersForStatus = directoryDataForStatus[0].map(String);
+      var usernameIndexForStatus = directoryHeadersForStatus.indexOf('username');
+      var schoolIndexForStatus = directoryHeadersForStatus.indexOf('schoolId');
+      var directoryStatusIndexForStatus = directoryHeadersForStatus.indexOf('status');
+      for (var dsi = 1; dsi < directoryDataForStatus.length; dsi++) {
+        if (String(directoryDataForStatus[dsi][schoolIndexForStatus]) === String(schoolId) &&
+            String(directoryDataForStatus[dsi][usernameIndexForStatus] || '').trim().toLowerCase() === targetUsername &&
+            directoryStatusIndexForStatus >= 0) {
+          directorySheetForStatus.getRange(dsi + 1, directoryStatusIndexForStatus + 1).setValue(requestedStatus);
+        }
+      }
+    }
+    invalidatePublicEvaluatorCache_();
+    logAuditAction(schoolId, session.name, 'تغيير حالة حساب زيارة', 'الحساب ' + targetUsername + ' أصبح ' + requestedStatus, session.role);
+    return { success: true, username: targetUsername, status: requestedStatus };
+  }
+  if (action === 'createVisitAccount') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'إنشاء حسابات المقيمين والزائرين مقتصر على مسؤول المنصة أو إدارة المدرسة.' };
+    var accountType = payload.accountType === 'visitor' ? 'visitor' : 'evaluator';
+    var accountPayload = {
+      name: payload.name, username: payload.username, password: payload.password,
+      role: 'evaluator', status: 'active', schoolId: schoolId
+    };
+    var accountResult = saveUserAccount_(accountPayload, session);
+    if (!accountResult.success) return accountResult;
+    var directoryResult = saveVisitor_({
+      name: payload.name,
+      username: payload.username,
+      role: 'evaluator',
+      roleTitle: accountType === 'visitor' ? 'زائر' : 'مقيم',
+      status: 'active'
+    }, session);
+    if (!directoryResult.success) {
+      setUserStatus_({ id: accountResult.user.id, status: 'inactive' }, session);
+      return { success: false, error: 'تعذر إكمال إضافة الحساب إلى دليل الزيارة؛ تم تعطيل الحساب احترازيًا. راجع مسؤول النظام.' };
+    }
+    logAuditAction(schoolId, session.name, 'إنشاء حساب زيارة', 'تم إنشاء حساب ' + (accountType === 'visitor' ? 'زائر' : 'مقيم') + ': ' + String(payload.name || ''), session.role);
+    return { success: true, user: { id: accountResult.user.id, name: accountResult.user.name, username: accountResult.user.username, role: accountResult.user.role, status: 'active' } };
+  }
   if (action === 'setUserStatus') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'تغيير حالة الحساب مقتصر على الإدارة.' };
     return setUserStatus_(payload, session);
@@ -1487,9 +1567,24 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
-    var deletedTeacher = deleteById_('Teachers', payload.id, schoolId);
-    if (deletedTeacher.success) logAuditAction(schoolId, session.name, 'حذف معلم', 'تم حذف المعلم ' + payload.id, session.role);
-    return deletedTeacher;
+    // Safe removal: deactivate the teacher instead of physically deleting a row
+    // that may be referenced by historical visits, reports, plans, or user accounts.
+    var safeTeacherSheet = ss.getSheetByName('Teachers');
+    if (!safeTeacherSheet || safeTeacherSheet.getLastRow() < 2) return { success: false, error: 'المعلم غير موجود.' };
+    var safeTeacherHeaders = safeTeacherSheet.getRange(1, 1, 1, safeTeacherSheet.getLastColumn()).getValues()[0].map(String);
+    var safeTeacherIdCol = safeTeacherHeaders.indexOf('id');
+    var safeTeacherSchoolCol = safeTeacherHeaders.indexOf('schoolId');
+    var safeTeacherStatusCol = safeTeacherHeaders.indexOf('status');
+    if (safeTeacherIdCol < 0 || safeTeacherSchoolCol < 0 || safeTeacherStatusCol < 0) return { success: false, error: 'تعذر تحديد أعمدة سجل المعلمين.' };
+    var safeTeacherRows = safeTeacherSheet.getDataRange().getValues();
+    var safeTeacherRow = -1;
+    for (var sti = 1; sti < safeTeacherRows.length; sti++) {
+      if (String(safeTeacherRows[sti][safeTeacherIdCol]) === String(payload.id) && String(safeTeacherRows[sti][safeTeacherSchoolCol]) === String(schoolId)) { safeTeacherRow = sti + 1; break; }
+    }
+    if (safeTeacherRow < 0) return { success: false, error: 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
+    safeTeacherSheet.getRange(safeTeacherRow, safeTeacherStatusCol + 1).setValue('inactive');
+    logAuditAction(schoolId, session.name, 'تعطيل سجل معلم', 'تم تعطيل سجل المعلم ' + payload.id + ' مع الاحتفاظ بالزيارات والتقارير التاريخية.', session.role);
+    return { success: true, id: payload.id, status: 'inactive', preservedHistory: true, message: 'تم تعطيل سجل المعلم مع الاحتفاظ بجميع السجلات المرتبطة به.' };
   }
   if (action === 'saveInternalNote') {
     if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية الاطلاع على الملاحظات الإدارية الداخلية.' };

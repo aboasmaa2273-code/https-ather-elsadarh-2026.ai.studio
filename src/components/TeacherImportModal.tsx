@@ -20,6 +20,7 @@ export const TeacherImportModal: React.FC<TeacherImportModalProps> = ({
   language = 'ar'
 }) => {
   const [csvText, setCsvText] = useState('');
+  const [pasteText, setPasteText] = useState('');
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[] } | null>(null);
@@ -73,6 +74,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
       return;
     }
 
+    const delimiter = lines[0].includes('\t') ? '\t' : (lines[0].includes(';') ? ';' : ',');
     const rows: any[] = [];
     const errors: string[] = [];
     const existingTeachers = teachers;
@@ -83,7 +85,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
       const line = lines[i].trim();
       if (!line) continue;
 
-      const parts = line.split(',').map(p => p.trim());
+      const parts = line.split(delimiter).map(p => p.trim().replace(/^\"|\"$/g, ''));
       const fullName = parts[0] || '';
       const jobNumber = parts[1] || '';
       const specialization = parts[2] || '';
@@ -205,6 +207,21 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
               <Download className="w-4 h-4 text-[#C6A66A]" />
               <span>{isEn ? 'Download Template (CSV)' : 'تحميل القالب (CSV)'}</span>
             </button>
+          </div>
+
+          <div className="space-y-2">
+            <label className="block font-bold text-[#172C40]">{isEn ? 'Or paste teacher rows here (including the header row)' : 'أو انسخ بيانات المعلمين والصقها هنا (مع صف العناوين)'}</label>
+            <textarea
+              value={pasteText}
+              onChange={(e) => { setPasteText(e.target.value); setCsvText(e.target.value); parseAndValidateCsv(e.target.value); setImportResult(null); }}
+              rows={5}
+              placeholder={isEn ? 'Full Name,Job ID,Specialization,Email,Phone\
+...' : 'الاسم الكامل،الرقم الوظيفي،التخصص،البريد الإلكتروني،رقم الهاتف\
+...'}
+              className="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono focus:outline-none focus:border-[#172C40]"
+              dir="auto"
+            />
+            <p className="text-[10px] text-slate-500">{isEn ? 'Paste comma-separated CSV data copied from Excel. Review duplicates before confirming.' : 'يمكنك نسخ الجدول من Excel بعد حفظه أو نسخه بصيغة CSV، ثم لصقه هنا ومراجعة التكرارات قبل التأكيد.'}</p>
           </div>
 
           {/* Upload input */}
