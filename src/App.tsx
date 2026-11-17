@@ -305,10 +305,24 @@ export default function App() {
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(user) => {
             handleUserChange(user);
-            setIsLoggedIn(true);
             setIsLoginModalOpen(false);
-            setActiveTab('dashboard');
-            void refreshAllData().catch((error) => alert(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنصة.'));
+            void refreshAllData()
+              .then(() => {
+                setIsLoggedIn(true);
+                setActiveTab('dashboard');
+              })
+              .catch((error) => {
+                clearAtharRemoteSession();
+                setIsLoggedIn(false);
+                setCurrentUser(DEFAULT_USERS[0]);
+                setTeachers([]);
+                setVisits([]);
+                setPlans([]);
+                setAuditLogs([]);
+                setRegisteredVisitors([]);
+                setActiveTab('home');
+                alert(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنصة. أُغلقت الجلسة لحماية سلامة البيانات.');
+              });
           }}
           language={language}
         />
