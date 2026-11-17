@@ -10,6 +10,7 @@ import {
 } from './types';
 import { AtharStorageService } from './services/storageService';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
+import { loadCentralData, changeVisitStatusCentral } from './services/centralDataService';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -68,23 +69,24 @@ export default function App() {
   const [selectedTeacherForReport, setSelectedTeacherForReport] = useState<Teacher | null>(null);
   const [editingVisit, setEditingVisit] = useState<ClassroomVisit | null>(null);
 
-  // Load initial data
-  const refreshAllData = () => {
-    setTeachers(AtharStorageService.getTeachers());
-    setVisits(AtharStorageService.getVisits());
-    setPlans(AtharStorageService.getPlans());
-    setAcademicSettings(AtharStorageService.getAcademicSettings());
-    setPlatformSettings(AtharStorageService.getPlatformSettings());
-    setAuditLogs(AtharStorageService.getAuditLogs());
+  // Load all operational data from the authenticated central database.
+  const refreshAllData = async () => {
+    try {
+      const data = await loadCentralData();
+      setTeachers(data.teachers);
+      setVisits(data.visits);
+      setPlans(data.plans);
+      setAcademicSettings(data.academicSettings);
+      setPlatformSettings(data.platformSettings);
+      setAuditLogs(data.auditLogs);
+    } catch (error) {
+      console.error('تعذر تحميل بيانات أَثَر المركزية:', error);
+      throw error;
+    }
   };
-
-  useEffect(() => {
-    refreshAllData();
-  }, []);
 
   // Handle user switch
   const handleUserChange = (newUser: User) => {
-    AtharStorageService.setCurrentUser(newUser);
     setCurrentUser(newUser);
     // If switched to teacher, make sure they aren't on admin-only tabs
     if (newUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
@@ -98,12 +100,17 @@ export default function App() {
     setIsLoggedIn(true);
     setIsLoginModalOpen(false);
     setActiveTab('dashboard');
+    void refreshAllData().catch((error) => alert(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنصة.'));
   };
 
   // Logout handler
   const handleLogout = () => {
     clearAtharRemoteSession();
     setIsLoggedIn(false);
+    setTeachers([]);
+    setVisits([]);
+    setPlans([]);
+    setAuditLogs([]);
     setActiveTab('home');
   };
 
@@ -277,12 +284,9 @@ export default function App() {
           language={language}
           canDelete={currentUser.role !== 'teacher'}
           onDeleteReport={(visitId) => {
-            const res = AtharStorageService.deleteVisit(visitId);
-            if (res.success) {
-              refreshAllData();
-            } else {
-              alert(res.error);
-            }
+            void changeVisitStatusCentral(visitId, 'archived')
+              .then(() => refreshAllData())
+              .catch((error) => alert(error instanceof Error ? error.message : 'تعذر أرشفة التقرير.'));
           }}
         />
       )}
@@ -297,6 +301,7 @@ export default function App() {
             setIsLoggedIn(true);
             setIsLoginModalOpen(false);
             setActiveTab('dashboard');
+            void refreshAllData().catch((error) => alert(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنصة.'));
           }}
           language={language}
         />
