@@ -10,6 +10,7 @@ import {
   Sliders 
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
+import { isManagementRole } from '../services/roleUtils';
 
 interface HeaderProps {
   currentUser: User;
@@ -93,7 +94,7 @@ export const Header: React.FC<HeaderProps> = ({
                   {t.nav.dashboard}
                 </button>
 
-                {['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+                {isManagementRole(currentUser.role) && (
                   <button
                     onClick={() => onTabChange('monitoring')}
                     className={`px-3 py-2 text-sm font-semibold rounded-md transition-colors whitespace-nowrap flex items-center gap-1.5 ${
