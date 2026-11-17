@@ -37,6 +37,7 @@ import {
   Database
 } from 'lucide-react';
 import { translations, Language } from './i18n/translations';
+import { isManagementRole, normalizeUserRole } from './services/roleUtils';
 
 export default function App() {
   // Language State with persistence
@@ -91,9 +92,10 @@ export default function App() {
 
   // Handle user switch
   const handleUserChange = (newUser: User) => {
-    setCurrentUser(newUser);
+    const normalizedUser = normalizeUserRole(newUser) as User;
+    setCurrentUser(normalizedUser);
     // If switched to teacher, make sure they aren't on admin-only tabs
-    if (newUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
+    if (normalizedUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
       setActiveTab('dashboard');
     }
   };
@@ -164,7 +166,7 @@ export default function App() {
           />
         )}
 
-        {isLoggedIn && activeTab === 'monitoring' && ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+        {isLoggedIn && activeTab === 'monitoring' && isManagementRole(currentUser.role) && (
           <MonitoringDashboard
             currentUser={currentUser}
             visits={visits}
@@ -293,7 +295,7 @@ export default function App() {
           platformSettings={platformSettings}
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
-          canDelete={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
+          canDelete={isManagementRole(currentUser.role)}
           onDeleteReport={(visitId) => {
             void changeVisitStatusCentral(visitId, 'archived')
               .then(() => refreshAllData())
