@@ -417,9 +417,9 @@ export const TeachersList: React.FC<TeachersListProps> = ({
         isOpen={isImportModalOpen}
         onClose={() => setIsImportModalOpen(false)}
         onImportComplete={() => {
-          setIsImportModalOpen(false);
-          onRefreshTeachers();
+          void onRefreshTeachers();
         }}
+        teachers={teachers}
         language={language}
       />
     </div>
