@@ -143,16 +143,6 @@ export default function App() {
           <PublicHome
             platformSettings={platformSettings}
             onLoginClick={() => setIsLoginModalOpen(true)}
-            onSelectEvaluator={(user, destination) => {
-              handleUserChange(user);
-              setIsLoggedIn(true);
-              if (destination === 'new-visit') {
-                setEditingVisit(null);
-                setActiveTab('new-visit');
-              } else {
-                setActiveTab('dashboard');
-              }
-            }}
             language={language}
           />
         )}
