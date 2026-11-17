@@ -872,13 +872,14 @@ export class AtharStorageService {
   // Strict Security and Permissions Helpers (صلاحيات دقيقة ومقيدة للمخولين فقط)
   static canManageTeachers(user: User): boolean {
     if (!user) return false;
-    // Teachers and unauthorized users are strictly blocked
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    // Must match the central API managementRoles.
+    return ['school_admin', 'platform_admin', 'vice_principal'].includes(user.role);
   }
 
   static canDeleteTeacher(user: User): boolean {
     if (!user) return false;
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    // Permanent teacher deletion is restricted to school/platform administrators.
+    return ['school_admin', 'platform_admin'].includes(user.role);
   }
 
   static canCreateVisit(user: User): boolean {
@@ -916,8 +917,8 @@ export class AtharStorageService {
 
   static canEditSettings(user: User): boolean {
     if (!user) return false;
-    // Authorized leadership and evaluators can manage platform settings and directory
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    // Must match the central API adminRoles.
+    return ['school_admin', 'platform_admin'].includes(user.role);
   }
 
   static canDeleteDemoData(user: User): boolean {
