@@ -9,7 +9,7 @@ import {
   AuditLogEntry,
   RegisteredVisitor
 } from './types';
-import { DEFAULT_USERS } from './data/defaultData';
+import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS, DEFAULT_USERS } from './data/defaultData';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
 import { loadCentralData, changeVisitStatusCentral } from './services/centralDataService';
 import { Header } from './components/Header';
@@ -61,8 +61,8 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [visits, setVisits] = useState<ClassroomVisit[]>([]);
   const [plans, setPlans] = useState<ImprovementPlan[]>([]);
-  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(() => AtharStorageService.getAcademicSettings());
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => AtharStorageService.getPlatformSettings());
+  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
   const [registeredVisitors, setRegisteredVisitors] = useState<RegisteredVisitor[]>([]);
 
