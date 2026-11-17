@@ -50,7 +50,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = AtharStorageService.canEditSettings(currentUser) || currentUser?.role !== 'teacher';
+  const canEdit = currentUser?.role === 'platform_admin' || currentUser?.role === 'school_admin';
 
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');
@@ -153,22 +153,22 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   };
 
   // Clear Audit Log History
-  const handleClearAuditLogs = () => {
+  const handleClearAuditLogs = async () => {
     if (!confirm(isEn ? 'Are you sure you want to permanently clear the audit log history?' : 'هل أنت متأكد من رغبتك في مسح كافة سجلات العمليات والأمان نهائياً؟')) {
       return;
     }
-    const res = AtharStorageService.clearAuditLogs();
-    if (res.success) {
+    try {
+      await atharRemoteAction('deleteAuditLogs', { ids: [] });
       setLocalAuditLogs([]);
-      showFeedback('success', isEn ? 'Audit log cleared successfully.' : 'تم مسح كامل سجل العمليات والأمان بنجاح.');
-      onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to clear logs.' : 'تعذر مسح السجل.'));
+      showFeedback('success', isEn ? 'Central audit log cleared successfully.' : 'تم مسح سجل العمليات المركزي.');
+      await onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to clear logs.' : 'تعذر مسح السجل.'));
     }
   };
 
   // Save Platform Identity
-  const handleSavePlatform = () => {
+  const handleSavePlatform = async () => {
     const updated: PlatformSettings = {
       platformName,
       platformTitle,
@@ -184,12 +184,12 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       contactPhone
     };
 
-    const res = AtharStorageService.savePlatformSettings(updated);
-    if (res.success) {
-      showFeedback('success', isEn ? 'Platform identity and settings saved successfully.' : 'تم حفظ هوية وإعدادات المنصة بنجاح.');
-      onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Error occurred while saving.' : 'حدث خطأ أثناء الحفظ.'));
+    try {
+      await atharRemoteAction('saveSettings', { platformSettings: updated });
+      showFeedback('success', isEn ? 'Platform identity and settings saved centrally.' : 'تم حفظ هوية وإعدادات المنصة في قاعدة البيانات المركزية.');
+      await onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Error occurred while saving.' : 'حدث خطأ أثناء الحفظ.'));
     }
   };
 
@@ -314,33 +314,17 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
   // Demo Data Purge Execution
   const handleExecutePurge = () => {
-    if (!purgeTarget) return;
-
-    if (purgeTarget === 'visits') {
-      const res = AtharStorageService.clearDemoVisits();
-      showFeedback('success', isEn ? `Cleared ${res.count} visits successfully.` : `تم مسح ${res.count} زيارة صفية بنجاح.`);
-    } else if (purgeTarget === 'plans') {
-      const res = AtharStorageService.clearDemoPlans();
-      showFeedback('success', isEn ? `Cleared ${res.count} improvement plans successfully.` : `تم مسح ${res.count} خطة تطوير مهني بنجاح.`);
-    } else if (purgeTarget === 'teachers') {
-      const res = AtharStorageService.clearDemoTeachers();
-      showFeedback('success', isEn ? `Cleared ${res.count} teachers successfully.` : `تم مسح ${res.count} معلماً تجريبياً بنجاح.`);
-    } else if (purgeTarget === 'all') {
-      AtharStorageService.resetAllDataToClean();
-      showFeedback('success', isEn ? 'Purged all demo records. System initialized with clean slate.' : 'تم تفريغ كامل البيانات التجريبية والبدء بسجل رسمي نظيف.');
-    }
-
     setIsPurgeModalOpen(false);
     setPurgeTarget(null);
-    onRefreshSettings();
+    showFeedback('error', isEn
+      ? 'Local demo cleanup is disabled because operational records are stored centrally. No central records were changed.'
+      : 'تم إيقاف تنظيف البيانات المحلية؛ لأن سجلات المنصة أصبحت مركزية. لم يتم تغيير أي سجل مركزي.');
   };
 
   const handleRestoreDemoData = () => {
-    if (confirm(isEn ? 'Restore sample demo records for testing and training?' : 'هل تود استرجاع البيانات التجريبية النموذجية لأغراض التدريب والتجربة؟')) {
-      AtharStorageService.resetToDefaults();
-      showFeedback('success', isEn ? 'Sample demo data restored successfully.' : 'تمت استعادة البيانات التجريبية النموذجية بنجاح.');
-      onRefreshSettings();
-    }
+    showFeedback('error', isEn
+      ? 'Demo records are not restored into the central database. No records were changed.'
+      : 'استعادة البيانات التجريبية المحلية غير متاحة في قاعدة البيانات المركزية. لم يتم تغيير أي بيانات.');
   };
 
   return (
@@ -438,7 +422,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         <button
           type="button"
           onClick={() => {
-            setAllUsersList(AtharStorageService.getAllUsers());
+            void refreshCentralUsers().catch((error) => showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث الحسابات.'));
             setActiveSubTab('users');
           }}
           className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
@@ -793,13 +777,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             <button
               type="button"
               onClick={() => {
-                const name = prompt(isEn ? 'Enter full name for new evaluator:' : 'أدخل الاسم الكامل للمقيم الجديد:');
-                if (name && name.trim()) {
-                  const added = AtharStorageService.addCustomEvaluator(name.trim());
-                  setAllUsersList(AtharStorageService.getAllUsers());
-                  showFeedback('success', isEn ? `Evaluator ${name} created.` : `تمت إضافة المقيم: ${name}`);
-                  setSelectedUserForCredentials(added);
-                }
+                handleOpenAddVisitor();
+                setVisitorFormRole('evaluator');
+                setActiveSubTab('visitors');
               }}
               className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
             >
