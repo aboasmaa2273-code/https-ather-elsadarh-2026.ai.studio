@@ -1487,9 +1487,24 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
-    var deletedTeacher = deleteById_('Teachers', payload.id, schoolId);
-    if (deletedTeacher.success) logAuditAction(schoolId, session.name, 'حذف معلم', 'تم حذف المعلم ' + payload.id, session.role);
-    return deletedTeacher;
+    // Safe removal: deactivate the teacher instead of physically deleting a row
+    // that may be referenced by historical visits, reports, plans, or user accounts.
+    var safeTeacherSheet = ss.getSheetByName('Teachers');
+    if (!safeTeacherSheet || safeTeacherSheet.getLastRow() < 2) return { success: false, error: 'المعلم غير موجود.' };
+    var safeTeacherHeaders = safeTeacherSheet.getRange(1, 1, 1, safeTeacherSheet.getLastColumn()).getValues()[0].map(String);
+    var safeTeacherIdCol = safeTeacherHeaders.indexOf('id');
+    var safeTeacherSchoolCol = safeTeacherHeaders.indexOf('schoolId');
+    var safeTeacherStatusCol = safeTeacherHeaders.indexOf('status');
+    if (safeTeacherIdCol < 0 || safeTeacherSchoolCol < 0 || safeTeacherStatusCol < 0) return { success: false, error: 'تعذر تحديد أعمدة سجل المعلمين.' };
+    var safeTeacherRows = safeTeacherSheet.getDataRange().getValues();
+    var safeTeacherRow = -1;
+    for (var sti = 1; sti < safeTeacherRows.length; sti++) {
+      if (String(safeTeacherRows[sti][safeTeacherIdCol]) === String(payload.id) && String(safeTeacherRows[sti][safeTeacherSchoolCol]) === String(schoolId)) { safeTeacherRow = sti + 1; break; }
+    }
+    if (safeTeacherRow < 0) return { success: false, error: 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
+    safeTeacherSheet.getRange(safeTeacherRow, safeTeacherStatusCol + 1).setValue('inactive');
+    logAuditAction(schoolId, session.name, 'تعطيل سجل معلم', 'تم تعطيل سجل المعلم ' + payload.id + ' مع الاحتفاظ بالزيارات والتقارير التاريخية.', session.role);
+    return { success: true, id: payload.id, status: 'inactive', preservedHistory: true, message: 'تم تعطيل سجل المعلم مع الاحتفاظ بجميع السجلات المرتبطة به.' };
   }
   if (action === 'saveInternalNote') {
     if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية الاطلاع على الملاحظات الإدارية الداخلية.' };
