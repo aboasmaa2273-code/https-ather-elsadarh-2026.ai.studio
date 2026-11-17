@@ -671,11 +671,11 @@ function getPublicEvaluators_() {
   var schoolId = 'sch_alsadara_01';
   var users = rowsAsObjects_(ss.getSheetByName('Users'));
   var eligibleRoles = ['evaluator', 'vice_principal', 'school_admin'];
-  var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator', 'مسؤول المنصة': 'platform_admin', 'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin', 'مساعد المدير': 'vice_principal', 'مقيم': 'evaluator', 'مقيّم': 'evaluator' };
+  var roleAliases = {}; // All role aliases are normalized centrally by normalizeRole_ below.
   var activeAccounts = {};
   users.forEach(function(user) {
     var rawRole = String(user.role || '').trim().toLowerCase();
-    var role = roleAliases[rawRole] || rawRole;
+    var role = normalizeRole_(rawRole);
     var status = String(user.status || 'active').trim().toLowerCase();
     var accountSchool = String(user.schoolId || schoolId);
     if (accountSchool === schoolId && eligibleRoles.indexOf(role) >= 0 && (status === 'active' || status === '')) {
@@ -907,10 +907,10 @@ function normalizeRole_(role) {
   var raw = String(role || '').trim().toLowerCase().replace(/[\\s-]+/g, '_');
   var aliases = {
     admin: 'platform_admin', platformadmin: 'platform_admin', system_admin: 'platform_admin',
-    'مسؤول المنصة': 'platform_admin', 'مسؤول النظام': 'platform_admin', 'مدير المنصة': 'platform_admin',
+    'مسؤول المنصة': 'platform_admin', 'مسؤول_النظام': 'platform_admin', 'مدير_المنصة': 'platform_admin',
     principal: 'school_admin', schooladmin: 'school_admin', 'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin',
-    assistant_principal: 'vice_principal', viceprincipal: 'vice_principal', 'مساعد المدير': 'vice_principal', 'نائب المدير': 'vice_principal',
-    observer: 'evaluator', evaluator: 'evaluator', 'مقيم': 'evaluator', 'مقيّم': 'evaluator', 'مقيم معتمد': 'evaluator', 'مقيّم معتمد': 'evaluator',
+    assistant_principal: 'vice_principal', viceprincipal: 'vice_principal', 'مساعد المدير': 'vice_principal', 'نائب_المدير': 'vice_principal',
+    observer: 'evaluator', evaluator: 'evaluator', 'مقيم': 'evaluator', 'مقيّم': 'evaluator', 'مقيم_معتمد': 'evaluator', 'مقيّم_معتمد': 'evaluator',
     teacher: 'teacher', 'معلم': 'teacher', 'معلّم': 'teacher'
   };
   return aliases[raw] || raw;
