@@ -15,6 +15,7 @@ import { loadCentralData, changeVisitStatusCentral } from './services/centralDat
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
+import { MonitoringDashboard } from './components/MonitoringDashboard';
 import { TeachersList } from './components/TeachersList';
 import { VisitsList } from './components/VisitsList';
 import { VisitForm } from './components/VisitForm';
@@ -158,6 +159,18 @@ export default function App() {
             teachers={teachers}
             plans={plans}
             onNavigate={handleNavigate}
+            onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
+            language={language}
+          />
+        )}
+
+        {isLoggedIn && activeTab === 'monitoring' && ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role) && (
+          <MonitoringDashboard
+            currentUser={currentUser}
+            visits={visits}
+            teachers={teachers}
+            plans={plans}
+            auditLogs={auditLogs}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
             language={language}
           />

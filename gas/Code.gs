@@ -652,36 +652,82 @@ function logAuditAction(schoolId, userName, action, details, userRole) {
 // Shared public evaluator directory for both the JSON API and iframe bridge.
 // Return only profile fields required by the public homepage and evaluator login selector.
 function getPublicEvaluators_() {
-  // Only login-enabled Users belong in the public evaluator portal selector.
-  // RegisteredVisitors is a separate directory and may not have a matching login account.
+  // Build the public roster from RegisteredVisitors, but expose only people
+  // who also have an active login-enabled account in this school.
   var ss = getDatabaseSpreadsheet_();
-  var users = rowsAsObjects_(ss.getSheetByName('Users'));
   var schoolId = 'sch_alsadara_01';
-  var evaluators = users.filter(function(user) {
-    var role = String(user.role || '').trim().toLowerCase();
+  var users = rowsAsObjects_(ss.getSheetByName('Users'));
+  var eligibleRoles = ['evaluator', 'vice_principal', 'school_admin'];
+  var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator', 'مسؤول المنصة': 'platform_admin', 'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin', 'مساعد المدير': 'vice_principal', 'مقيم': 'evaluator', 'مقيّم': 'evaluator' };
+  var activeAccounts = {};
+  users.forEach(function(user) {
+    var rawRole = String(user.role || '').trim().toLowerCase();
+    var role = roleAliases[rawRole] || rawRole;
     var status = String(user.status || 'active').trim().toLowerCase();
-    return String(user.schoolId || schoolId) === schoolId &&
-      role === 'evaluator' &&
-      (status === 'active' || status === '');
-  }).map(function(user) {
-    return {
-      id: String(user.id || ''),
+    var accountSchool = String(user.schoolId || schoolId);
+    if (accountSchool === schoolId && eligibleRoles.indexOf(role) >= 0 && (status === 'active' || status === '')) {
+      var username = String(user.username || '').trim().toLowerCase();
+      if (username) { user.publicRole = role; activeAccounts[username] = user; }
+    }
+  });
+
+  var visitorSheet = ss.getSheetByName('RegisteredVisitors');
+  var visitorRows = visitorSheet ? rowsAsObjects_(visitorSheet) : [];
+  var seen = {};
+  var evaluators = [];
+  visitorRows.forEach(function(visitor) {
+    var username = String(visitor.username || '').trim().toLowerCase();
+    var account = activeAccounts[username];
+    var visitorSchool = String(visitor.schoolId || schoolId);
+    var visitorStatus = String(visitor.status || 'active').trim().toLowerCase();
+    if (!account || visitorSchool !== schoolId || (visitorStatus !== 'active' && visitorStatus !== '')) return;
+    var key = String(account.id || username);
+    if (seen[key]) return;
+    seen[key] = true;
+    evaluators.push({
+      id: String(account.id || ''),
+      name: String(visitor.name || account.name || '').trim(),
+      email: '',
+      role: String(account.publicRole || account.role || 'evaluator'),
+      status: 'active',
+      schoolId: schoolId,
+      roleTitle: String(visitor.roleTitle || visitor.role || account.roleTitle || 'مقيّم معتمد'),
+      specialization: String(account.specialization || ''),
+      department: String(visitor.department || account.department || ''),
+      profileSummary: String(account.profileSummary || ''),
+      avatarUrl: String(account.avatarUrl || '')
+    });
+  });
+
+  // Compatibility fallback for older accounts that have no directory row yet.
+  users.forEach(function(user) {
+    var rawRole = String(user.role || '').trim().toLowerCase();
+    var role = roleAliases[rawRole] || rawRole;
+    var status = String(user.status || 'active').trim().toLowerCase();
+    var accountSchool = String(user.schoolId || schoolId);
+    var key = String(user.id || '');
+    if (accountSchool !== schoolId || eligibleRoles.indexOf(role) < 0 ||
+        (status !== 'active' && status !== '') || seen[key]) return;
+    evaluators.push({
+      id: key,
       name: String(user.name || '').trim(),
       email: '',
-      role: 'evaluator',
+      role: role,
       status: 'active',
       schoolId: schoolId,
       roleTitle: String(user.roleTitle || user.jobTitle || 'مقيّم معتمد'),
       specialization: String(user.specialization || ''),
       department: String(user.department || ''),
-      profileSummary: String(user.profileSummary || user.bio || ''),
+      profileSummary: String(user.profileSummary || ''),
       avatarUrl: String(user.avatarUrl || '')
-    };
-  }).filter(function(user) { return user.id && user.name; });
+    });
+    seen[key] = true;
+  });
+
+  evaluators = evaluators.filter(function(user) { return user.id && user.name; });
   evaluators.sort(function(a, b) { return a.name.localeCompare(b.name, 'ar'); });
   return { success: true, evaluators: evaluators };
 }
-
 function doPost(e) {
   try {
     var raw = e && e.parameter && e.parameter.payload
@@ -748,11 +794,12 @@ function apiLogin_(payload) {
       return { success: false, error: 'بيانات الدخول غير صحيحة.' };
     }
 
-    var role = String(row[roleCol] || '');
+    var rawRole = String(row[roleCol] || '').trim().toLowerCase();
+    var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator' };
+    var role = roleAliases[rawRole] || rawRole;
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
     if (allowed.indexOf(role) < 0) return { success: false, error: 'دور الحساب غير معتمد.' };
 
-    var token = Utilities.getUuid() + Utilities.getUuid().replace(/-/g, '');
     var user = {
       id: String(row[headers.indexOf('id')] || ''),
       schoolId: String(row[headers.indexOf('schoolId')] || 'sch_alsadara_01'),
@@ -773,7 +820,7 @@ function apiLogin_(payload) {
       })[0];
       if (matchedTeacher) user.teacherId = String(matchedTeacher.id || '');
     }
-    CacheService.getScriptCache().put('ATHAR_SESSION_' + token, JSON.stringify(user), 21600);
+    var token = createSessionToken_(user);
     logAuditAction(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.', user.role);
     return { success: true, token: token, user: user, expiresIn: 21600 };
   }
@@ -800,11 +847,46 @@ function constantTimeEquals_(a, b) {
   return diff === 0;
 }
 
+function getSessionSigningSecret_() {
+  var props = PropertiesService.getScriptProperties();
+  var secret = props.getProperty('ATHAR_SESSION_SIGNING_SECRET');
+  if (!secret) {
+    secret = Utilities.getUuid() + Utilities.getUuid() + Utilities.getUuid();
+    props.setProperty('ATHAR_SESSION_SIGNING_SECRET', secret);
+  }
+  return secret;
+}
+
+function createSessionToken_(user) {
+  var payload = {
+    user: user,
+    expiresAt: Date.now() + (6 * 60 * 60 * 1000),
+    nonce: Utilities.getUuid()
+  };
+  var encoded = Utilities.base64EncodeWebSafe(JSON.stringify(payload), Utilities.Charset.UTF_8).replace(/=+$/g, '');
+  var signature = Utilities.computeHmacSha256Signature(encoded, getSessionSigningSecret_());
+  var signed = Utilities.base64EncodeWebSafe(signature).replace(/=+$/g, '');
+  return encoded + '.' + signed;
+}
+
 function validateSession_(token) {
   if (!token || typeof token !== 'string') return null;
-  var raw = CacheService.getScriptCache().get('ATHAR_SESSION_' + token);
-  if (!raw) return null;
-  try { return JSON.parse(raw); } catch (e) { return null; }
+  var parts = token.split('.');
+  if (parts.length !== 2 || !parts[0] || !parts[1]) return null;
+  try {
+    var expectedBytes = Utilities.computeHmacSha256Signature(parts[0], getSessionSigningSecret_());
+    var expectedSignature = Utilities.base64EncodeWebSafe(expectedBytes).replace(/=+$/g, '');
+    if (!constantTimeEquals_(expectedSignature, parts[1])) return null;
+    var payloadText = Utilities.newBlob(Utilities.base64DecodeWebSafe(parts[0])).getDataAsString('UTF-8');
+    var payload = JSON.parse(payloadText);
+    if (!payload || !payload.user || !payload.expiresAt || Date.now() >= Number(payload.expiresAt)) return null;
+    var user = payload.user;
+    var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
+    if (allowed.indexOf(String(user.role || '')) < 0 || !user.id || !user.schoolId) return null;
+    return user;
+  } catch (e) {
+    return null;
+  }
 }
 
 function requireRole_(session, roles) {
@@ -1790,9 +1872,6 @@ function dispatchBridgeRequest(request) {
     var session = validateSession_(request.token);
     if (!session) return { success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' };
     var result = dispatchApiAction_(action, payload, session);
-    if (action === 'updateUserCredentials' && result && result.success && result.user && request.token) {
-      CacheService.getScriptCache().put('ATHAR_SESSION_' + request.token, JSON.stringify(result.user), 21600);
-    }
     return result;
   } catch (err) {
     return { success: false, error: 'تعذر تنفيذ الطلب: ' + err.message };
