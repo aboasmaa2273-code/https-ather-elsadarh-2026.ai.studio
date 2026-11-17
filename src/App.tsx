@@ -267,6 +267,7 @@ export default function App() {
               currentUser={currentUser}
               auditLogs={auditLogs}
               onRefreshSettings={refreshAllData}
+              onCurrentUserUpdate={handleUserChange}
               language={language}
             />
             <AcademicSettingsView
