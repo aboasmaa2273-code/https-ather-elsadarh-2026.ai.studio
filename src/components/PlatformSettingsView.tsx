@@ -118,7 +118,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         if (!active) return;
         setAllUsersList([]);
         setVisitorsList([]);
-        setVisitorInlineError(error instanceof Error ? error.message : 'تعذر تحميل دليل الزائرين من قاعدة البيانات المركزية.');
+        const message = error instanceof Error ? error.message : 'تعذر تحميل دليل الزائرين من قاعدة البيانات المركزية.';
+        setVisitorInlineError(message);
+        setFeedbackMessage({ type: 'error', text: message });
       }
     })();
     return () => { active = false; };
@@ -296,6 +298,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     try {
       if (visitor?.username) {
         const account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        if (account && ['platform_admin', 'school_admin'].includes(account.role)) {
+          throw new Error('لا يمكن تعطيل حساب مسؤول المنصة أو مسؤول المدرسة من دليل الزائرين.');
+        }
         if (account) await atharRemoteAction('setUserStatus', { id: account.id, status: 'inactive' });
       }
       await atharRemoteAction('deleteVisitor', { id });
