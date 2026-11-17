@@ -1231,6 +1231,9 @@ function dispatchApiAction_(action, payload, session) {
     if (settingsResult.success) logAuditAction(schoolId, session.name, 'تحديث إعدادات المنصة', 'تم تحديث إعدادات المنصة أو الإعدادات الأكاديمية.', session.role);
     return settingsResult;
   }
+  if (action === 'updateUserCredentials') {
+    return updateUserCredentials_(payload, session);
+  }
   if (action === 'saveUserAccount') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة الحسابات مقتصرة على مسؤول المنصة أو إدارة المدرسة.' };
     return saveUserAccount_(payload, session);
@@ -1375,6 +1378,70 @@ function setUserStatus_(payload, session) {
     }
   }
   return { success: false, error: 'الحساب غير موجود في المدرسة المرتبطة بك.' };
+}
+
+function updateUserCredentials_(payload, session) {
+  var targetId = String(payload.id || session.id || '');
+  var isSelf = targetId === String(session.id || '');
+  if (!isSelf && ['platform_admin', 'school_admin'].indexOf(session.role) < 0) {
+    return { success: false, error: 'يمكنك تعديل بيانات حسابك فقط.' };
+  }
+  var ss = getDatabaseSpreadsheet_();
+  var sheet = ss.getSheetByName('Users');
+  if (!sheet || sheet.getLastRow() < 2) return { success: false, error: 'لم يتم العثور على سجل الحساب.' };
+  var data = sheet.getDataRange().getValues();
+  var headers = data[0].map(String);
+  var idCol = headers.indexOf('id');
+  var schoolCol = headers.indexOf('schoolId');
+  var nameCol = headers.indexOf('name');
+  var usernameCol = headers.indexOf('username');
+  var roleCol = headers.indexOf('role');
+  var statusCol = headers.indexOf('status');
+  var saltCol = headers.indexOf('passwordSalt');
+  var hashCol = headers.indexOf('passwordHash');
+  if ([idCol, schoolCol, nameCol, usernameCol, roleCol, statusCol].some(function(i) { return i < 0; })) {
+    return { success: false, error: 'بنية ورقة الحسابات غير مكتملة.' };
+  }
+  var rowIndex = -1;
+  for (var i = 1; i < data.length; i++) {
+    if (String(data[i][idCol]) === targetId && String(data[i][schoolCol]) === String(session.schoolId)) {
+      rowIndex = i + 1;
+      break;
+    }
+  }
+  if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود في المدرسة المرتبطة بك.' };
+  var row = data[rowIndex - 1];
+  var name = String(payload.name || '').trim();
+  var username = String(payload.username || '').trim().toLowerCase();
+  var password = String(payload.password || '');
+  if (!name) return { success: false, error: 'الاسم الكامل مطلوب.' };
+  if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) return { success: false, error: 'اسم المستخدم يجب أن يتكون من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا أو . _ -' };
+  if (data.slice(1).some(function(other) {
+    return String(other[idCol]) !== targetId && String(other[usernameCol] || '').toLowerCase() === username;
+  })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
+  if (password && password.length < 10) return { success: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.' };
+  sheet.getRange(rowIndex, nameCol + 1).setValue(name);
+  sheet.getRange(rowIndex, usernameCol + 1).setValue(username);
+  if (password) {
+    if (saltCol < 0 || hashCol < 0) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة.' };
+    var salt = Utilities.getUuid() + Utilities.getUuid();
+    sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
+    sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
+  }
+  var updatedUser = {
+    id: targetId,
+    schoolId: String(row[schoolCol] || session.schoolId),
+    name: name,
+    username: username,
+    email: String(row[headers.indexOf('email')] || ''),
+    role: String(row[roleCol] || session.role),
+    jobNumber: String(row[headers.indexOf('jobNumber')] || ''),
+    specialization: String(row[headers.indexOf('specialization')] || ''),
+    status: String(row[statusCol] || 'active'),
+    teacherId: String(row[headers.indexOf('teacherId')] || '')
+  };
+  logAuditAction(updatedUser.schoolId, session.name, 'تحديث بيانات الدخول', 'تم تحديث الاسم واسم المستخدم للحساب ' + targetId, session.role);
+  return { success: true, user: updatedUser };
 }
 
 function saveInternalNote_(payload, session, schoolId) {
@@ -1671,7 +1738,11 @@ function dispatchBridgeRequest(request) {
     }
     var session = validateSession_(request.token);
     if (!session) return { success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' };
-    return dispatchApiAction_(action, payload, session);
+    var result = dispatchApiAction_(action, payload, session);
+    if (action === 'updateUserCredentials' && result && result.success && result.user && request.token) {
+      CacheService.getScriptCache().put('ATHAR_SESSION_' + request.token, JSON.stringify(result.user), 21600);
+    }
+    return result;
   } catch (err) {
     return { success: false, error: 'تعذر تنفيذ الطلب: ' + err.message };
   }
