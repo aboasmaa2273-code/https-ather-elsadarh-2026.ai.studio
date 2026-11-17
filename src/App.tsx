@@ -9,6 +9,7 @@ import {
   AuditLogEntry
 } from './types';
 import { AtharStorageService } from './services/storageService';
+import { clearAtharRemoteSession } from './services/gasBridgeClient';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -101,6 +102,7 @@ export default function App() {
 
   // Logout handler
   const handleLogout = () => {
+    clearAtharRemoteSession();
     setIsLoggedIn(false);
     setActiveTab('home');
   };
