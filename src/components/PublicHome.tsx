@@ -90,12 +90,10 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
     }
   };
 
-  const handleCardClick = (user: User, navigateTo: string = 'new-visit') => {
-    if (onSelectEvaluator) {
-      onSelectEvaluator(user, navigateTo);
-    } else {
-      onLoginClick();
-    }
+  // Public evaluator cards must never create an authenticated session.
+  // Every access attempt goes through the central username/password login.
+  const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
+    onLoginClick();
   };
 
   return (
@@ -157,7 +155,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                 className="px-6 py-3.5 bg-gradient-to-r from-[#C6A66A] to-[#b89556] text-[#172C40] text-sm font-extrabold rounded-xl hover:brightness-105 transition-all shadow-lg flex items-center gap-2 cursor-pointer"
               >
                 <UserCheck className="w-4 h-4" />
-                <span>{isEn ? 'Choose Evaluator & Begin Visit' : 'اختر اسم المقيّم وابدأ الزيارة فوراً'}</span>
+                <span>{isEn ? 'Sign in to Begin' : 'سجّل الدخول للبدء'}</span>
                 {isEn ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </a>
 
@@ -259,13 +257,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                 {isEn ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </button>
 
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <PlusCircle className="w-3.5 h-3.5 text-[#C6A66A]" />
-                <span>{isEn ? '+ Register New Evaluator' : '+ تسجيل مقيّم جديد'}</span>
-              </button>
+
             </div>
           </div>
         </div>
