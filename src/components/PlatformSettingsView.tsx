@@ -103,6 +103,19 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [auditSortAsc, setAuditSortAsc] = useState(false);
   const [localAuditLogs, setLocalAuditLogs] = useState<AuditLogEntry[]>(auditLogs);
 
+  // Hide duplicate directory cards without deleting or modifying any central records.
+  const uniqueVisitors = (items: RegisteredVisitor[]) => {
+    const seen = new Set<string>();
+    return items.filter((visitor) => {
+      const username = (visitor.username || '').trim().toLowerCase();
+      const fallback = [visitor.name || '', visitor.jobNumber || ''].join('|').trim().toLowerCase();
+      const key = username ? 'user:' + username : 'profile:' + fallback;
+      if (seen.has(key)) return false;
+      seen.add(key);
+      return true;
+    });
+  };
+
   useEffect(() => {
     setLocalAuditLogs(auditLogs);
   }, [auditLogs]);
@@ -114,7 +127,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         const remote: any = await atharRemoteBootstrap();
         if (!active) return;
         setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
-        setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+        setVisitorsList(uniqueVisitors(Array.isArray(remote.visitors) ? remote.visitors : []));
         setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
       } catch (error) {
         if (!active) return;
