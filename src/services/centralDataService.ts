@@ -4,6 +4,7 @@ import {
   ClassroomVisit,
   ImprovementPlan,
   PlatformSettings,
+  RegisteredVisitor,
   Teacher
 } from '../types';
 import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS } from '../data/defaultData';
@@ -15,6 +16,7 @@ type CentralBootstrap = {
   plans?: Record<string, unknown>[];
   settings?: { key: string; value: unknown }[];
   auditLogs?: Record<string, unknown>[];
+  visitors?: Record<string, unknown>[];
 };
 
 function parseSetting<T>(rows: CentralBootstrap['settings'], key: string, fallback: T): T {
@@ -84,6 +86,18 @@ export async function loadCentralData() {
     visits,
     plans,
     auditLogs,
+    registeredVisitors: (data.visitors || []).map((item) => ({
+      ...item,
+      id: String(item.id || ''),
+      name: String(item.name || ''),
+      role: String(item.role || 'evaluator'),
+      roleTitle: String(item.roleTitle || ''),
+      department: String(item.department || ''),
+      jobNumber: String(item.jobNumber || ''),
+      email: String(item.email || ''),
+      phone: String(item.phone || ''),
+      username: String(item.username || '')
+    })) as RegisteredVisitor[],
     academicSettings: parseSetting<AcademicSettings>(data.settings, 'academicSettings', DEFAULT_ACADEMIC_SETTINGS),
     platformSettings: parseSetting<PlatformSettings>(data.settings, 'platformSettings', DEFAULT_PLATFORM_SETTINGS)
   };
