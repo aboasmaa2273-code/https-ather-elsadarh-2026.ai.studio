@@ -1113,7 +1113,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                             <option value="">{isEn ? '-- Select from directory --' : '-- اختيار من الدليل المعتمد --'}</option>
                             {registeredVisitors.map(rv => (
                               <option key={rv.id} value={rv.id}>
-                                {rv.name} ({isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role)})
+                                {rv.name} ({rv.roleTitle || (isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role))})
                               </option>
                             ))}
                           </select>
