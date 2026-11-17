@@ -156,7 +156,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   useEffect(() => {
     if (!editingVisit && currentUser?.name) {
       setVisitors(prev => {
-        const registeredList = AtharStorageService.getRegisteredVisitors();
+        const registeredList = registeredVisitors;
         const matched = registeredList.find(
           rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
         );
