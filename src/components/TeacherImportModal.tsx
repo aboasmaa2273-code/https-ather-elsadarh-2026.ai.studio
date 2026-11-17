@@ -19,7 +19,7 @@ export const TeacherImportModal: React.FC<TeacherImportModalProps> = ({
   teachers,
   language = 'ar'
 }) => {
-  const [csvText, setCsvText] = useState('');
+  const [csvText, setCsvText] = useState('');\n  const [pasteText, setPasteText] = useState('');
   const [parsedRows, setParsedRows] = useState<any[]>([]);
   const [validationErrors, setValidationErrors] = useState<string[]>([]);
   const [importResult, setImportResult] = useState<{ imported: number; rejected: number; errors: string[] } | null>(null);
@@ -207,7 +207,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
             </button>
           </div>
 
-          {/* Upload input */}
+          <div className="space-y-2">\n            <label className="block font-bold text-[#172C40]">{isEn ? 'Or paste teacher rows here (including the header row)' : 'أو انسخ بيانات المعلمين والصقها هنا (مع صف العناوين)'}</label>\n            <textarea\n              value={pasteText}\n              onChange={(e) => { setPasteText(e.target.value); setCsvText(e.target.value); parseAndValidateCsv(e.target.value); setImportResult(null); }}\n              rows={5}\n              placeholder={isEn ? 'Full Name,Job ID,Specialization,Email,Phone\\n...' : 'الاسم الكامل،الرقم الوظيفي،التخصص،البريد الإلكتروني،رقم الهاتف\\n...'}\n              className="w-full border border-slate-300 rounded-lg p-3 text-xs font-mono focus:outline-none focus:border-[#172C40]"\n              dir="auto"\n            />\n            <p className="text-[10px] text-slate-500">{isEn ? 'Paste comma-separated CSV data copied from Excel. Review duplicates before confirming.' : 'يمكنك نسخ الجدول من Excel بعد حفظه أو نسخه بصيغة CSV، ثم لصقه هنا ومراجعة التكرارات قبل التأكيد.'}</p>\n          </div>\n\n          {/* Upload input */}
           <div className="border-2 border-dashed border-slate-300 rounded-xl p-6 text-center hover:border-[#172C40] transition-colors bg-slate-50">
             <input
               type="file"
