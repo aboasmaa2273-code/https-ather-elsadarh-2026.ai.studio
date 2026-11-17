@@ -863,7 +863,11 @@ function dispatchApiAction_(action, payload, session) {
       administrativeFollowUps = rowsAsObjects_(ss.getSheetByName('AdministrativeFollowUps')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
       visitHistory = rowsAsObjects_(ss.getSheetByName('VisitHistory')).filter(function(x) { return String(x.schoolId) === String(schoolId); }).sort(function(a,b) { return String(b.changedAt).localeCompare(String(a.changedAt)); }).slice(0, 500);
     }
-    var visitorRows = rowsAsObjects_(ensureRegisteredVisitorsSheet_()).filter(function(x) { return String(x.schoolId) === String(schoolId); });
+    // Bootstrap is read-only: do not create or migrate sheets during login.
+    var registeredVisitorsSheet = ss.getSheetByName('RegisteredVisitors');
+    var visitorRows = registeredVisitorsSheet
+      ? rowsAsObjects_(registeredVisitorsSheet).filter(function(x) { return String(x.schoolId) === String(schoolId); })
+      : [];
     var auditLogs = [];
     if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
       auditLogs = rowsAsObjects_(ss.getSheetByName('AuditLog'))
