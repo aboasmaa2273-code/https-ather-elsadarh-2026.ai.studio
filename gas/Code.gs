@@ -898,6 +898,16 @@ function validateSession_(token) {
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
     user.role = normalizeAtharRole_(user.role);
     if (allowed.indexOf(user.role) < 0 || !user.id || !user.schoolId) return null;
+    // Re-check the live account on every request so deactivation takes effect
+    // immediately instead of leaving an otherwise valid signed token usable.
+    var liveUsersSheet = getDatabaseSpreadsheet_().getSheetByName('Users');
+    var liveUsers = rowsAsObjects_(liveUsersSheet);
+    var liveAccount = liveUsers.filter(function(account) {
+      return String(account.id || '') === String(user.id) &&
+        String(account.schoolId || '') === String(user.schoolId);
+    })[0];
+    if (!liveAccount || normalizeAtharStatus_(liveAccount.status) !== 'active') return null;
+    if (normalizeAtharRole_(liveAccount.role) !== user.role) return null;
     return user;
   } catch (e) {
     return null;
