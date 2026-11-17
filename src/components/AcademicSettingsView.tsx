@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { AcademicSettings, User } from '../types';
-import { AtharStorageService } from '../services/storageService';
+import { saveAcademicSettingsCentral } from '../services/centralDataService';
 import { 
   Settings, 
   Check, 
@@ -49,6 +49,18 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   const isEn = language === 'en';
   const canEdit = currentUser?.role !== 'teacher';
 
+  const persistSettings = async (updated: AcademicSettings) => {
+    setSaveError('');
+    try {
+      await saveAcademicSettingsCentral(updated);
+      await onRefreshSettings();
+      setSaveSuccess(true);
+      setTimeout(() => setSaveSuccess(false), 2500);
+    } catch (error) {
+      setSaveError(error instanceof Error ? error.message : (isEn ? 'Error occurred while saving settings.' : 'حدث خطأ أثناء حفظ الإعدادات.'));
+    }
+  };
+
   const handleAddGrade = () => {
     const trimmed = newGrade.trim();
     if (trimmed && !grades.includes(trimmed)) {
@@ -65,10 +77,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
         terms,
         currentTerm
       };
-      AtharStorageService.saveAcademicSettings(updated);
-      onRefreshSettings();
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
+      void persistSettings(updated);
     }
   };
 
@@ -88,10 +97,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
       terms,
       currentTerm
     };
-    AtharStorageService.saveAcademicSettings(updated);
-    onRefreshSettings();
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    void persistSettings(updated);
   };
 
   const handleAddSubject = () => {
@@ -110,10 +116,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
         terms,
         currentTerm
       };
-      AtharStorageService.saveAcademicSettings(updated);
-      onRefreshSettings();
-      setSaveSuccess(true);
-      setTimeout(() => setSaveSuccess(false), 2500);
+      void persistSettings(updated);
     }
   };
 
@@ -133,10 +136,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
       terms,
       currentTerm
     };
-    AtharStorageService.saveAcademicSettings(updated);
-    onRefreshSettings();
-    setSaveSuccess(true);
-    setTimeout(() => setSaveSuccess(false), 2500);
+    void persistSettings(updated);
   };
 
   const handleSave = () => {
@@ -153,14 +153,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
       currentTerm
     };
 
-    const res = AtharStorageService.saveAcademicSettings(updated);
-    if (res.success) {
-      setSaveSuccess(true);
-      onRefreshSettings();
-      setTimeout(() => setSaveSuccess(false), 3000);
-    } else {
-      setSaveError(res.error || (isEn ? 'Error occurred while saving settings.' : 'حدث خطأ أثناء حفظ الإعدادات.'));
-    }
+    void persistSettings(updated);
   };
 
   return (
