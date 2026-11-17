@@ -715,7 +715,7 @@ function getPublicEvaluators_() {
   // Compatibility fallback for older accounts that have no directory row yet.
   users.forEach(function(user) {
     var rawRole = String(user.role || '').trim().toLowerCase();
-    var role = roleAliases[rawRole] || rawRole;
+    var role = normalizeRole_(rawRole);
     var status = String(user.status || 'active').trim().toLowerCase();
     var accountSchool = String(user.schoolId || schoolId);
     var key = String(user.id || '');
