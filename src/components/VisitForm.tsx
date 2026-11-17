@@ -50,6 +50,7 @@ interface VisitFormProps {
   currentUser: User;
   teachers: Teacher[];
   academicSettings: AcademicSettings;
+  registeredVisitors: RegisteredVisitor[];
   editingVisit?: ClassroomVisit | null;
   onSaveSuccess: (savedVisit: ClassroomVisit) => void;
   onCancel: () => void;
@@ -60,6 +61,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   currentUser,
   teachers,
   academicSettings,
+  registeredVisitors,
   editingVisit,
   onSaveSuccess,
   onCancel,
@@ -122,7 +124,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     if (editingVisit?.visitors && editingVisit.visitors.length > 0) {
       return editingVisit.visitors;
     }
-    const registeredList = AtharStorageService.getRegisteredVisitors();
+    const registeredList = registeredVisitors;
     const matched = registeredList.find(
       rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
     );
@@ -278,7 +280,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   );
 
   // Recommendations & Strengths Banks (Multi-choice selectable banks)
-  const [registeredVisitors] = useState<RegisteredVisitor[]>(() => AtharStorageService.getRegisteredVisitors());
 
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(() => {
     if (editingVisit?.strengths && editingVisit.strengths.length > 0) {
