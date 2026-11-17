@@ -9,7 +9,7 @@ import {
   AuditLogEntry,
   RegisteredVisitor
 } from './types';
-import { AtharStorageService } from './services/storageService';
+import { DEFAULT_USERS } from './data/defaultData';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
 import { loadCentralData, changeVisitStatusCentral } from './services/centralDataService';
 import { Header } from './components/Header';
@@ -51,7 +51,7 @@ export default function App() {
 
   // Authentication & Current User - Defaults to logged-out on start to open on the Public Homepage
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<User>(() => AtharStorageService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS[0]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
 
   // Active Navigation Tab - Starts on the Home page with the hero picture
