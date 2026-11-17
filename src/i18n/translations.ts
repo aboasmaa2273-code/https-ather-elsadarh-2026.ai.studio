@@ -12,6 +12,7 @@ export const translations = {
     // Navigation
     nav: {
       dashboard: 'لوحة التحكم',
+      monitoring: 'لوحة المتابعة',
       teachers: 'المعلمون',
       visits: 'الزيارات الصفية',
       newVisit: 'زيارة جديدة',
@@ -425,6 +426,7 @@ export const translations = {
     // Navigation
     nav: {
       dashboard: 'Dashboard',
+      monitoring: 'Monitoring',
       teachers: 'Teachers',
       visits: 'Classroom Visits',
       newVisit: 'New Visit',
