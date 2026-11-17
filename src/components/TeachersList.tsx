@@ -242,7 +242,8 @@ export const TeachersList: React.FC<TeachersListProps> = ({
                 <th className="py-3 px-4 font-bold">{t.teachers.colJobNumber}</th>
                 <th className="py-3 px-4 font-bold">{t.teachers.colName}</th>
                 <th className="py-3 px-4 font-bold">{t.teachers.colSpec}</th>
-                <th className="py-3 px-4 font-bold">{t.teachers.emailLabel}</th>\n                <th className="py-3 px-4 font-bold">{isEn ? 'Phone' : 'رقم الهاتف'}</th>
+                <th className="py-3 px-4 font-bold">{t.teachers.emailLabel}</th>
+                <th className="py-3 px-4 font-bold">{isEn ? 'Phone' : 'رقم الهاتف'}</th>
                 <th className="py-3 px-4 font-bold">{t.teachers.colStatus}</th>
                 <th className="py-3 px-4 font-bold">{isEn ? 'Date Added' : 'تاريخ الإضافة'}</th>
                 <th className="py-3 px-4 font-bold text-center">{t.teachers.colActions}</th>
@@ -255,7 +256,8 @@ export const TeachersList: React.FC<TeachersListProps> = ({
                     <td className="py-3.5 px-4 font-mono font-bold text-[#172C40]">{teacher.jobNumber}</td>
                     <td className="py-3.5 px-4 font-bold text-[#172C40]">{teacher.fullName}</td>
                     <td className="py-3.5 px-4 text-slate-700">{teacher.specialization}</td>
-                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">{teacher.email || '—'}</td>\n                    <td className="py-3.5 px-4 text-slate-600 font-mono text-[11px]">{teacher.phone || '—'}</td>
+                    <td className="py-3.5 px-4 text-slate-500 font-mono text-[11px]">{teacher.email || '—'}</td>
+                    <td className="py-3.5 px-4 text-slate-600 font-mono text-[11px]">{teacher.phone || '—'}</td>
                     <td className="py-3.5 px-4">
                       {teacher.status === 'active' ? (
                         <span className="inline-flex items-center gap-1 text-emerald-700 font-bold bg-emerald-50 px-2 py-0.5 rounded text-[11px]">
