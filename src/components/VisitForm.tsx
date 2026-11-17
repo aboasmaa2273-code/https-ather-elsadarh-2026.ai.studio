@@ -16,6 +16,7 @@ import {
 } from '../types';
 import { OFFICIAL_INDICATORS, GENERAL_DOMAINS, POTENTIAL_VISIT_GOALS, PRESET_RECOMMENDATION_BANKS } from '../data/defaultData';
 import { AtharStorageService } from '../services/storageService';
+import { saveVisitCentral } from '../services/centralDataService';
 import { 
   Save, 
   CheckCircle2, 
@@ -450,7 +451,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       clearTimeout(autoSaveTimerRef.current);
     }
     autoSaveTimerRef.current = setTimeout(() => {
-      saveVisitToStorage('draft', false);
+      void saveVisitToStorage('draft', false);
     }, 1200);
   };
 
@@ -556,20 +557,17 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   };
 
   // Save handler
-  const saveVisitToStorage = (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
+  const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
     const visitObj = buildVisitObject(finalStatus);
-    const res = AtharStorageService.saveVisit(visitObj);
-
-    if (res.success) {
+    try {
+      await saveVisitCentral(visitObj);
       setAutoSaveStatus('saved');
       setLastSavedTime(new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-AE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      if (isExplicitFinish && res.visit) {
-        onSaveSuccess(res.visit);
-      }
-    } else {
+      if (isExplicitFinish) onSaveSuccess(visitObj);
+    } catch (error) {
       setAutoSaveStatus('error');
       if (isExplicitFinish) {
-        alert(res.error || (isEn ? 'An error occurred while saving the visit.' : 'حدث خطأ أثناء حفظ الزيارة.'));
+        alert(error instanceof Error ? error.message : (isEn ? 'An error occurred while saving the visit.' : 'حدث خطأ أثناء حفظ الزيارة.'));
       }
     }
   };
