@@ -658,14 +658,16 @@ function getPublicEvaluators_() {
   var schoolId = 'sch_alsadara_01';
   var users = rowsAsObjects_(ss.getSheetByName('Users'));
   var eligibleRoles = ['evaluator', 'vice_principal', 'school_admin'];
+  var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator' };
   var activeAccounts = {};
   users.forEach(function(user) {
-    var role = String(user.role || '').trim().toLowerCase();
+    var rawRole = String(user.role || '').trim().toLowerCase();
+    var role = roleAliases[rawRole] || rawRole;
     var status = String(user.status || 'active').trim().toLowerCase();
     var accountSchool = String(user.schoolId || schoolId);
     if (accountSchool === schoolId && eligibleRoles.indexOf(role) >= 0 && (status === 'active' || status === '')) {
       var username = String(user.username || '').trim().toLowerCase();
-      if (username) activeAccounts[username] = user;
+      if (username) { user.publicRole = role; activeAccounts[username] = user; }
     }
   });
 
@@ -686,7 +688,7 @@ function getPublicEvaluators_() {
       id: String(account.id || ''),
       name: String(visitor.name || account.name || '').trim(),
       email: '',
-      role: String(account.role || 'evaluator'),
+      role: String(account.publicRole || account.role || 'evaluator'),
       status: 'active',
       schoolId: schoolId,
       roleTitle: String(visitor.roleTitle || visitor.role || account.roleTitle || 'مقيّم معتمد'),
@@ -699,7 +701,8 @@ function getPublicEvaluators_() {
 
   // Compatibility fallback for older accounts that have no directory row yet.
   users.forEach(function(user) {
-    var role = String(user.role || '').trim().toLowerCase();
+    var rawRole = String(user.role || '').trim().toLowerCase();
+    var role = roleAliases[rawRole] || rawRole;
     var status = String(user.status || 'active').trim().toLowerCase();
     var accountSchool = String(user.schoolId || schoolId);
     var key = String(user.id || '');
