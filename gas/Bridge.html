@@ -1,0 +1,58 @@
+<!DOCTYPE html>
+<html>
+  <head>
+    <base target="_top">
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>Athar Secure Bridge</title>
+  </head>
+  <body>
+    <script>
+      (function () {
+        'use strict';
+
+        // Accept bridge commands only from the published Athar frontend origin.
+        var ALLOWED_PARENT_ORIGIN = 'https://aboasmaa2273-code.github.io';
+        var REQUEST_CHANNEL = 'ATHAR_GAS_REQUEST';
+        var RESPONSE_CHANNEL = 'ATHAR_GAS_BRIDGE';
+        var READY_CHANNEL = 'ATHAR_GAS_BRIDGE_READY';
+
+        function sendToParent(message) {
+          try {
+            window.top.postMessage(message, ALLOWED_PARENT_ORIGIN);
+          } catch (error) {
+            // Do not expose internal exception details to an untrusted origin.
+          }
+        }
+
+        window.addEventListener('message', function (event) {
+          if (event.source !== window.top || event.origin !== ALLOWED_PARENT_ORIGIN) return;
+          var message = event.data;
+          if (!message || message.channel !== REQUEST_CHANNEL || !message.id || !message.request) return;
+
+          google.script.run
+            .withSuccessHandler(function (result) {
+              sendToParent({
+                channel: RESPONSE_CHANNEL,
+                id: message.id,
+                result: result
+              });
+            })
+            .withFailureHandler(function () {
+              sendToParent({
+                channel: RESPONSE_CHANNEL,
+                id: message.id,
+                result: {
+                  success: false,
+                  error: 'تعذر تنفيذ طلب قاعدة البيانات عبر Google Apps Script.'
+                }
+              });
+            })
+            .dispatchBridgeRequest(message.request);
+        });
+
+        sendToParent({ channel: READY_CHANNEL });
+      })();
+    </script>
+  </body>
+</html>
