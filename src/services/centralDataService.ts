@@ -115,7 +115,7 @@ export async function deleteTeacherCentral(id: string) {
   return atharRemoteAction('deleteTeacher', { id });
 }
 
-export async function saveVisitCentral(visit: ClassroomVisit) {
+export async function saveVisitCentral(visit: ClassroomVisit & { recordHistory?: boolean }) {
   return atharRemoteAction('saveVisit', visit as unknown as Record<string, unknown>);
 }
 
