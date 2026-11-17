@@ -123,6 +123,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   );
 
   const canManageVisitAccounts = ['platform_admin', 'school_admin'].includes(currentUser.role);
+  const activeRegisteredVisitors = registeredVisitors.filter(visitor => visitor.status !== 'inactive');
   const [isAccountModalOpen, setIsAccountModalOpen] = useState(false);
   const [accountName, setAccountName] = useState('');
   const [accountUsername, setAccountUsername] = useState('');
@@ -136,7 +137,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     if (editingVisit?.visitors && editingVisit.visitors.length > 0) {
       return editingVisit.visitors;
     }
-    const registeredList = registeredVisitors;
+    const registeredList = activeRegisteredVisitors;
     const matched = registeredList.find(
       rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
     );
@@ -168,7 +169,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   useEffect(() => {
     if (!editingVisit && currentUser?.name) {
       setVisitors(prev => {
-        const registeredList = registeredVisitors;
+        const registeredList = activeRegisteredVisitors;
         const matched = registeredList.find(
           rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
         );
@@ -199,7 +200,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
         return updated;
       });
     }
-  }, [currentUser, editingVisit, registeredVisitors]);
+  }, [currentUser, editingVisit, activeRegisteredVisitors]);
 
   // Handle total / attended changes with auto-calc of absentees
   const handleTotalStudentsChange = (val: string) => {
@@ -1112,12 +1113,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         )}
                       </div>
 
-                      {registeredVisitors.length > 0 && (
+                      {activeRegisteredVisitors.length > 0 && (
                         <div className="flex items-center justify-between text-[10px] text-slate-500">
                           <span>{t.visitorsManagement.quickPick}:</span>
                           <select
                             onChange={(e) => {
-                              const found = registeredVisitors.find(rv => rv.id === e.target.value);
+                              const found = activeRegisteredVisitors.find(rv => rv.id === e.target.value);
                               if (found) {
                                 handleVisitorChange(visitor.id, 'name', found.name);
                                 handleVisitorChange(visitor.id, 'role', found.role);
@@ -1127,7 +1128,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                             className="bg-[#F2EBDD]/60 border border-[#C6A66A]/50 rounded px-1.5 py-0.5 text-[10px] font-bold text-[#172C40] focus:outline-none"
                           >
                             <option value="">{isEn ? '-- Select from directory --' : '-- اختيار من الدليل المعتمد --'}</option>
-                            {registeredVisitors.map(rv => (
+                            {activeRegisteredVisitors.map(rv => (
                               <option key={rv.id} value={rv.id}>
                                 {rv.name} ({rv.roleTitle || (isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role))})
                               </option>
