@@ -5,6 +5,30 @@ export type UserRole =
   | 'evaluator'          // المقيم
   | 'teacher';           // المعلم
 
+/** Normalize legacy Arabic/English role labels at the UI boundary. */
+export function normalizeUserRole(value: unknown): UserRole | null {
+  const raw = String(value ?? '').trim().toLowerCase();
+  const aliases: Record<string, UserRole> = {
+    admin: 'platform_admin', platform_admin: 'platform_admin',
+    'مسؤول المنصة': 'platform_admin', 'مدير المنصة': 'platform_admin',
+    principal: 'school_admin', school_admin: 'school_admin',
+    'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin',
+    assistant_principal: 'vice_principal', vice_principal: 'vice_principal',
+    'مساعد المدير': 'vice_principal', 'مساعد مدير المدرسة': 'vice_principal',
+    observer: 'evaluator', evaluator: 'evaluator',
+    'مقيم': 'evaluator', 'مقيّم': 'evaluator',
+    'مقيم الزيارة الصفية': 'evaluator', 'مقيّم الزيارة الصفية': 'evaluator',
+    teacher: 'teacher', 'معلم': 'teacher', 'معلم صف': 'teacher'
+  };
+  if (aliases[raw]) return aliases[raw];
+  if (raw.includes('مسؤول المنصة') || raw.includes('مدير المنصة')) return 'platform_admin';
+  if (raw.includes('مسؤول المدرسة') || raw.includes('مدير المدرسة')) return 'school_admin';
+  if (raw.includes('مساعد المدير')) return 'vice_principal';
+  if (raw.includes('مقيم') || raw.includes('مقيّم')) return 'evaluator';
+  if (raw.includes('معلم')) return 'teacher';
+  return null;
+}
+
 export interface User {
   id: string;
   name: string;
