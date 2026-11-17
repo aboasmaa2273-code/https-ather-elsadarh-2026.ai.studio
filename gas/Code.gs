@@ -1456,10 +1456,10 @@ function updateUserCredentials_(payload, session) {
     return String(other[idCol]) !== targetId && String(other[usernameCol] || '').toLowerCase() === username;
   })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
   if (password && password.length < 10) return { success: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.' };
+  if (password && (saltCol < 0 || hashCol < 0)) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة.' };
   sheet.getRange(rowIndex, nameCol + 1).setValue(name);
   sheet.getRange(rowIndex, usernameCol + 1).setValue(username);
   if (password) {
-    if (saltCol < 0 || hashCol < 0) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة.' };
     var salt = Utilities.getUuid() + Utilities.getUuid();
     sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
     sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
