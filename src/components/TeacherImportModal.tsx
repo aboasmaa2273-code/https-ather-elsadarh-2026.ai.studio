@@ -1,12 +1,14 @@
 import React, { useState } from 'react';
 import { Upload, Download, AlertTriangle, CheckCircle2, FileText, X } from 'lucide-react';
-import { AtharStorageService } from '../services/storageService';
+import { Teacher } from '../types';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { translations, Language } from '../i18n/translations';
 
 interface TeacherImportModalProps {
   isOpen: boolean;
   onClose: () => void;
   onImportComplete: () => void;
+  teachers: Teacher[];
   language?: Language;
 }
 
@@ -14,6 +16,7 @@ export const TeacherImportModal: React.FC<TeacherImportModalProps> = ({
   isOpen,
   onClose,
   onImportComplete,
+  teachers,
   language = 'ar'
 }) => {
   const [csvText, setCsvText] = useState('');
@@ -72,7 +75,7 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
 
     const rows: any[] = [];
     const errors: string[] = [];
-    const existingTeachers = AtharStorageService.getTeachers();
+    const existingTeachers = teachers;
     const existingJobNumbers = new Set(existingTeachers.map(t => t.jobNumber.trim()));
     const seenBatchJobNumbers = new Set<string>();
 
@@ -133,30 +136,36 @@ Michael Taylor,10970,Arabic Language,m.taylor@alsadara.edu.ae,0504445566`
     setValidationErrors(errors);
   };
 
-  const handleExecuteImport = () => {
+  const handleExecuteImport = async () => {
     const validRows = parsedRows.filter(r => r.isValid);
     if (validRows.length === 0) {
       alert(isEn ? 'No valid records found to import!' : 'لا توجد سجلات صالحة للاستيراد!');
       return;
     }
 
-    const result = AtharStorageService.bulkImportTeachers(
-      validRows.map(r => ({
-        fullName: r.fullName,
-        jobNumber: r.jobNumber,
-        specialization: r.specialization,
-        email: r.email,
-        phone: r.phone
-      }))
-    );
-
-    setImportResult({
-      imported: result.importedCount,
-      rejected: result.rejectedCount + (parsedRows.length - validRows.length),
-      errors: result.errors
-    });
-
-    onImportComplete();
+    try {
+      const result: any = await atharRemoteAction('importTeachers', {
+        teachers: validRows.map((r) => ({
+          lineNum: r.lineNum,
+          fullName: r.fullName,
+          jobNumber: r.jobNumber,
+          specialization: r.specialization,
+          email: r.email,
+          phone: r.phone
+        }))
+      });
+      const serverErrors = Array.isArray(result.errors)
+        ? result.errors.map((item: any) => `السطر ${item.lineNum || ''}: ${(item.reasons || []).join('، ')}`)
+        : [];
+      setImportResult({
+        imported: Number(result.importedCount || 0),
+        rejected: Number(result.rejectedCount || 0) + (parsedRows.length - validRows.length),
+        errors: [...validationErrors, ...serverErrors]
+      });
+      onImportComplete();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر استيراد المعلمين إلى قاعدة البيانات المركزية.');
+    }
   };
 
   return (

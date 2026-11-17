@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PlatformSettings, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharPublicEvaluators } from '../services/gasBridgeClient';
 import { 
   ShieldCheck, 
   Award, 
@@ -25,7 +26,6 @@ import { translations, Language } from '../i18n/translations';
 interface PublicHomeProps {
   platformSettings: PlatformSettings;
   onLoginClick: () => void;
-  onSelectEvaluator?: (user: User, navigateTo?: string) => void;
   onAddNewEvaluator?: (name: string, roleTitle?: string) => void;
   language?: Language;
 }
@@ -33,69 +33,33 @@ interface PublicHomeProps {
 export const PublicHome: React.FC<PublicHomeProps> = ({ 
   platformSettings, 
   onLoginClick,
-  onSelectEvaluator,
   onAddNewEvaluator,
   language = 'ar' 
 }) => {
   const t = translations[language];
   const isEn = language === 'en';
 
-  // Evaluators list from storage
-  const [evaluators, setEvaluators] = useState<User[]>(() => {
-    return AtharStorageService.getAllUsers();
-  });
+  // Load only centrally registered, active evaluator accounts for the public directory.
+  const [evaluators, setEvaluators] = useState<User[]>([]);
 
-  // Modal to add a new evaluator with credentials
-  const [isAddModalOpen, setIsAddModalOpen] = useState(false);
-  const [newEvaluatorName, setNewEvaluatorName] = useState('');
-  const [newEvaluatorTitle, setNewEvaluatorTitle] = useState('');
-  const [newEvaluatorUsername, setNewEvaluatorUsername] = useState('');
-  const [newEvaluatorPassword, setNewEvaluatorPassword] = useState('123');
-
-  const handleCreateEvaluator = (e: React.FormEvent) => {
-    e.preventDefault();
-    if (!newEvaluatorName.trim()) return;
-
-    const chosenUsername = newEvaluatorUsername.trim() || newEvaluatorName.trim().toLowerCase().replace(/\s+/g, '_');
-    const chosenPassword = newEvaluatorPassword.trim() || '123';
-
-    const res = AtharStorageService.registerEvaluator({
-      name: newEvaluatorName.trim(),
-      username: chosenUsername,
-      password: chosenPassword,
-      specialization: newEvaluatorTitle.trim() || 'مقيّم تربوي معتمد'
-    });
-
-    if (res.success && res.user) {
-      // Also register in RegisteredVisitors directory
-      AtharStorageService.saveRegisteredVisitor({
-        id: `vis_${Date.now()}`,
-        name: res.user.name,
-        role: 'evaluator',
-        roleTitle: res.user.specialization,
-        username: res.user.username,
-        password: res.user.password
+  useEffect(() => {
+    let isMounted = true;
+    atharPublicEvaluators()
+      .then((items) => {
+        if (isMounted) setEvaluators(items);
+      })
+      .catch(() => {
+        if (isMounted) setEvaluators([]);
       });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
-      setEvaluators(AtharStorageService.getAllUsers());
-      setIsAddModalOpen(false);
-      setNewEvaluatorName('');
-      setNewEvaluatorTitle('');
-      setNewEvaluatorUsername('');
-      setNewEvaluatorPassword('123');
-
-      if (onSelectEvaluator) {
-        onSelectEvaluator(res.user, 'new-visit');
-      }
-    }
-  };
-
-  const handleCardClick = (user: User, navigateTo: string = 'new-visit') => {
-    if (onSelectEvaluator) {
-      onSelectEvaluator(user, navigateTo);
-    } else {
-      onLoginClick();
-    }
+  // Public evaluator cards must never create an authenticated session.
+  // Every access attempt goes through the central username/password login.
+  const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
+    onLoginClick();
   };
 
   return (
@@ -157,7 +121,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                 className="px-6 py-3.5 bg-gradient-to-r from-[#C6A66A] to-[#b89556] text-[#172C40] text-sm font-extrabold rounded-xl hover:brightness-105 transition-all shadow-lg flex items-center gap-2 cursor-pointer"
               >
                 <UserCheck className="w-4 h-4" />
-                <span>{isEn ? 'Choose Evaluator & Begin Visit' : 'اختر اسم المقيّم وابدأ الزيارة فوراً'}</span>
+                <span>{isEn ? 'Sign in to Begin' : 'سجّل الدخول للبدء'}</span>
                 {isEn ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </a>
 
@@ -259,13 +223,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                 {isEn ? <ArrowRight className="w-4 h-4" /> : <ArrowLeft className="w-4 h-4" />}
               </button>
 
-              <button
-                onClick={() => setIsAddModalOpen(true)}
-                className="px-4 py-2.5 bg-white/10 hover:bg-white/20 border border-white/20 text-white rounded-xl text-xs font-bold transition-colors flex items-center justify-center gap-1.5 cursor-pointer"
-              >
-                <PlusCircle className="w-3.5 h-3.5 text-[#C6A66A]" />
-                <span>{isEn ? '+ Register New Evaluator' : '+ تسجيل مقيّم جديد'}</span>
-              </button>
+
             </div>
           </div>
         </div>
@@ -368,114 +326,6 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
           })}
         </div>
       </section>
-
-      {/* ============================================================== */}
-      {/* 3. MODAL: ADD NEW EVALUATOR DIRECTLY                           */}
-      {/* ============================================================== */}
-      {isAddModalOpen && (
-        <div className="fixed inset-0 z-50 bg-[#172C40]/75 backdrop-blur-xs flex items-center justify-center p-4">
-          <div className="bg-white rounded-2xl border border-slate-200 max-w-md w-full shadow-2xl overflow-hidden animate-in fade-in zoom-in-95 duration-150">
-            <div className="p-4 bg-[#172C40] text-white flex items-center justify-between border-b border-[#C6A66A]/30">
-              <div className="flex items-center gap-2">
-                <PlusCircle className="w-5 h-5 text-[#C6A66A]" />
-                <h3 className="font-bold text-sm font-['Tajawal'] text-white">
-                  {isEn ? 'Add New Evaluator / Observer' : 'إضافة مقيّم جديد للمنظومة'}
-                </h3>
-              </div>
-              <button
-                type="button"
-                onClick={() => setIsAddModalOpen(false)}
-                className="p-1 hover:bg-white/10 rounded-lg text-white/80"
-              >
-                <X className="w-5 h-5" />
-              </button>
-            </div>
-
-            <form onSubmit={handleCreateEvaluator} className="p-6 space-y-4 text-xs">
-              <div>
-                <label className="block font-bold text-[#172C40] mb-1.5">
-                  {isEn ? 'Evaluator Full Name *' : 'اسم المقيّم الكامل *'}
-                </label>
-                <input
-                  type="text"
-                  required
-                  autoFocus
-                  placeholder={isEn ? 'e.g. Dr. Hessa Al Dhaheri' : 'مثال: د. مريم الشامسي'}
-                  value={newEvaluatorName}
-                  onChange={(e) => setNewEvaluatorName(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border-2 border-slate-300 rounded-xl font-bold text-sm text-[#172C40] focus:border-[#172C40] focus:outline-none"
-                />
-              </div>
-
-              <div>
-                <label className="block font-bold text-[#172C40] mb-1.5">
-                  {isEn ? 'Role / Specialization' : 'المسمى الوظيفي / التخصص التربوي'}
-                </label>
-                <input
-                  type="text"
-                  placeholder={isEn ? 'e.g. Educational Supervisor / Senior Evaluator' : 'مثال: موجه تربوي / مقيّم جودة أول'}
-                  value={newEvaluatorTitle}
-                  onChange={(e) => setNewEvaluatorTitle(e.target.value)}
-                  className="w-full px-3.5 py-2.5 border border-slate-300 rounded-xl text-xs text-[#172C40] focus:border-[#172C40] focus:outline-none"
-                />
-              </div>
-
-              {/* Username & Password */}
-              <div className="p-3 bg-amber-50/50 rounded-xl border border-[#C6A66A]/30 space-y-2">
-                <div className="text-[11px] font-bold text-[#172C40] flex items-center gap-1.5">
-                  <Lock className="w-3.5 h-3.5 text-[#C6A66A]" />
-                  <span>{isEn ? 'Login Credentials (Username & Password)' : 'بيانات تسجيل الدخول المعتمدة (يوزرنيم وباسوورد)'}</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2">
-                  <div>
-                    <label className="block font-bold text-slate-700 text-[10px] mb-1">
-                      {isEn ? 'Username' : 'اليوزرنيم'}
-                    </label>
-                    <input
-                      type="text"
-                      dir="ltr"
-                      placeholder="username"
-                      value={newEvaluatorUsername}
-                      onChange={(e) => setNewEvaluatorUsername(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono text-xs bg-white focus:outline-none"
-                    />
-                  </div>
-                  <div>
-                    <label className="block font-bold text-slate-700 text-[10px] mb-1">
-                      {isEn ? 'Password' : 'الباسوورد'}
-                    </label>
-                    <input
-                      type="text"
-                      dir="ltr"
-                      placeholder="123"
-                      value={newEvaluatorPassword}
-                      onChange={(e) => setNewEvaluatorPassword(e.target.value)}
-                      className="w-full px-2.5 py-1.5 border border-slate-300 rounded-lg font-mono text-xs bg-white focus:outline-none"
-                    />
-                  </div>
-                </div>
-              </div>
-
-              <div className="pt-3 border-t border-slate-100 flex items-center justify-end gap-2">
-                <button
-                  type="button"
-                  onClick={() => setIsAddModalOpen(false)}
-                  className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 cursor-pointer font-medium"
-                >
-                  {isEn ? 'Cancel' : 'إلغاء'}
-                </button>
-                <button
-                  type="submit"
-                  className="px-5 py-2 bg-[#172C40] text-white hover:bg-[#101F2D] rounded-lg font-bold flex items-center gap-1.5 cursor-pointer shadow-xs"
-                >
-                  <Check className="w-4 h-4 text-[#C6A66A]" />
-                  <span>{isEn ? 'Save & Start Evaluating' : 'حفظ والدخول الفوري للتقييم'}</span>
-                </button>
-              </div>
-            </form>
-          </div>
-        </div>
-      )}
 
       {/* ============================================================== */}
       {/* 4. SYSTEM PILLARS SECTION                                      */}

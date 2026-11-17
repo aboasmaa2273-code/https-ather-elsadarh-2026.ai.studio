@@ -122,36 +122,12 @@ export class AtharStorageService {
     return { success: true };
   }
 
-  // Authentication by Username and Password
-  static authenticate(username: string, password: string): { success: boolean; user?: User; error?: string } {
-    const trimmedUsername = username.trim().toLowerCase();
-    const allUsers = this.getAllUsers();
-
-    const matchedUser = allUsers.find(u => {
-      const uName = (u.username || '').trim().toLowerCase();
-      const uEmail = (u.email || '').trim().toLowerCase();
-      return uName === trimmedUsername || uEmail === trimmedUsername;
-    });
-
-    if (!matchedUser) {
-      return { 
-        success: false, 
-        error: 'اسم المستخدم غير مسجل في المنظومة. يرجى التحقق من صحة الاسم المدخل.' 
-      };
-    }
-
-    // Verify password (default to '123' or '123456' if not set)
-    const expectedPassword = matchedUser.password || '123';
-    if (password !== expectedPassword) {
-      return { 
-        success: false, 
-        error: 'كلمة المرور غير صحيحة. يرجى المحاولة مرة أخرى أو مراجعة بيانات الاعتماد.' 
-      };
-    }
-
-    this.setCurrentUser(matchedUser);
-    this.logAction(matchedUser, 'تسجيل دخول ناجح', `تم تسجيل دخول المستخدم (${matchedUser.name}) بنجاح`);
-    return { success: true, user: matchedUser };
+  // Local authentication is deliberately disabled. All sign-in must be verified by the central Apps Script API.
+  static authenticate(_username: string, _password: string): { success: boolean; user?: User; error?: string } {
+    return {
+      success: false,
+      error: 'تسجيل الدخول المحلي غير متاح. استخدم خدمة المصادقة المركزية للمنصة.'
+    };
   }
 
   // Update credentials (username, password, full name)
@@ -896,13 +872,14 @@ export class AtharStorageService {
   // Strict Security and Permissions Helpers (صلاحيات دقيقة ومقيدة للمخولين فقط)
   static canManageTeachers(user: User): boolean {
     if (!user) return false;
-    // Teachers and unauthorized users are strictly blocked
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    // Must match the central API managementRoles.
+    return ['school_admin', 'platform_admin', 'vice_principal'].includes(user.role);
   }
 
   static canDeleteTeacher(user: User): boolean {
     if (!user) return false;
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    // Permanent teacher deletion is restricted to school/platform administrators.
+    return ['school_admin', 'platform_admin'].includes(user.role);
   }
 
   static canCreateVisit(user: User): boolean {
@@ -911,13 +888,11 @@ export class AtharStorageService {
   }
 
   static canEditVisit(user: User, visit?: ClassroomVisit): boolean {
-    if (!user || user.role === 'teacher') return false; // Teachers can NEVER edit visits
-    if (['school_admin', 'platform_admin'].includes(user.role)) return true;
-    if (user.role === 'vice_principal') return true;
+    if (!user || user.role === 'teacher') return false;
+    if (['school_admin', 'platform_admin', 'vice_principal'].includes(user.role)) return true;
     if (user.role === 'evaluator') {
-      if (!visit) return true;
-      // Evaluator can edit their own visit or draft visit
-      return visit.evaluatorId === user.id || visit.evaluatorName === user.name || visit.status === 'draft' || ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+      // The central API authorizes evaluators to edit only their own visits.
+      return !visit || visit.evaluatorId === user.id;
     }
     return false;
   }
@@ -940,8 +915,8 @@ export class AtharStorageService {
 
   static canEditSettings(user: User): boolean {
     if (!user) return false;
-    // Authorized leadership and evaluators can manage platform settings and directory
-    return ['school_admin', 'platform_admin', 'vice_principal', 'evaluator'].includes(user.role);
+    // Must match the central API adminRoles.
+    return ['school_admin', 'platform_admin'].includes(user.role);
   }
 
   static canDeleteDemoData(user: User): boolean {

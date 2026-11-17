@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { ClassroomVisit, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { changeVisitStatusCentral } from '../services/centralDataService';
 import { 
   Search, 
   PlusCircle, 
@@ -68,24 +69,22 @@ export const VisitsList: React.FC<VisitsListProps> = ({
     return matchesSearch && matchesType && matchesStatus && matchesTerm;
   });
 
-  const handleApproveVisit = (visitId: string) => {
-    const res = AtharStorageService.updateVisitStatus(visitId, 'approved');
-    if (res.success) {
-      onRefreshVisits();
-    } else {
-      alert(res.error);
+  const handleApproveVisit = async (visitId: string) => {
+    try {
+      await changeVisitStatusCentral(visitId, 'approved');
+      await onRefreshVisits();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر اعتماد الزيارة.');
     }
   };
 
-  const handleDeleteVisit = (visitId: string) => {
-    if (!confirm(isEn ? 'Are you sure you want to delete this visit record? This action is restricted to authorized leadership.' : 'هل أنت متأكد من حذف سجل هذه الزيارة نهائياً؟ هذا الإجراء مقتصر على القيادات المخولة فقط.')) {
-      return;
-    }
-    const res = AtharStorageService.deleteVisit(visitId);
-    if (res.success) {
-      onRefreshVisits();
-    } else {
-      alert(res.error);
+  const handleDeleteVisit = async (visitId: string) => {
+    if (!confirm(isEn ? 'Archive this visit record? It will remain available in the history.' : 'هل تريد أرشفة سجل هذه الزيارة مع الاحتفاظ به في السجل التاريخي؟')) return;
+    try {
+      await changeVisitStatusCentral(visitId, 'archived');
+      await onRefreshVisits();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذرت أرشفة الزيارة.');
     }
   };
 
@@ -240,7 +239,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
                 visibleVisits.map((visit) => {
                   const canEdit = AtharStorageService.canEditVisit(currentUser, visit);
                   const canApprove = AtharStorageService.canApproveVisit(currentUser) && visit.status !== 'approved';
-                  const canDelete = !isTeacher;
+                  const canDelete = ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role);
 
                   return (
                     <tr key={visit.id} className="hover:bg-slate-50/70 transition-colors">
@@ -350,7 +349,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
                             <button
                               onClick={() => handleDeleteVisit(visit.id)}
                               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border border-rose-200 transition-colors cursor-pointer"
-                              title={isEn ? 'Delete Report' : 'حذف التقرير'}
+                              title={isEn ? 'Archive Report' : 'أرشفة التقرير'}
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>

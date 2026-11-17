@@ -6,9 +6,12 @@ import {
   ImprovementPlan, 
   AcademicSettings, 
   PlatformSettings,
-  AuditLogEntry
+  AuditLogEntry,
+  RegisteredVisitor
 } from './types';
-import { AtharStorageService } from './services/storageService';
+import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS, DEFAULT_USERS } from './data/defaultData';
+import { clearAtharRemoteSession } from './services/gasBridgeClient';
+import { loadCentralData, changeVisitStatusCentral } from './services/centralDataService';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -48,7 +51,7 @@ export default function App() {
 
   // Authentication & Current User - Defaults to logged-out on start to open on the Public Homepage
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
-  const [currentUser, setCurrentUser] = useState<User>(() => AtharStorageService.getCurrentUser());
+  const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS[0]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
 
   // Active Navigation Tab - Starts on the Home page with the hero picture
@@ -58,32 +61,35 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [visits, setVisits] = useState<ClassroomVisit[]>([]);
   const [plans, setPlans] = useState<ImprovementPlan[]>([]);
-  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(() => AtharStorageService.getAcademicSettings());
-  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(() => AtharStorageService.getPlatformSettings());
+  const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
+  const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
+  const [registeredVisitors, setRegisteredVisitors] = useState<RegisteredVisitor[]>([]);
 
   // Selected sub-views state
   const [selectedVisitForReport, setSelectedVisitForReport] = useState<ClassroomVisit | null>(null);
   const [selectedTeacherForReport, setSelectedTeacherForReport] = useState<Teacher | null>(null);
   const [editingVisit, setEditingVisit] = useState<ClassroomVisit | null>(null);
 
-  // Load initial data
-  const refreshAllData = () => {
-    setTeachers(AtharStorageService.getTeachers());
-    setVisits(AtharStorageService.getVisits());
-    setPlans(AtharStorageService.getPlans());
-    setAcademicSettings(AtharStorageService.getAcademicSettings());
-    setPlatformSettings(AtharStorageService.getPlatformSettings());
-    setAuditLogs(AtharStorageService.getAuditLogs());
+  // Load all operational data from the authenticated central database.
+  const refreshAllData = async () => {
+    try {
+      const data = await loadCentralData();
+      setTeachers(data.teachers);
+      setVisits(data.visits);
+      setPlans(data.plans);
+      setAcademicSettings(data.academicSettings);
+      setPlatformSettings(data.platformSettings);
+      setAuditLogs(data.auditLogs);
+      setRegisteredVisitors(data.registeredVisitors);
+    } catch (error) {
+      console.error('تعذر تحميل بيانات أَثَر المركزية:', error);
+      throw error;
+    }
   };
-
-  useEffect(() => {
-    refreshAllData();
-  }, []);
 
   // Handle user switch
   const handleUserChange = (newUser: User) => {
-    AtharStorageService.setCurrentUser(newUser);
     setCurrentUser(newUser);
     // If switched to teacher, make sure they aren't on admin-only tabs
     if (newUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
@@ -91,17 +97,16 @@ export default function App() {
     }
   };
 
-  // Login handler
-  const handleSelectRoleToLogin = (user: User) => {
-    handleUserChange(user);
-    setIsLoggedIn(true);
-    setIsLoginModalOpen(false);
-    setActiveTab('dashboard');
-  };
-
   // Logout handler
   const handleLogout = () => {
+    clearAtharRemoteSession();
     setIsLoggedIn(false);
+    setCurrentUser(DEFAULT_USERS[0]);
+    setTeachers([]);
+    setVisits([]);
+    setPlans([]);
+    setAuditLogs([]);
+    setRegisteredVisitors([]);
     setActiveTab('home');
   };
 
@@ -141,16 +146,6 @@ export default function App() {
           <PublicHome
             platformSettings={platformSettings}
             onLoginClick={() => setIsLoginModalOpen(true)}
-            onSelectEvaluator={(user, destination) => {
-              handleUserChange(user);
-              setIsLoggedIn(true);
-              if (destination === 'new-visit') {
-                setEditingVisit(null);
-                setActiveTab('new-visit');
-              } else {
-                setActiveTab('dashboard');
-              }
-            }}
             language={language}
           />
         )}
@@ -204,6 +199,7 @@ export default function App() {
             currentUser={currentUser}
             teachers={teachers}
             academicSettings={academicSettings}
+            registeredVisitors={registeredVisitors}
             editingVisit={editingVisit}
             onSaveSuccess={(saved) => {
               refreshAllData();
@@ -263,6 +259,7 @@ export default function App() {
               currentUser={currentUser}
               auditLogs={auditLogs}
               onRefreshSettings={refreshAllData}
+              onCurrentUserUpdate={handleUserChange}
               language={language}
             />
             <AcademicSettingsView
@@ -283,14 +280,11 @@ export default function App() {
           platformSettings={platformSettings}
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
-          canDelete={currentUser.role !== 'teacher'}
+          canDelete={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
           onDeleteReport={(visitId) => {
-            const res = AtharStorageService.deleteVisit(visitId);
-            if (res.success) {
-              refreshAllData();
-            } else {
-              alert(res.error);
-            }
+            void changeVisitStatusCentral(visitId, 'archived')
+              .then(() => refreshAllData())
+              .catch((error) => alert(error instanceof Error ? error.message : 'تعذر أرشفة التقرير.'));
           }}
         />
       )}
@@ -302,9 +296,24 @@ export default function App() {
           onClose={() => setIsLoginModalOpen(false)}
           onLoginSuccess={(user) => {
             handleUserChange(user);
-            setIsLoggedIn(true);
             setIsLoginModalOpen(false);
-            setActiveTab('dashboard');
+            void refreshAllData()
+              .then(() => {
+                setIsLoggedIn(true);
+                setActiveTab('dashboard');
+              })
+              .catch((error) => {
+                clearAtharRemoteSession();
+                setIsLoggedIn(false);
+                setCurrentUser(DEFAULT_USERS[0]);
+                setTeachers([]);
+                setVisits([]);
+                setPlans([]);
+                setAuditLogs([]);
+                setRegisteredVisitors([]);
+                setActiveTab('home');
+                alert(error instanceof Error ? error.message : 'تعذر تحميل بيانات المنصة. أُغلقت الجلسة لحماية سلامة البيانات.');
+              });
           }}
           language={language}
         />

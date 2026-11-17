@@ -16,6 +16,7 @@ import {
 } from '../types';
 import { OFFICIAL_INDICATORS, GENERAL_DOMAINS, POTENTIAL_VISIT_GOALS, PRESET_RECOMMENDATION_BANKS } from '../data/defaultData';
 import { AtharStorageService } from '../services/storageService';
+import { saveVisitCentral } from '../services/centralDataService';
 import { 
   Save, 
   CheckCircle2, 
@@ -49,6 +50,7 @@ interface VisitFormProps {
   currentUser: User;
   teachers: Teacher[];
   academicSettings: AcademicSettings;
+  registeredVisitors: RegisteredVisitor[];
   editingVisit?: ClassroomVisit | null;
   onSaveSuccess: (savedVisit: ClassroomVisit) => void;
   onCancel: () => void;
@@ -59,6 +61,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   currentUser,
   teachers,
   academicSettings,
+  registeredVisitors,
   editingVisit,
   onSaveSuccess,
   onCancel,
@@ -121,7 +124,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     if (editingVisit?.visitors && editingVisit.visitors.length > 0) {
       return editingVisit.visitors;
     }
-    const registeredList = AtharStorageService.getRegisteredVisitors();
+    const registeredList = registeredVisitors;
     const matched = registeredList.find(
       rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
     );
@@ -153,7 +156,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   useEffect(() => {
     if (!editingVisit && currentUser?.name) {
       setVisitors(prev => {
-        const registeredList = AtharStorageService.getRegisteredVisitors();
+        const registeredList = registeredVisitors;
         const matched = registeredList.find(
           rv => rv.name === currentUser.name || (currentUser.username && rv.username === currentUser.username)
         );
@@ -277,7 +280,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   );
 
   // Recommendations & Strengths Banks (Multi-choice selectable banks)
-  const [registeredVisitors] = useState<RegisteredVisitor[]>(() => AtharStorageService.getRegisteredVisitors());
 
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(() => {
     if (editingVisit?.strengths && editingVisit.strengths.length > 0) {
@@ -450,7 +452,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       clearTimeout(autoSaveTimerRef.current);
     }
     autoSaveTimerRef.current = setTimeout(() => {
-      saveVisitToStorage('draft', false);
+      const autosaveStatus: ClassroomVisit['status'] = editingVisit?.status === 'completed' || editingVisit?.status === 'approved'
+        ? editingVisit.status
+        : 'draft';
+      void saveVisitToStorage(autosaveStatus, false);
     }, 1200);
   };
 
@@ -556,20 +561,17 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   };
 
   // Save handler
-  const saveVisitToStorage = (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
+  const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
     const visitObj = buildVisitObject(finalStatus);
-    const res = AtharStorageService.saveVisit(visitObj);
-
-    if (res.success) {
+    try {
+      await saveVisitCentral({ ...visitObj, recordHistory: isExplicitFinish });
       setAutoSaveStatus('saved');
       setLastSavedTime(new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-AE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
-      if (isExplicitFinish && res.visit) {
-        onSaveSuccess(res.visit);
-      }
-    } else {
+      if (isExplicitFinish) onSaveSuccess(visitObj);
+    } catch (error) {
       setAutoSaveStatus('error');
       if (isExplicitFinish) {
-        alert(res.error || (isEn ? 'An error occurred while saving the visit.' : 'حدث خطأ أثناء حفظ الزيارة.'));
+        alert(error instanceof Error ? error.message : (isEn ? 'An error occurred while saving the visit.' : 'حدث خطأ أثناء حفظ الزيارة.'));
       }
     }
   };

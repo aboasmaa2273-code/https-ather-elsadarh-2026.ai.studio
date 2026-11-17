@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   KeyRound, 
   User as UserIcon, 
@@ -44,7 +45,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
@@ -59,8 +60,8 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       return;
     }
 
-    if (newPassword && newPassword.length < 3) {
-      setError(isEn ? 'New password must be at least 3 characters.' : 'كلمة المرور الجديدة يجب أن تتكون من 3 أحرف أو أرقام على الأقل.');
+    if (newPassword && newPassword.length < 10) {
+      setError(isEn ? 'New password must be at least 10 characters.' : 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.');
       return;
     }
 
@@ -70,29 +71,27 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
     }
 
     setIsSaving(true);
-    setTimeout(() => {
-      const res = AtharStorageService.updateUserCredentials(
-        currentUser.id,
-        username.trim(),
-        newPassword ? newPassword.trim() : undefined,
-        name.trim()
+    try {
+      const result: any = await atharRemoteAction('updateUserCredentials', {
+        id: currentUser.id,
+        username: username.trim(),
+        password: newPassword ? newPassword.trim() : '',
+        name: name.trim()
+      });
+      const updatedUser = result.user as User | undefined;
+      if (!updatedUser) throw new Error('لم يُرجع الخادم بيانات الحساب بعد التحديث.');
+      onUserUpdated(updatedUser);
+      setSuccessMessage(
+        isEn
+          ? 'Account credentials updated successfully. Use the new username and password next time.'
+          : 'تم تحديث بيانات الحساب مركزيًا. استخدم اسم المستخدم وكلمة المرور الجديدين عند تسجيل الدخول القادم.'
       );
-
+      setTimeout(() => onClose(), 1400);
+    } catch (submitError) {
+      setError(submitError instanceof Error ? submitError.message : (isEn ? 'Update failed.' : 'حدث خطأ أثناء حفظ التعديلات.'));
+    } finally {
       setIsSaving(false);
-      if (res.success && res.user) {
-        onUserUpdated(res.user);
-        setSuccessMessage(
-          isEn 
-            ? 'Account credentials updated successfully! You can now use your new username and password.' 
-            : 'تم حفظ وتحديث اسم المستخدم وكلمة المرور بنجاح! يمكنك استخدامهما الآن لتسجيل الدخول في أي وقت.'
-        );
-        setTimeout(() => {
-          onClose();
-        }, 1400);
-      } else {
-        setError(res.error || (isEn ? 'Update failed.' : 'حدث خطأ أثناء حفظ التعديلات.'));
-      }
-    }, 150);
+    }
   };
 
   return (
@@ -148,7 +147,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
             <div className="text-end">
               <span className="text-[11px] text-slate-500 block">كلمة المرور المسجلة:</span>
-              <span className="font-mono font-bold text-xs" dir="ltr">{currentUser.password || '123'}</span>
+              <span className="font-bold text-xs">مخفية لأسباب أمنية</span>
             </div>
           </div>
 
