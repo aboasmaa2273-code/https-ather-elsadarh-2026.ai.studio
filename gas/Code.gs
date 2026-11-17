@@ -1367,6 +1367,12 @@ function saveUserAccount_(payload, session) {
   var password = String(payload.password || '');
   if (!existing && password.length < 10) return { success: false, error: 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.' };
   if (password && password.length < 10) return { success: false, error: 'كلمة المرور يجب ألا تقل عن 10 أحرف.' };
+  // Validate password columns before writing any account fields to avoid partial saves.
+  var saltCol = headers.indexOf('passwordSalt');
+  var hashCol = headers.indexOf('passwordHash');
+  if (password && (saltCol < 0 || hashCol < 0)) {
+    return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة. تواصل مع مسؤول النظام.' };
+  }
   var obj = {
     id: id, schoolId: session.schoolId || 'sch_alsadara_01', name: name,
     email: String(payload.email || ''), role: role, jobNumber: String(payload.jobNumber || ''),
@@ -1385,8 +1391,6 @@ function saveUserAccount_(payload, session) {
   else { sheet.appendRow(row); rowIndex = sheet.getLastRow(); }
   if (password) {
     var salt = Utilities.getUuid() + Utilities.getUuid();
-    var saltCol = headers.indexOf('passwordSalt'), hashCol = headers.indexOf('passwordHash');
-    if (saltCol < 0 || hashCol < 0) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة. تواصل مع مسؤول النظام.' };
     sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
     sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
   }
