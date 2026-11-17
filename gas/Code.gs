@@ -1450,6 +1450,29 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة الحسابات مقتصرة على مسؤول المنصة أو إدارة المدرسة.' };
     return saveUserAccount_(payload, session);
   }
+  if (action === 'createVisitAccount') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'إنشاء حسابات المقيمين والزائرين مقتصر على مسؤول المنصة أو إدارة المدرسة.' };
+    var accountType = payload.accountType === 'visitor' ? 'visitor' : 'evaluator';
+    var accountPayload = {
+      name: payload.name, username: payload.username, password: payload.password,
+      role: 'evaluator', status: 'active', schoolId: schoolId
+    };
+    var accountResult = saveUserAccount_(accountPayload, session);
+    if (!accountResult.success) return accountResult;
+    var directoryResult = saveVisitor_({
+      name: payload.name,
+      username: payload.username,
+      role: 'evaluator',
+      roleTitle: accountType === 'visitor' ? 'زائر' : 'مقيم',
+      status: 'active'
+    }, session);
+    if (!directoryResult.success) {
+      setUserStatus_({ id: accountResult.user.id, status: 'inactive' }, session);
+      return { success: false, error: 'تعذر إكمال إضافة الحساب إلى دليل الزيارة؛ تم تعطيل الحساب احترازيًا. راجع مسؤول النظام.' };
+    }
+    logAuditAction(schoolId, session.name, 'إنشاء حساب زيارة', 'تم إنشاء حساب ' + (accountType === 'visitor' ? 'زائر' : 'مقيم') + ': ' + String(payload.name || ''), session.role);
+    return { success: true, user: { id: accountResult.user.id, name: accountResult.user.name, username: accountResult.user.username, role: accountResult.user.role, status: 'active' } };
+  }
   if (action === 'setUserStatus') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'تغيير حالة الحساب مقتصر على الإدارة.' };
     return setUserStatus_(payload, session);
