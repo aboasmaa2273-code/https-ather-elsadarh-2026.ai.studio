@@ -144,7 +144,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const refreshCentralUsers = async () => {
     const remote: any = await atharRemoteBootstrap();
     setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
-    setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+    setVisitorsList(uniqueVisitors(Array.isArray(remote.visitors) ? remote.visitors : []));
     setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
   };
 
