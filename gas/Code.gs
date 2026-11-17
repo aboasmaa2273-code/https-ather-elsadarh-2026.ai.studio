@@ -1450,6 +1450,38 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة الحسابات مقتصرة على مسؤول المنصة أو إدارة المدرسة.' };
     return saveUserAccount_(payload, session);
   }
+  if (action === 'setVisitAccountStatus') {
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة حسابات المقيمين والزائرين مقتصرة على الإدارة.' };
+    var targetUsername = String(payload.username || '').trim().toLowerCase();
+    if (!targetUsername) return { success: false, error: 'اسم المستخدم مطلوب.' };
+    var requestedStatus = payload.status === 'active' ? 'active' : 'inactive';
+    var usersSheetForStatus = ss.getSheetByName('Users');
+    var accountRowsForStatus = rowsAsObjects_(usersSheetForStatus);
+    var targetAccount = accountRowsForStatus.filter(function(u) {
+      return String(u.schoolId) === String(schoolId) && String(u.username || '').trim().toLowerCase() === targetUsername;
+    })[0];
+    if (!targetAccount || normalizeAtharRole_(targetAccount.role) !== 'evaluator') return { success: false, error: 'لم يتم العثور على حساب مقيم أو زائر بهذا الاسم.' };
+    var statusResult = setUserStatus_({ id: targetAccount.id, status: requestedStatus }, session);
+    if (!statusResult.success) return statusResult;
+    var directorySheetForStatus = ss.getSheetByName('RegisteredVisitors');
+    if (directorySheetForStatus && directorySheetForStatus.getLastRow() > 1) {
+      var directoryDataForStatus = directorySheetForStatus.getDataRange().getValues();
+      var directoryHeadersForStatus = directoryDataForStatus[0].map(String);
+      var usernameIndexForStatus = directoryHeadersForStatus.indexOf('username');
+      var schoolIndexForStatus = directoryHeadersForStatus.indexOf('schoolId');
+      var directoryStatusIndexForStatus = directoryHeadersForStatus.indexOf('status');
+      for (var dsi = 1; dsi < directoryDataForStatus.length; dsi++) {
+        if (String(directoryDataForStatus[dsi][schoolIndexForStatus]) === String(schoolId) &&
+            String(directoryDataForStatus[dsi][usernameIndexForStatus] || '').trim().toLowerCase() === targetUsername &&
+            directoryStatusIndexForStatus >= 0) {
+          directorySheetForStatus.getRange(dsi + 1, directoryStatusIndexForStatus + 1).setValue(requestedStatus);
+        }
+      }
+    }
+    invalidatePublicEvaluatorCache_();
+    logAuditAction(schoolId, session.name, 'تغيير حالة حساب زيارة', 'الحساب ' + targetUsername + ' أصبح ' + requestedStatus, session.role);
+    return { success: true, username: targetUsername, status: requestedStatus };
+  }
   if (action === 'createVisitAccount') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'إنشاء حسابات المقيمين والزائرين مقتصر على مسؤول المنصة أو إدارة المدرسة.' };
     var accountType = payload.accountType === 'visitor' ? 'visitor' : 'evaluator';
