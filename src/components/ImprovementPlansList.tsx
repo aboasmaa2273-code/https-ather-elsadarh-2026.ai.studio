@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { ImprovementPlan, Teacher, User } from '../types';
-import { AtharStorageService } from '../services/storageService';
+import { savePlanCentral, savePlanFollowUpCentral } from '../services/centralDataService';
 import { OFFICIAL_INDICATORS } from '../data/defaultData';
 import { 
   PlusCircle, 
@@ -81,12 +81,13 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     return matchesSearch && matchesStatus;
   });
 
-  const handleCreatePlanSubmit = (e: React.FormEvent) => {
+  const handleCreatePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     const tch = teachers.find(t => t.id === teacherId);
     if (!tch) return;
 
-    const res = AtharStorageService.savePlan({
+    try {
+      await savePlanCentral({
       schoolId: 'sch_alsadara_01',
       teacherId: tch.id,
       teacherName: tch.fullName,
@@ -99,13 +100,11 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
       duration,
       followUpDate,
       status: 'in_progress'
-    });
-
-    if (res.success) {
+      });
       setIsCreateModalOpen(false);
-      onRefreshPlans();
-    } else {
-      alert(res.error);
+      await onRefreshPlans();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر حفظ خطة التطوير.');
     }
   };
 
@@ -117,21 +116,21 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
     setIsFollowUpModalOpen(true);
   };
 
-  const handleFollowUpSubmit = (e: React.FormEvent) => {
+  const handleFollowUpSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedPlanForFollowUp) return;
 
-    const res = AtharStorageService.updatePlanFollowUp(selectedPlanForFollowUp.id, {
-      status: followUpStatus,
-      followUpResult,
-      followUpNotes
-    });
-
-    if (res.success) {
+    try {
+      await savePlanFollowUpCentral(selectedPlanForFollowUp.id, {
+        status: followUpStatus,
+        followUpResult,
+        followUpNotes,
+        followUpDate: new Date().toISOString().slice(0, 10)
+      });
       setIsFollowUpModalOpen(false);
-      onRefreshPlans();
-    } else {
-      alert(res.error);
+      await onRefreshPlans();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر حفظ متابعة خطة التطوير.');
     }
   };
 
