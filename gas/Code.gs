@@ -83,7 +83,7 @@ function getDatabaseSpreadsheet_() {
   var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
   if (!spreadsheetId) {
     // Use the existing school database rather than silently creating a second database.
-    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L9b8AwcYcLM';
+    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L9b8AwcYLM';
     properties.setProperty('ATHAR_DATABASE_SPREADSHEET_ID', spreadsheetId);
   }
   ATHAR_SPREADSHEET_INSTANCE_ = SpreadsheetApp.openById(spreadsheetId);
