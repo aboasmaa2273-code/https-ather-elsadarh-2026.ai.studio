@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { User } from '../types';
+import { User, normalizeUserRole } from '../types';
 import { atharRemoteLogin } from '../services/gasBridgeClient';
 import { 
   Shield, 
@@ -62,7 +62,12 @@ export const LoginModal: React.FC<LoginModalProps> = ({
         const remote = await atharRemoteLogin(username, password);
         if (remote.success && remote.user) {
           const user = remote.user as User;
-          onLoginSuccess(user);
+          const normalizedRole = normalizeUserRole(user.role);
+          if (!normalizedRole) {
+            setErrorMessage(isEn ? 'This account has an unsupported role. Contact the platform administrator.' : 'دور هذا الحساب غير معتمد. يُرجى مراجعة مسؤول المنصة.');
+            return;
+          }
+          onLoginSuccess({ ...user, role: normalizedRole });
           onClose();
         } else {
           setErrorMessage(remote.error || (isEn ? 'Invalid credentials.' : 'بيانات الدخول غير صحيحة.'));
