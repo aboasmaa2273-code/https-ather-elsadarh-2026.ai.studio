@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction, atharRemoteBootstrap } from '../services/gasBridgeClient';
 import { 
   Sliders, 
   Check, 
@@ -53,7 +54,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
   // Active Settings Sub-Tab
   const [activeSubTab, setActiveSubTab] = useState<'platform' | 'visitors' | 'users' | 'data' | 'audit'>('platform');
-  const [allUsersList, setAllUsersList] = useState<User[]>(() => AtharStorageService.getAllUsers());
+  const [allUsersList, setAllUsersList] = useState<User[]>([]);
   const [selectedUserForCredentials, setSelectedUserForCredentials] = useState<User | null>(null);
 
   // Platform Identity State
@@ -74,7 +75,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
 
   // Registered Visitors Directory State
-  const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>(() => AtharStorageService.getRegisteredVisitors());
+  const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>([]);
+  const [isSavingVisitor, setIsSavingVisitor] = useState(false);
+  const [visitorInlineError, setVisitorInlineError] = useState('');
   const [isVisitorModalOpen, setIsVisitorModalOpen] = useState(false);
   const [editingVisitor, setEditingVisitor] = useState<RegisteredVisitor | null>(null);
   const [visitorFormName, setVisitorFormName] = useState('');
@@ -85,7 +88,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [visitorFormEmail, setVisitorFormEmail] = useState('');
   const [visitorFormPhone, setVisitorFormPhone] = useState('');
   const [visitorFormUsername, setVisitorFormUsername] = useState('');
-  const [visitorFormPassword, setVisitorFormPassword] = useState('123');
+  const [visitorFormPassword, setVisitorFormPassword] = useState('');
 
   // Demo Data Management & Cleanup State
   const [purgeTarget, setPurgeTarget] = useState<'visits' | 'plans' | 'teachers' | 'all' | null>(null);
@@ -102,6 +105,32 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setLocalAuditLogs(auditLogs);
   }, [auditLogs]);
 
+  useEffect(() => {
+    let active = true;
+    (async () => {
+      try {
+        const remote: any = await atharRemoteBootstrap();
+        if (!active) return;
+        setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
+        setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+        setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+      } catch (error) {
+        if (!active) return;
+        setAllUsersList([]);
+        setVisitorsList([]);
+        setVisitorInlineError(error instanceof Error ? error.message : 'تعذر تحميل دليل الزائرين من قاعدة البيانات المركزية.');
+      }
+    })();
+    return () => { active = false; };
+  }, []);
+
+  const refreshCentralUsers = async () => {
+    const remote: any = await atharRemoteBootstrap();
+    setAllUsersList(Array.isArray(remote.users) ? remote.users : []);
+    setVisitorsList(Array.isArray(remote.visitors) ? remote.visitors : []);
+    setLocalAuditLogs(Array.isArray(remote.auditLogs) ? remote.auditLogs : []);
+  };
+
   // Feedback display helper
   const showFeedback = (type: 'success' | 'error', text: string) => {
     setFeedbackMessage({ type, text });
@@ -109,18 +138,15 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   };
 
   // Delete Evaluator Account
-  const handleDeleteUser = (userId: string, userName: string) => {
-    if (!confirm(isEn ? `Are you sure you want to delete evaluator "${userName}"?` : `هل أنت متأكد من رغبتك في حذف حساب المقيم "${userName}" نهائياً من المنظومة؟`)) {
-      return;
-    }
-    const res = AtharStorageService.deleteUser(userId);
-    if (res.success) {
-      setAllUsersList(AtharStorageService.getAllUsers());
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      showFeedback('success', isEn ? `Evaluator ${userName} deleted successfully.` : `تم حذف حساب المقيم (${userName}) بنجاح.`);
+  const handleDeleteUser = async (userId: string, userName: string) => {
+    if (!confirm(isEn ? `Disable account "${userName}"?` : `هل تريد تعطيل حساب "${userName}" ومنع تسجيل الدخول به؟`)) return;
+    try {
+      await atharRemoteAction('setUserStatus', { id: userId, status: 'inactive' });
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Account disabled centrally.' : 'تم تعطيل الحساب مركزيًا.');
       onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to delete evaluator.' : 'تعذر حذف المقيم.'));
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : 'تعذر تغيير حالة الحساب.');
     }
   };
 
@@ -176,7 +202,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormEmail('');
     setVisitorFormPhone('');
     setVisitorFormUsername('');
-    setVisitorFormPassword('123');
+    setVisitorFormPassword('');
+    setVisitorInlineError('');
     setIsVisitorModalOpen(true);
   };
 
@@ -190,52 +217,93 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormEmail(vis.email || '');
     setVisitorFormPhone(vis.phone || '');
     setVisitorFormUsername(vis.username || '');
-    setVisitorFormPassword(vis.password || '123');
+    setVisitorFormPassword('');
+    setVisitorInlineError('');
     setIsVisitorModalOpen(true);
   };
 
-  const handleSaveVisitorSubmit = (e: React.FormEvent) => {
+  const handleSaveVisitorSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (!visitorFormName.trim()) {
-      showFeedback('error', isEn ? 'Visitor name is required.' : 'اسم الزائر مطلوب.');
+    setVisitorInlineError('');
+    if (!visitorFormName.trim() || !visitorFormUsername.trim()) {
+      setVisitorInlineError(isEn ? 'Name and username are required.' : 'الاسم واسم المستخدم مطلوبان.');
       return;
     }
 
-    const payload: RegisteredVisitor = {
-      id: editingVisitor ? editingVisitor.id : `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
-      name: visitorFormName.trim(),
-      role: visitorFormRole,
-      roleTitle: visitorFormTitle.trim() || undefined,
-      department: visitorFormDept.trim() || undefined,
-      jobNumber: visitorFormJobNumber.trim() || undefined,
-      email: visitorFormEmail.trim() || undefined,
-      phone: visitorFormPhone.trim() || undefined,
-      username: visitorFormUsername.trim() || undefined,
-      password: visitorFormPassword.trim() || undefined
-    };
+    const username = visitorFormUsername.trim().toLowerCase();
+    const previousUsername = (editingVisitor?.username || '').trim().toLowerCase();
+    const linkedUser = allUsersList.find(u => (u.username || '').toLowerCase() === previousUsername)
+      || allUsersList.find(u => (u.username || '').toLowerCase() === username);
 
-    const res = AtharStorageService.saveRegisteredVisitor(payload);
-    if (res.success) {
-      setVisitorsList(AtharStorageService.getRegisteredVisitors());
-      setAllUsersList(AtharStorageService.getAllUsers());
+    if (!linkedUser && visitorFormPassword.length < 10) {
+      setVisitorInlineError(isEn ? 'A new account requires a password of at least 10 characters.' : 'إنشاء حساب جديد يتطلب كلمة مرور لا تقل عن 10 أحرف.');
+      return;
+    }
+    if (linkedUser && ['platform_admin', 'school_admin'].includes(linkedUser.role)) {
+      setVisitorInlineError(isEn
+        ? 'This directory cannot modify a school or platform administrator account.'
+        : 'لا يمكن تعديل حساب مسؤول المنصة أو مسؤول المدرسة من دليل الزائرين. يُرجى إدارة هذا الحساب من قسم الحسابات الإدارية.');
+      return;
+    }
+
+    setIsSavingVisitor(true);
+    try {
+      const accountRole = linkedUser
+        ? linkedUser.role
+        : (visitorFormRole === 'vice_principal' ? 'vice_principal' : 'evaluator');
+
+      await atharRemoteAction('saveUserAccount', {
+        id: linkedUser?.id,
+        name: visitorFormName.trim(),
+        username,
+        password: visitorFormPassword,
+        role: accountRole,
+        specialization: visitorFormTitle.trim(),
+        jobNumber: visitorFormJobNumber.trim(),
+        email: visitorFormEmail.trim(),
+        status: 'active'
+      });
+
+      const visitorPayload: RegisteredVisitor = {
+        id: editingVisitor ? editingVisitor.id : `vis_${Date.now()}_${Math.random().toString(36).substring(2, 6)}`,
+        name: visitorFormName.trim(),
+        role: visitorFormRole,
+        roleTitle: visitorFormTitle.trim() || undefined,
+        department: visitorFormDept.trim() || undefined,
+        jobNumber: visitorFormJobNumber.trim() || undefined,
+        email: visitorFormEmail.trim() || undefined,
+        phone: visitorFormPhone.trim() || undefined,
+        username
+      };
+      await atharRemoteAction('saveVisitor', { ...visitorPayload, status: 'active' });
+      await refreshCentralUsers();
+      setVisitorFormPassword('');
       setIsVisitorModalOpen(false);
-      showFeedback('success', isEn ? 'Observer & credentials saved successfully.' : 'تم حفظ بيانات المقيم وبيانات الدخول (اليوزرنيم والباسوورد) بنجاح.');
+      showFeedback('success', isEn ? 'Visitor details and login account saved centrally.' : 'تم حفظ بيانات الزائر وحساب الدخول في قاعدة البيانات المركزية بنجاح.');
       onRefreshSettings();
-    } else {
-      showFeedback('error', res.error || (isEn ? 'Failed to save observer.' : 'تعذر حفظ بيانات الزائر.'));
+    } catch (error) {
+      const message = error instanceof Error ? error.message : (isEn ? 'Could not save visitor.' : 'تعذر حفظ بيانات الزائر.');
+      setVisitorInlineError(message);
+      showFeedback('error', message);
+    } finally {
+      setIsSavingVisitor(false);
     }
   };
 
-  const handleDeleteVisitor = (id: string) => {
-    if (confirm(t.visitorsManagement.deleteConfirm)) {
-      const res = AtharStorageService.deleteRegisteredVisitor(id);
-      if (res.success) {
-        setVisitorsList(AtharStorageService.getRegisteredVisitors());
-        showFeedback('success', isEn ? 'Observer deleted successfully.' : 'تم حذف الزائر بنجاح.');
-        onRefreshSettings();
-      } else {
-        showFeedback('error', res.error || (isEn ? 'Failed to delete.' : 'تعذر حذف الزائر.'));
+  const handleDeleteVisitor = async (id: string) => {
+    if (!confirm(t.visitorsManagement.deleteConfirm)) return;
+    const visitor = visitorsList.find(v => v.id === id);
+    try {
+      if (visitor?.username) {
+        const account = allUsersList.find(u => (u.username || '').toLowerCase() === visitor.username?.toLowerCase());
+        if (account) await atharRemoteAction('setUserStatus', { id: account.id, status: 'inactive' });
       }
+      await atharRemoteAction('deleteVisitor', { id });
+      await refreshCentralUsers();
+      showFeedback('success', isEn ? 'Visitor removed and linked account disabled.' : 'تم حذف سجل الزائر وتعطيل حسابه المرتبط.');
+      onRefreshSettings();
+    } catch (error) {
+      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to delete visitor.' : 'تعذر حذف الزائر.'));
     }
   };
 
@@ -1096,6 +1164,11 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
             </div>
 
             <form onSubmit={handleSaveVisitorSubmit} className="p-5 space-y-4">
+              {visitorInlineError && (
+                <div role="alert" className="p-3 rounded-lg bg-rose-50 border border-rose-200 text-rose-800 text-xs font-bold">
+                  {visitorInlineError}
+                </div>
+              )}
               <div>
                 <label className="block font-bold text-[#172C40] mb-1">
                   {t.visitorsManagement.nameLabel}
@@ -1231,10 +1304,10 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                       {isEn ? 'Password' : 'كلمة المرور (الباسوورد)'}
                     </label>
                     <input
-                      type="text"
+                      type="password"
                       value={visitorFormPassword}
                       onChange={(e) => setVisitorFormPassword(e.target.value)}
-                      placeholder="123"
+                      placeholder={editingVisitor ? (isEn ? 'Leave blank to keep current password' : 'اتركه فارغًا للإبقاء على كلمة المرور الحالية') : (isEn ? 'At least 10 characters' : '10 أحرف على الأقل')}
                       dir="ltr"
                       className="w-full px-3 py-1.5 border border-slate-300 rounded-lg text-xs font-mono bg-white"
                     />
@@ -1245,16 +1318,17 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
               <div className="pt-4 border-t border-slate-100 flex items-center justify-end gap-2">
                 <button
                   type="button"
-                  onClick={() => setIsVisitorModalOpen(false)}
+                  onClick={() => { setVisitorInlineError(''); setIsVisitorModalOpen(false); }}
                   className="px-4 py-2 border border-slate-300 rounded-lg text-slate-700 hover:bg-slate-50 cursor-pointer"
                 >
                   {t.common.cancel}
                 </button>
                 <button
                   type="submit"
-                  className="px-5 py-2 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer shadow-sm"
+                  disabled={isSavingVisitor}
+                  className="px-5 py-2 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
                 >
-                  {t.visitorsManagement.saveBtn}
+                  {isSavingVisitor ? (isEn ? 'Saving...' : 'جارٍ الحفظ...') : t.visitorsManagement.saveBtn}
                 </button>
               </div>
             </form>
