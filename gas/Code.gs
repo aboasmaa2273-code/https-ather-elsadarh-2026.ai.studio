@@ -917,7 +917,7 @@ function dispatchApiAction_(action, payload, session) {
       plans = plans.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
     }
     return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, indicators: indicators,
-      settings: settings, auditLogs: auditLogs, users: users, visitors: requireRole_(session, adminRoles) ? visitorRows : [],
+      settings: settings, auditLogs: auditLogs, users: users, visitors: requireRole_(session, evaluatorRoles) ? visitorRows : [],
       internalNotes: internalNotes, internalNoteHistory: internalNoteHistory, administrativeFollowUps: administrativeFollowUps, visitHistory: visitHistory };
   }
 
