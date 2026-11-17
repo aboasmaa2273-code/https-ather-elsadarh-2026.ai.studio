@@ -226,6 +226,22 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     triggerAutoSave();
   };
 
+  const handleToggleVisitAccount = async (visitor: RegisteredVisitor) => {
+    if (!visitor.username) return;
+    const nextStatus = visitor.status === 'inactive' ? 'active' : 'inactive';
+    const prompt = nextStatus === 'inactive'
+      ? (isEn ? 'Deactivate this login account? Previous visit reports will remain.' : 'هل تريد تعطيل حساب الدخول؟ ستبقى تقارير الزيارات السابقة محفوظة.')
+      : (isEn ? 'Reactivate this login account?' : 'هل تريد إعادة تفعيل حساب الدخول؟');
+    if (!window.confirm(prompt)) return;
+    try {
+      const result: any = await atharRemoteAction('setVisitAccountStatus', { username: visitor.username, status: nextStatus });
+      if (!result || result.success !== true) throw new Error(result?.error || 'تعذر تحديث حالة الحساب.');
+      await onRefreshData();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر تحديث حالة الحساب.');
+    }
+  };
+
   const handleCreateVisitAccount = async (e: React.FormEvent) => {
     e.preventDefault();
     setAccountError('');
@@ -2082,6 +2098,26 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                 <label className="block font-bold mb-1 text-[#172C40]">{isEn ? 'Initial password' : 'كلمة المرور الأولية'}</label>
                 <input required type="password" minLength={10} value={accountPassword} onChange={e => setAccountPassword(e.target.value)} className="w-full p-2.5 border border-slate-300 rounded-lg" autoComplete="new-password" dir="ltr" />
                 <p className="text-[10px] text-slate-500 mt-1">{isEn ? 'At least 10 characters. The password is stored as a salted hash on the server.' : '10 أحرف على الأقل. تُحفظ كلمة المرور في الخادم بصيغة تجزئة مملحة، ولا تُعرض في سجل الحسابات.'}</p>
+              </div>
+              <div className="pt-3 border-t border-slate-100 space-y-2">
+                <h4 className="font-bold text-[#172C40]">{isEn ? 'Existing evaluator / visitor accounts' : 'حسابات المقيمين والزائرين الحالية'}</h4>
+                {registeredVisitors.filter(item => item.username).length === 0 ? (
+                  <p className="text-slate-500">{isEn ? 'No linked accounts in the directory yet.' : 'لا توجد حسابات مرتبطة بالدليل حتى الآن.'}</p>
+                ) : (
+                  <div className="max-h-40 overflow-y-auto divide-y divide-slate-100 border border-slate-200 rounded-lg">
+                    {registeredVisitors.filter(item => item.username).map(item => (
+                      <div key={item.id} className="flex items-center justify-between gap-3 p-2">
+                        <div className="min-w-0">
+                          <p className="font-bold text-[#172C40] truncate">{item.name}</p>
+                          <p className="text-[10px] text-slate-500" dir="ltr">{item.username} · {item.roleTitle || (isEn ? 'Evaluator' : 'مقيم')}</p>
+                        </div>
+                        <button type="button" onClick={() => void handleToggleVisitAccount(item)} className={`shrink-0 px-2 py-1 rounded text-[10px] font-bold ${item.status === 'inactive' ? 'bg-emerald-50 text-emerald-700' : 'bg-rose-50 text-rose-700'}`}>
+                          {item.status === 'inactive' ? (isEn ? 'Reactivate' : 'إعادة تفعيل') : (isEn ? 'Deactivate' : 'تعطيل')}
+                        </button>
+                      </div>
+                    ))}
+                  </div>
+                )}
               </div>
               <div className="pt-3 border-t border-slate-100 flex justify-end gap-2">
                 <button type="button" onClick={() => setIsAccountModalOpen(false)} className="px-4 py-2 border border-slate-300 rounded-lg">{isEn ? 'Cancel' : 'إلغاء'}</button>
