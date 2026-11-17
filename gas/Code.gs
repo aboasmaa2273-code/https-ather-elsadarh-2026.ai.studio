@@ -658,7 +658,7 @@ function getPublicEvaluators_() {
   var schoolId = 'sch_alsadara_01';
   var users = rowsAsObjects_(ss.getSheetByName('Users'));
   var eligibleRoles = ['evaluator', 'vice_principal', 'school_admin'];
-  var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator' };
+  var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator', 'مسؤول المنصة': 'platform_admin', 'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin', 'مساعد المدير': 'vice_principal', 'مقيم': 'evaluator', 'مقيّم': 'evaluator' };
   var activeAccounts = {};
   users.forEach(function(user) {
     var rawRole = String(user.role || '').trim().toLowerCase();
