@@ -1,6 +1,7 @@
-import React, { useState } from 'react';
+import React, { useEffect, useState } from 'react';
 import { PlatformSettings, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
+import { atharPublicEvaluators } from '../services/gasBridgeClient';
 import { 
   ShieldCheck, 
   Award, 
@@ -38,10 +39,22 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   const t = translations[language];
   const isEn = language === 'en';
 
-  // Evaluators list from storage
-  const [evaluators, setEvaluators] = useState<User[]>(() => {
-    return AtharStorageService.getAllUsers();
-  });
+  // Load only centrally registered, active evaluator accounts for the public directory.
+  const [evaluators, setEvaluators] = useState<User[]>([]);
+
+  useEffect(() => {
+    let isMounted = true;
+    atharPublicEvaluators()
+      .then((items) => {
+        if (isMounted) setEvaluators(items);
+      })
+      .catch(() => {
+        if (isMounted) setEvaluators([]);
+      });
+    return () => {
+      isMounted = false;
+    };
+  }, []);
 
   // Public evaluator cards must never create an authenticated session.
   // Every access attempt goes through the central username/password login.
