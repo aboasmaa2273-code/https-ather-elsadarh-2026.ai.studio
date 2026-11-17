@@ -671,11 +671,11 @@ function getPublicEvaluators_() {
   var schoolId = 'sch_alsadara_01';
   var users = rowsAsObjects_(ss.getSheetByName('Users'));
   var eligibleRoles = ['evaluator', 'vice_principal', 'school_admin'];
-  var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator', 'مسؤول المنصة': 'platform_admin', 'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin', 'مساعد المدير': 'vice_principal', 'مقيم': 'evaluator', 'مقيّم': 'evaluator' };
+  var roleAliases = {};
   var activeAccounts = {};
   users.forEach(function(user) {
     var rawRole = String(user.role || '').trim().toLowerCase();
-    var role = roleAliases[rawRole] || rawRole;
+    var role = normalizeAtharRole_(rawRole);
     var status = String(user.status || 'active').trim().toLowerCase();
     var accountSchool = String(user.schoolId || schoolId);
     if (accountSchool === schoolId && eligibleRoles.indexOf(role) >= 0 && (status === 'active' || status === '')) {
@@ -810,8 +810,7 @@ function apiLogin_(payload) {
     }
 
     var rawRole = String(row[roleCol] || '').trim().toLowerCase();
-    var roleAliases = { admin: 'platform_admin', principal: 'school_admin', assistant_principal: 'vice_principal', observer: 'evaluator' };
-    var role = roleAliases[rawRole] || rawRole;
+    var role = normalizeAtharRole_(rawRole);
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
     if (allowed.indexOf(role) < 0) return { success: false, error: 'دور الحساب غير معتمد.' };
 
@@ -897,15 +896,39 @@ function validateSession_(token) {
     if (!payload || !payload.user || !payload.expiresAt || Date.now() >= Number(payload.expiresAt)) return null;
     var user = payload.user;
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
-    if (allowed.indexOf(String(user.role || '')) < 0 || !user.id || !user.schoolId) return null;
+    user.role = normalizeAtharRole_(user.role);
+    if (allowed.indexOf(user.role) < 0 || !user.id || !user.schoolId) return null;
     return user;
   } catch (e) {
     return null;
   }
 }
 
+function normalizeAtharRole_(value) {
+  var raw = String(value || '').trim().toLowerCase();
+  var aliases = {
+    admin: 'platform_admin', platform_admin: 'platform_admin',
+    'مسؤول المنصة': 'platform_admin', 'مدير المنصة': 'platform_admin',
+    principal: 'school_admin', school_admin: 'school_admin',
+    'مسؤول المدرسة': 'school_admin', 'مدير المدرسة': 'school_admin',
+    assistant_principal: 'vice_principal', vice_principal: 'vice_principal',
+    'مساعد المدير': 'vice_principal', 'مساعد مدير المدرسة': 'vice_principal',
+    observer: 'evaluator', evaluator: 'evaluator',
+    'مقيم': 'evaluator', 'مقيّم': 'evaluator',
+    'مقيم الزيارة الصفية': 'evaluator', 'مقيّم الزيارة الصفية': 'evaluator',
+    teacher: 'teacher', 'معلم': 'teacher', 'معلم صف': 'teacher'
+  };
+  if (aliases[raw]) return aliases[raw];
+  if (raw.indexOf('مسؤول المنصة') >= 0 || raw.indexOf('مدير المنصة') >= 0) return 'platform_admin';
+  if (raw.indexOf('مسؤول المدرسة') >= 0 || raw.indexOf('مدير المدرسة') >= 0) return 'school_admin';
+  if (raw.indexOf('مساعد المدير') >= 0) return 'vice_principal';
+  if (raw.indexOf('مقيم') >= 0 || raw.indexOf('مقيّم') >= 0) return 'evaluator';
+  if (raw.indexOf('معلم') >= 0) return 'teacher';
+  return raw;
+}
+
 function requireRole_(session, roles) {
-  return !!session && roles.indexOf(session.role) >= 0;
+  return !!session && roles.indexOf(normalizeAtharRole_(session.role)) >= 0;
 }
 
 function ensureRegisteredVisitorsSheet_() {
