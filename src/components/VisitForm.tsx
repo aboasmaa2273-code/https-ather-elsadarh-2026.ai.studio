@@ -1424,8 +1424,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               </h3>
               <p className="text-slate-500 mt-0.5">
                 {isEn 
-                  ? 'Rating Options: Yes · Needs Improvement · No · Not Observed (strictly excluded from calculation).'
-                  : 'الخيارات: نعم · لا · يحتاج إلى تحسين · لم يُشاهد (لا يُحسب إخفاقاً ولا يدخل في مقام النسبة).'}
+                  ? 'Rating Options: Excellent · Very Good · Good · Acceptable · Weak · Not Observed (excluded from calculation).'
+                  : 'درجات التقييم: ممتاز · جيد جدًا · جيد · مقبول · ضعيف · لم يُشاهد (يُستبعد من حساب النسبة).'}
               </p>
             </div>
             <div className="text-xs bg-[#F2EBDD] text-[#172C40] font-bold px-3 py-1.5 rounded-lg border border-[#C6A66A]/30 self-start">
@@ -1453,12 +1453,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                       <div 
                         key={ind.id} 
                         className={`p-4 rounded-xl border transition-all ${
-                          currentRating === 'yes'
-                            ? 'bg-emerald-50/30 border-emerald-200'
-                            : currentRating === 'needs_improvement'
-                            ? 'bg-amber-50/30 border-amber-200'
-                            : currentRating === 'no'
-                            ? 'bg-rose-50/30 border-rose-200'
+                          currentRating === 'excellent'
+                            ? 'bg-emerald-50/40 border-emerald-300'
+                            : currentRating === 'very_good'
+                            ? 'bg-green-50/40 border-green-300'
+                            : currentRating === 'good'
+                            ? 'bg-sky-50/40 border-sky-300'
+                            : currentRating === 'acceptable'
+                            ? 'bg-amber-50/40 border-amber-300'
+                            : currentRating === 'weak'
+                            ? 'bg-rose-50/40 border-rose-300'
                             : 'bg-white border-slate-200'
                         }`}
                       >
@@ -1479,57 +1483,31 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                             )}
                           </div>
 
-                          {/* 4 Ratings Buttons */}
+                          {/* Six agreed rating options */}
                           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'yes')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'yes'
-                                  ? 'bg-emerald-700 text-white shadow-xs'
-                                  : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50'
-                              }`}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>{t.ratings.yes}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'needs_improvement')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'needs_improvement'
-                                  ? 'bg-amber-600 text-white shadow-xs'
-                                  : 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-50'
-                              }`}
-                            >
-                              <span>{t.ratings.needs_improvement}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'no')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'no'
-                                  ? 'bg-rose-700 text-white shadow-xs'
-                                  : 'bg-white text-rose-800 border border-rose-300 hover:bg-rose-50'
-                              }`}
-                            >
-                              <span>{t.ratings.no}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'not_observed')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'not_observed'
-                                  ? 'bg-slate-700 text-white shadow-xs'
-                                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
-                              }`}
-                              title={isEn ? 'Not observed in this period (excluded from metrics)' : 'لم يُشاهد في هذه الحصة (يُستبعد تماماً من الاحتساب)'}
-                            >
-                              <span>{t.ratings.not_observed}</span>
-                            </button>
+                            {([
+                              { value: 'excellent', label: t.ratings.excellent, active: 'bg-emerald-700 text-white', idle: 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50' },
+                              { value: 'very_good', label: t.ratings.very_good, active: 'bg-green-700 text-white', idle: 'bg-white text-green-800 border border-green-300 hover:bg-green-50' },
+                              { value: 'good', label: t.ratings.good, active: 'bg-sky-700 text-white', idle: 'bg-white text-sky-800 border border-sky-300 hover:bg-sky-50' },
+                              { value: 'acceptable', label: t.ratings.acceptable, active: 'bg-amber-600 text-white', idle: 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-50' },
+                              { value: 'weak', label: t.ratings.weak, active: 'bg-rose-700 text-white', idle: 'bg-white text-rose-800 border border-rose-300 hover:bg-rose-50' },
+                              { value: 'not_observed', label: t.ratings.not_observed, active: 'bg-slate-700 text-white', idle: 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50' }
+                            ] as const).map(option => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => handleRatingChange(ind.id, option.value)}
+                                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                                  currentRating === option.value ? option.active : option.idle
+                                }`}
+                                title={option.value === 'not_observed'
+                                  ? (isEn ? 'Not observed in this period (excluded from metrics)' : 'لم يُشاهد في هذه الحصة (يُستبعد تماماً من الاحتساب)')
+                                  : option.label}
+                              >
+                                <span>{option.label}</span>
+                              </button>
+                            ))}
+                          </div>
                           </div>
                         </div>
 
