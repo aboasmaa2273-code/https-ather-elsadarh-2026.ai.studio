@@ -1,6 +1,7 @@
 import React, { useState } from 'react';
 import { User } from '../types';
 import { atharRemoteAction } from '../services/gasBridgeClient';
+import { AtharStorageService } from '../services/storageService';
 import { 
   KeyRound, 
   User as UserIcon, 
