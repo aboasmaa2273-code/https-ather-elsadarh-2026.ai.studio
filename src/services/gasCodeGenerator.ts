@@ -106,7 +106,6 @@ export const GAS_FILES: GasFile[] = [
     type: 'json',
     description: 'ملف بيان إعدادات Google Apps Script وتوقيت دبي وأذونات Google Sheets',
     content: "{\n  \"timeZone\": \"Asia/Dubai\",\n  \"dependencies\": {},\n  \"exceptionLogging\": \"STACKDRIVER\",\n  \"runtimeVersion\": \"V8\",\n  \"webapp\": {\n    \"executeAs\": \"USER_DEPLOYING\",\n    \"access\": \"ANYONE\"\n  },\n  \"oauthScopes\": [\n    \"https://www.googleapis.com/auth/spreadsheets\",\n    \"https://www.googleapis.com/auth/script.external_request\",\n    \"https://www.googleapis.com/auth/userinfo.email\",\n    \"https://www.googleapis.com/auth/script.send_mail\"\n  ]\n}\n"
-  }
   },
   {
     name: 'Bridge.html',
