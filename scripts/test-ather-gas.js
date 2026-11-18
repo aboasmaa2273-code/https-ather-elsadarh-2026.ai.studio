@@ -174,7 +174,7 @@ sandbox.getDatabaseSpreadsheet_ = () => ({ getSheetByName: (name) => mutableShee
 sandbox.rowsAsObjects_ = (value) => value && Array.isArray(value.records) ? value.records : [];
 sandbox.requireRole_ = (session, roles) => roles.includes(session.role);
 sandbox.Utilities = { getUuid: () => 'generated-plan-id' };
-sandbox.logAuditAction = () => {};
+sandbox.logAuditAction_ = () => {};
 sandbox.upsertObjectRow_ = (sheetName, object, idKey, targetSchoolId) => {
   const target = mutableSheets[sheetName];
   const existing = target.records.find((item) => String(item[idKey]) === String(object[idKey]));
@@ -339,7 +339,7 @@ sandbox.rowsAsObjects_ = (value) => {
 };
 sandbox.requireRole_ = (session, roles) => roles.includes(session.role);
 sandbox.Utilities = { getUuid: () => 'new-note-id' };
-sandbox.logAuditAction = () => {};
+sandbox.logAuditAction_ = () => {};
 sandbox.upsertObjectRow_ = (sheetName, object, idKey, targetSchoolId) => {
   const target = noteSheets[sheetName];
   const existing = target.records.find((item) => String(item[idKey]) === String(object[idKey]));
