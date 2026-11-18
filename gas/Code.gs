@@ -1037,6 +1037,55 @@ function dispatchApiAction_(action, payload, session) {
     return { success: true, diagnostics: result };
   }
 
+  if (action === 'getEvaluatorRecommendationBanks') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية الوصول إلى بنك التوصيات الخاص بالمقيم.' };
+    var bankSheet = ss.getSheetByName('EvaluatorRecommendationBanks');
+    var ownEntries = bankSheet ? rowsAsObjects_(bankSheet).filter(function(row) {
+      return String(row.schoolId) === String(schoolId) && String(row.evaluatorId) === String(session.id);
+    }) : [];
+    var ownBanks = { strengths: [], improvementAreas: [], practicalRecommendations: [], followUpPlans: [] };
+    ownEntries.forEach(function(row) {
+      var type = String(row.bankType || '');
+      if (ownBanks[type] && row.text) ownBanks[type].push(String(row.text));
+    });
+    return { success: true, banks: ownBanks };
+  }
+
+  if (action === 'saveEvaluatorRecommendationBankItem') {
+    if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تعديل بنك التوصيات الخاص بالمقيم.' };
+    var allowedBankTypes = ['strengths', 'improvementAreas', 'practicalRecommendations', 'followUpPlans'];
+    var bankType = String(payload.bankType || '');
+    var bankText = String(payload.text || '').trim();
+    if (allowedBankTypes.indexOf(bankType) < 0) return { success: false, error: 'نوع بنك التوصيات غير معتمد.' };
+    if (!bankText || bankText.length > 500) return { success: false, error: 'اكتب بنداً صحيحاً لا يتجاوز 500 حرف.' };
+    var bankLock = LockService.getScriptLock();
+    if (!bankLock.tryLock(15000)) return { success: false, error: 'هناك عملية حفظ أخرى. أعد المحاولة.' };
+    try {
+      var bankSheet = ss.getSheetByName('EvaluatorRecommendationBanks');
+      if (!bankSheet) {
+        bankSheet = ss.insertSheet('EvaluatorRecommendationBanks');
+        bankSheet.getRange(1, 1, 1, 7).setValues([['id', 'schoolId', 'evaluatorId', 'bankType', 'text', 'createdAt', 'updatedAt']]);
+        bankSheet.setFrozenRows(1);
+        bankSheet.getRange(1, 1, 1, 7).setBackground('#172C40').setFontColor('#FFFFFF').setFontWeight('bold');
+      }
+      var existingItems = rowsAsObjects_(bankSheet).filter(function(row) {
+        return String(row.schoolId) === String(schoolId) &&
+          String(row.evaluatorId) === String(session.id) &&
+          String(row.bankType) === bankType;
+      });
+      var duplicate = existingItems.some(function(row) {
+        return String(row.text || '').trim().toLocaleLowerCase() === bankText.toLocaleLowerCase();
+      });
+      if (duplicate) return { success: true, duplicate: true, text: bankText, bankType: bankType };
+      var now = new Date().toISOString();
+      bankSheet.appendRow([Utilities.getUuid(), schoolId, String(session.id), bankType, bankText, now, now]);
+      logAuditAction_(schoolId, session.name, 'إضافة بند إلى بنك المقيم', 'تمت إضافة بند إلى ' + bankType + ' الخاص بالمقيم.', session.role);
+      return { success: true, duplicate: false, text: bankText, bankType: bankType };
+    } finally {
+      bankLock.releaseLock();
+    }
+  }
+
   if (action === 'bootstrap') {
     var teachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
     var visits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
