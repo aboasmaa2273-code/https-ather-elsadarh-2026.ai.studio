@@ -706,7 +706,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             <span aria-hidden="true">·</span>
             <span className="text-[#C6A66A] font-bold">
               {visitType === 'full' 
-                ? (isEn ? 'Full Visit (Complete Lesson)' : 'الزيارة الكاملة (الحصة كاملة)') 
+                ? (isEn ? 'Official Visit (Complete Lesson)' : 'زيارة رسمية (الحصة كاملة)') 
                 : (isEn ? 'Quick Walkthrough (10-15 min)' : 'الزيارة السريعة (10-15 دقيقة)')}
             </span>
           </div>
