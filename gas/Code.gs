@@ -1837,3 +1837,18 @@ function sendTeacherVisitNotes_(payload, session, schoolId) {
   return { success: true, visitId: visitId, recipient: recipient, sentAt: sentAt, message: 'تم إرسال الملاحظات إلى بريد المعلم بنجاح.' };
 }
 
+
+
+// Public editor entry points. These wrappers are intentionally not exposed through the web API.
+// Run initializeDatabase() manually from the Apps Script editor only after reviewing the target spreadsheet.
+function initializeDatabase() {
+  return initializeDatabase_();
+}
+
+function migrateUserPasswordColumns() {
+  return migrateUserPasswordColumns_();
+}
+
+function runDatabaseHealthCheck() {
+  return runDatabaseHealthCheck_();
+}
