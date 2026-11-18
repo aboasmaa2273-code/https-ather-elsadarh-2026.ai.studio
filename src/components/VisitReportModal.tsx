@@ -344,13 +344,13 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             </div>
 
             <div className="text-center">
-              <div className="w-16 h-16 mx-auto rounded-full border border-[#C6A66A] p-1 bg-[#F2EBDD]/20 overflow-hidden flex items-center justify-center">
+              <div className="w-24 h-24 mx-auto rounded-full border-2 border-[#C6A66A] p-1.5 bg-white overflow-hidden flex items-center justify-center print:w-24 print:h-24">
                 {platformSettings.logoUrl ? (
                   <img 
                     src={platformSettings.logoUrl} 
                     alt="شعار المدرسة" 
                     referrerPolicy="no-referrer"
-                    className="w-full h-full object-contain"
+                    className="w-full h-full object-contain scale-110"
                   />
                 ) : (
                   <Compass className="w-8 h-8 text-[#172C40]" />
