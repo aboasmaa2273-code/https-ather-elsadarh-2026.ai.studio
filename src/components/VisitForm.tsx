@@ -540,7 +540,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       evaluatorName: currentUser.name,
       date,
       time,
-      visitGoal,
+      visitGoal: visitType === 'full' ? (isEn ? 'Official Visit' : 'زيارة رسمية') : visitGoal,
       status: finalStatus,
 
       // New Student Demographics & Attendance
@@ -1123,7 +1123,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="flex items-center gap-2 font-bold text-[#172C40] text-xs">
                 <Target className="w-4 h-4 text-[#C6A66A]" />
-                <span>{t.visits.visitGoal} *</span>
+                <span>{visitType === 'full' ? (isEn ? 'Visit classification' : 'تصنيف الزيارة') : `${t.visits.visitGoal} *`}</span>
               </label>
 
               {visitType === 'quick' && (
