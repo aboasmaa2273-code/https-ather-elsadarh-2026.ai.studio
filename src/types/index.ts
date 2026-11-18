@@ -67,7 +67,7 @@ export interface Teacher {
   dateAdded: string;
 }
 
-export type IndicatorRating = 'yes' | 'no' | 'needs_improvement' | 'not_observed';
+export type IndicatorRating = 'excellent' | 'very_good' | 'good' | 'acceptable' | 'weak' | 'not_observed' | 'yes' | 'no' | 'needs_improvement';
 
 export interface IndicatorDefinition {
   id: number;
