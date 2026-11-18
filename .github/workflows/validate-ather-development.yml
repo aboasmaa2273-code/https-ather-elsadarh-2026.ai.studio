@@ -1,7 +1,7 @@
 name: Validate Ather Development
 on:
   push:
-    branches: [ather-development]
+    branches: [ather-development, ather-features-safe-2026-11-18]
 permissions:
   contents: read
 jobs:
