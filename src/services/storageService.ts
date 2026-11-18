@@ -1049,6 +1049,11 @@ export class AtharStorageService {
   static getRatingLabel(rating: string, lang: 'ar' | 'en' = 'ar'): string {
     if (lang === 'en') {
       switch (rating) {
+        case 'excellent': return 'Excellent';
+        case 'very_good': return 'Very Good';
+        case 'good': return 'Good';
+        case 'acceptable': return 'Acceptable';
+        case 'weak': return 'Weak';
         case 'yes': return 'Yes';
         case 'needs_improvement': return 'Needs Improvement';
         case 'no': return 'No';
@@ -1057,6 +1062,11 @@ export class AtharStorageService {
       }
     }
     switch (rating) {
+      case 'excellent': return 'ممتاز';
+      case 'very_good': return 'جيد جدًا';
+      case 'good': return 'جيد';
+      case 'acceptable': return 'مقبول';
+      case 'weak': return 'ضعيف';
       case 'yes': return 'نعم';
       case 'needs_improvement': return 'يحتاج إلى تحسين';
       case 'no': return 'لا';
