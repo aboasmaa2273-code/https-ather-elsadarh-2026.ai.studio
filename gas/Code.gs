@@ -663,7 +663,7 @@ function doPost(e) {
     var session = validateSession_(request.token);
     if (!session) return jsonResponse_({ success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' });
 
-    return jsonResponse_(dispatchApiAction_(action, payload, session));
+    return jsonResponse_(dispatchApiAction_(action, payload, session, request.token));
   } catch (err) {
     return jsonResponse_({ success: false, error: 'تعذر تنفيذ الطلب: ' + err.message });
   }
@@ -796,7 +796,7 @@ function rowsAsObjects_(sheet) {
   });
 }
 
-function dispatchApiAction_(action, payload, session) {
+function dispatchApiAction_(action, payload, session, sessionToken) {
   var ss = getDatabaseSpreadsheet_();
   if (!ss) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
   var schoolId = session.schoolId || 'sch_alsadara_01';
@@ -1228,7 +1228,7 @@ function dispatchApiAction_(action, payload, session) {
     return settingsResult;
   }
   if (action === 'updateUserCredentials') {
-    return updateUserCredentials_(payload, session);
+    return updateUserCredentials_(payload, session, sessionToken);
   }
   if (action === 'saveUserAccount') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'إدارة الحسابات مقتصرة على مسؤول المنصة أو إدارة المدرسة.' };
@@ -1301,7 +1301,7 @@ function dispatchApiAction_(action, payload, session) {
 }
 
 
-function updateUserCredentials_(payload, session) {
+function updateUserCredentials_(payload, session, sessionToken) {
   var targetId = String(payload.id || session.id || '');
   var isSelf = targetId === String(session.id || '');
   if (!isSelf && ['platform_admin', 'school_admin'].indexOf(session.role) < 0) {
@@ -1372,7 +1372,12 @@ function updateUserCredentials_(payload, session) {
     status: String(row[statusCol] || 'active'),
     teacherId: String(row[headers.indexOf('teacherId')] || '')
   };
-  logAuditAction_(updatedUser.schoolId, session.name, 'تحديث بيانات الدخول', 'تم تحديث الاسم واسم المستخدم للحساب ' + targetId, session.role);
+  // Refresh the active server-side session so the updated profile is reflected immediately.
+  if (isSelf && sessionToken) {
+    var refreshedSession = Object.assign({}, session, updatedUser);
+    CacheService.getScriptCache().put('ATHAR_SESSION_' + sessionToken, JSON.stringify(refreshedSession), 21600);
+  }
+  logAuditAction_(updatedUser.schoolId, updatedUser.name, 'تحديث بيانات الدخول', 'تم تحديث الاسم واسم المستخدم للحساب ' + targetId, session.role);
   return { success: true, user: updatedUser };
 }
 
@@ -1746,7 +1751,7 @@ function dispatchBridgeRequest(request) {
     }
     var session = validateSession_(request.token);
     if (!session) return { success: false, error: 'انتهت الجلسة أو لم يتم تسجيل الدخول. يرجى تسجيل الدخول مجدداً.' };
-    return dispatchApiAction_(action, payload, session);
+    return dispatchApiAction_(action, payload, session, request.token);
   } catch (err) {
     return { success: false, error: 'تعذر تنفيذ الطلب: ' + err.message };
   }
