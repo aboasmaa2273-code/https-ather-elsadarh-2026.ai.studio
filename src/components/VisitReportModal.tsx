@@ -235,7 +235,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
           {/* Document Title Banner */}
           <div className="text-center py-2 bg-[#F2EBDD]/40 border-y border-[#C6A66A]/30 rounded">
             <h1 className="text-lg font-black text-[#172C40] font-['Tajawal']">
-              {t.visitReportModal.officialTitle} ({visit.visitType === 'full' ? t.dashboard.full : t.dashboard.quick})
+              {t.visitReportModal.officialTitle} ({visit.visitType === 'full' ? (isEn ? 'Official Visit' : 'زيارة رسمية') : (isEn ? 'Quick Visit' : 'زيارة سريعة')})
             </h1>
             <p className="text-[11px] text-[#668575] font-bold">
               {isEn ? platformSettings.slogan : platformSettings.slogan}
@@ -403,10 +403,9 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                           {translateIndicatorText(ind.indicatorId, ind.indicatorText, language)}
                         </td>
                         <td className="p-2 border border-slate-300 text-center font-bold">
-                          {ind.rating === 'yes' && <span className="text-emerald-700">{t.ratings.yes}</span>}
-                          {ind.rating === 'needs_improvement' && <span className="text-amber-700">{t.ratings.needs_improvement}</span>}
-                          {ind.rating === 'no' && <span className="text-rose-700">{t.ratings.no}</span>}
-                          {ind.rating === 'not_observed' && <span className="text-slate-400">{t.ratings.not_observed}</span>}
+                          <span className={ind.rating === 'not_observed' ? 'text-slate-400' : 'text-[#172C40]'}>
+                            {AtharStorageService.getRatingLabel(ind.rating, language)}
+                          </span>
                         </td>
                         <td className="p-2 border border-slate-300 text-slate-600">
                           {ind.notes || '—'}
