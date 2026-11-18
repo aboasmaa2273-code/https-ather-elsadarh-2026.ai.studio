@@ -1,7 +1,7 @@
-name: Deploy
+name: Build and Deploy
 on:
   push:
-    branches: [main]
+    branches: [main, ather-development]
 permissions:
   contents: read
   pages: write
@@ -15,11 +15,14 @@ jobs:
         with:
           node-version: 20
       - run: npm install --legacy-peer-deps
+      - run: npm run lint
       - run: npm run build
       - uses: actions/upload-pages-artifact@v3
+        if: github.ref == 'refs/heads/main'
         with:
           path: dist
   deploy:
+    if: github.ref == 'refs/heads/main'
     needs: build
     runs-on: ubuntu-latest
     environment: github-pages
