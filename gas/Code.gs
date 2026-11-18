@@ -417,7 +417,7 @@ function saveClassroomVisit_(visitData) {
     var indicators = visitData.indicators || [];
     var scoreTotal = 0;
     var observedCount = 0;
-    var ratingScores = { outstanding: 5, very_good: 4, good: 3, acceptable: 2, needs_improvement: 2, weak: 1, no: 1, yes: 5 };
+    var ratingScores = { excellent: 5, outstanding: 5, very_good: 4, good: 3, acceptable: 2, weak: 1, needs_improvement: 2.5, no: 0, yes: 5 };
     for (var i = 0; i < indicators.length; i++) {
       var rating = String(indicators[i].rating || '');
       if (rating === 'not_observed') continue;
@@ -2193,9 +2193,9 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
   var message = String(payload.message || '').trim().substring(0, 2000);
   var subject = 'تقرير الزيارة الصفية المعتمد – ' + String(visit.teacherName || teacher.fullName || '');
   var ratingLabels = {
-    outstanding: 'متميز', very_good: 'جيد جدًا', good: 'جيد', acceptable: 'مقبول',
-    weak: 'ضعيف', not_observed: 'لم يُشاهد', yes: 'متحقق', no: 'غير متحقق',
-    needs_improvement: 'يحتاج إلى تحسين'
+    excellent: 'ممتاز', outstanding: 'متميز', very_good: 'جيد جدًا', good: 'جيد',
+    acceptable: 'مقبول', weak: 'ضعيف', not_observed: 'لم يُشاهد',
+    yes: 'متحقق', no: 'غير متحقق', needs_improvement: 'يحتاج إلى تحسين'
   };
   var indicatorRows = indicators.map(function(item) {
     return '<tr><td>' + escapeMailHtml_(item.indicatorText) + '</td><td>' +
