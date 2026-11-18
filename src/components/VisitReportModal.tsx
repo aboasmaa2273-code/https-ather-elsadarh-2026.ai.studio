@@ -205,7 +205,10 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                     referrerPolicy="no-referrer"
                     onError={(event) => {
                       const image = event.currentTarget;
-                      if (image.src !== schoolLogo) image.src = schoolLogo;
+                      if (!image.dataset.fallbackApplied) {
+                        image.dataset.fallbackApplied = 'true';
+                        image.src = schoolLogo;
+                      }
                     }}
                     className="w-full h-full object-contain"
                   />
