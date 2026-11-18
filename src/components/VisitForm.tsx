@@ -316,6 +316,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [customGrowth, setCustomGrowth] = useState('');
   const [customRecommendation, setCustomRecommendation] = useState('');
   const [customFollowUp, setCustomFollowUp] = useState('');
+  const [showCustomStrength, setShowCustomStrength] = useState(false);
+  const [showCustomGrowth, setShowCustomGrowth] = useState(false);
+  const [showCustomRecommendation, setShowCustomRecommendation] = useState(false);
+  const [showCustomFollowUp, setShowCustomFollowUp] = useState(false);
 
   // Evaluator-owned custom bank entries are stored centrally and isolated by account.
   const [customRecommendationBanks, setCustomRecommendationBanks] = useState<{
@@ -401,10 +405,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   };
 
   // Add evaluator-defined entries to each qualitative bank
-  const handleAddCustomStrength = async () => { const value = customStrength.trim(); if (!value) return; try { await saveCustomBankItem('strengths', value); const next = selectedStrengths.includes(value) ? selectedStrengths : [...selectedStrengths, value]; setSelectedStrengths(next); setStrengthsText(next.join('\n')); setCustomStrength(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند القوة في بنك المقيم.'); } };
-  const handleAddCustomGrowth = async () => { const value = customGrowth.trim(); if (!value) return; try { await saveCustomBankItem('improvementAreas', value); const next = selectedGrowth.includes(value) ? selectedGrowth : [...selectedGrowth, value]; setSelectedGrowth(next); setImprovementAreasText(next.join('\n')); setCustomGrowth(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند التطوير في بنك المقيم.'); } };
-  const handleAddCustomRecommendation = async () => { const value = customRecommendation.trim(); if (!value) return; try { await saveCustomBankItem('practicalRecommendations', value); const next = selectedRecommendations.includes(value) ? selectedRecommendations : [...selectedRecommendations, value]; setSelectedRecommendations(next); setPracticalRecommendations(next.join('\n')); setCustomRecommendation(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ التوصية في بنك المقيم.'); } };
-  const handleAddCustomFollowUp = async () => { const value = customFollowUp.trim(); if (!value) return; try { await saveCustomBankItem('followUpPlans', value); const next = selectedFollowUps.includes(value) ? selectedFollowUps : [...selectedFollowUps, value]; setSelectedFollowUps(next); setSuggestedFollowUpPlan(next.join('\n')); setCustomFollowUp(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ خطة المتابعة في بنك المقيم.'); } };
+  const handleAddCustomStrength = async () => { const value = customStrength.trim(); if (!value) return; try { await saveCustomBankItem('strengths', value); const next = selectedStrengths.includes(value) ? selectedStrengths : [...selectedStrengths, value]; setSelectedStrengths(next); setStrengthsText(next.join('\n')); setCustomStrength(''); setShowCustomStrength(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند القوة في بنك المقيم.'); } };
+  const handleAddCustomGrowth = async () => { const value = customGrowth.trim(); if (!value) return; try { await saveCustomBankItem('improvementAreas', value); const next = selectedGrowth.includes(value) ? selectedGrowth : [...selectedGrowth, value]; setSelectedGrowth(next); setImprovementAreasText(next.join('\n')); setCustomGrowth(''); setShowCustomGrowth(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند التطوير في بنك المقيم.'); } };
+  const handleAddCustomRecommendation = async () => { const value = customRecommendation.trim(); if (!value) return; try { await saveCustomBankItem('practicalRecommendations', value); const next = selectedRecommendations.includes(value) ? selectedRecommendations : [...selectedRecommendations, value]; setSelectedRecommendations(next); setPracticalRecommendations(next.join('\n')); setCustomRecommendation(''); setShowCustomRecommendation(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ التوصية في بنك المقيم.'); } };
+  const handleAddCustomFollowUp = async () => { const value = customFollowUp.trim(); if (!value) return; try { await saveCustomBankItem('followUpPlans', value); const next = selectedFollowUps.includes(value) ? selectedFollowUps : [...selectedFollowUps, value]; setSelectedFollowUps(next); setSuggestedFollowUpPlan(next.join('\n')); setCustomFollowUp(''); setShowCustomFollowUp(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ خطة المتابعة في بنك المقيم.'); } };
 
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
@@ -1643,9 +1647,14 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <input value={customStrength} onChange={e => setCustomStrength(e.target.value)} placeholder={isEn ? 'Add another strength...' : 'اكتب نقطة قوة أو ممارسة متميزة إضافية...'} className="flex-1 px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs" />
-              <button type="button" onClick={handleAddCustomStrength} className="px-3 py-2 rounded-lg bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomStrength(v => !v)} className="px-3 py-2 rounded-lg border border-emerald-400 bg-white text-emerald-800 font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomStrength && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customStrength} onChange={e => setCustomStrength(e.target.value)} placeholder={isEn ? 'Write another strength...' : 'اكتب نقطة القوة...'} className="flex-1 px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomStrength} className="px-3 py-2 rounded-lg bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1735,9 +1744,14 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <input value={customGrowth} onChange={e => setCustomGrowth(e.target.value)} placeholder={isEn ? 'Add another improvement area...' : 'اكتب مجال تحسين وتطوير إضافيًا...'} className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs" />
-              <button type="button" onClick={handleAddCustomGrowth} className="px-3 py-2 rounded-lg bg-amber-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomGrowth(v => !v)} className="px-3 py-2 rounded-lg border border-amber-400 bg-white text-amber-800 font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomGrowth && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customGrowth} onChange={e => setCustomGrowth(e.target.value)} placeholder={isEn ? 'Write another improvement area...' : 'اكتب مجال التحسين...'} className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomGrowth} className="px-3 py-2 rounded-lg bg-amber-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1827,9 +1841,14 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <input value={customRecommendation} onChange={e => setCustomRecommendation(e.target.value)} placeholder={isEn ? 'Add another recommendation...' : 'اكتب توصية إجرائية إضافية...'} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs" />
-              <button type="button" onClick={handleAddCustomRecommendation} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomRecommendation(v => !v)} className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-[#172C40] font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomRecommendation && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customRecommendation} onChange={e => setCustomRecommendation(e.target.value)} placeholder={isEn ? 'Write another recommendation...' : 'اكتب التوصية...'} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomRecommendation} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1919,9 +1938,14 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               })}
             </div>
 
-            <div className="flex gap-2 pt-2">
-              <input value={customFollowUp} onChange={e => setCustomFollowUp(e.target.value)} placeholder={isEn ? 'Add another follow-up action...' : 'اكتب إجراء متابعة إضافيًا...'} className="flex-1 px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-xs" />
-              <button type="button" onClick={handleAddCustomFollowUp} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة أخرى'}</button>
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomFollowUp(v => !v)} className="px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-[#172C40] font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomFollowUp && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customFollowUp} onChange={e => setCustomFollowUp(e.target.value)} placeholder={isEn ? 'Write another follow-up action...' : 'اكتب إجراء المتابعة...'} className="flex-1 px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomFollowUp} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
