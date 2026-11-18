@@ -435,8 +435,9 @@ export class AtharStorageService {
     return this.getVisits().find(v => v.id === id);
   }
 
-  // Calculate Achievement Percentage strictly complying with rules:
-  // "لم يُشاهد" (not_observed) DOES NOT count as failure, DOES NOT enter denominator!
+  // Calculate Achievement Percentage using a five-to-one scale.
+  // "لم يُشاهد" (not_observed) is excluded from both numerator and denominator.
+  // Legacy ratings remain supported for previously saved visits.
   static calculateAchievement(indicators: VisitIndicatorResult[]): {
     percentage: number;
     observedCount: number;
@@ -450,23 +451,42 @@ export class AtharStorageService {
     let needsImprovementCount = 0;
     let noCount = 0;
     let notObservedCount = 0;
+    let observedCount = 0;
+    let totalScore = 0;
+
+    const scoreByRating: Record<string, number> = {
+      excellent: 5,
+      very_good: 4,
+      good: 3,
+      acceptable: 2,
+      weak: 1,
+      // Preserve historical records created with the former four-option scale.
+      yes: 5,
+      needs_improvement: 2.5,
+      no: 0
+    };
 
     indicators.forEach(ind => {
+      if (ind.rating === 'not_observed') {
+        notObservedCount++;
+        return;
+      }
+
+      const score = scoreByRating[ind.rating];
+      if (typeof score === 'number') {
+        observedCount++;
+        totalScore += score;
+      }
+
       if (ind.rating === 'yes') yesCount++;
       else if (ind.rating === 'needs_improvement') needsImprovementCount++;
       else if (ind.rating === 'no') noCount++;
-      else if (ind.rating === 'not_observed') notObservedCount++;
     });
 
-    const observedCount = yesCount + needsImprovementCount + noCount;
     const totalCount = indicators.length;
-
-    let percentage = 0;
-    if (observedCount > 0) {
-      // Yes = 1, Needs Improvement = 0.5, No = 0
-      const score = (yesCount * 1.0) + (needsImprovementCount * 0.5);
-      percentage = Math.round((score / observedCount) * 1000) / 10; // 1 decimal place
-    }
+    const percentage = observedCount > 0
+      ? Math.round((totalScore / (observedCount * 5)) * 1000) / 10
+      : 0;
 
     return {
       percentage,
