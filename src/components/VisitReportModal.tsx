@@ -498,7 +498,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
 
           {/* Visit Goal */}
           <div className="p-3 bg-white border border-slate-200 rounded-lg">
-            <span className="font-bold text-[#172C40] block mb-1">{t.visitReportModal.goal}</span>
+            <span className="font-bold text-[#172C40] block mb-1">{visit.visitType === 'full' ? (isEn ? 'Visit classification' : 'تصنيف الزيارة') : t.visitReportModal.goal}</span>
             <p className="text-slate-700 leading-relaxed">
               {visit.visitGoal ? translateGoalText(visit.visitGoal, language) : (isEn ? 'Comprehensive classroom observation and learning outcomes monitoring.' : 'رصد الممارسات التدريسية الصفية الشاملة ونواتج التعلم.')}
             </p>
