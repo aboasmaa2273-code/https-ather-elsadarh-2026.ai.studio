@@ -1508,7 +1508,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                               </button>
                             ))}
                           </div>
-                          </div>
                         </div>
 
                         {/* Direct Qualitative Observation Note */}
