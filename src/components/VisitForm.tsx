@@ -417,6 +417,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
   const saveCustomBankItem = async (bankType: keyof typeof customRecommendationBanks, value: string) => {
     const result: any = await atharRemoteAction('saveEvaluatorRecommendationBankItem', { bankType, text: value });
+    if (!result || result.success !== true) throw new Error(result?.error || 'تعذر حفظ البند في بنك المقيم.');
     setCustomRecommendationBanks(prev => ({
       ...prev,
       [bankType]: prev[bankType].some(item => item.toLocaleLowerCase() === value.toLocaleLowerCase())
