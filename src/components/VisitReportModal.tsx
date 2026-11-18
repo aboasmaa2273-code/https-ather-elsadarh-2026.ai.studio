@@ -1,5 +1,6 @@
 import React from 'react';
 import { ClassroomVisit, PlatformSettings } from '../types';
+import schoolLogo from '../assets/images/athar_school_emblem_1793852788755.jpg';
 import { AtharStorageService } from '../services/storageService';
 import { 
   Printer, 
@@ -197,9 +198,15 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <div className="w-16 h-16 mx-auto rounded-full border border-[#C6A66A] p-1 bg-[#F2EBDD]/20 overflow-hidden flex items-center justify-center">
                 {platformSettings.logoUrl ? (
                   <img 
-                    src={platformSettings.logoUrl} 
+                    src={platformSettings.logoUrl && !platformSettings.logoUrl.startsWith('/src/assets/')
+                      ? platformSettings.logoUrl
+                      : schoolLogo}
                     alt="شعار المدرسة" 
                     referrerPolicy="no-referrer"
+                    onError={(event) => {
+                      const image = event.currentTarget;
+                      if (image.src !== schoolLogo) image.src = schoolLogo;
+                    }}
                     className="w-full h-full object-contain"
                   />
                 ) : (
