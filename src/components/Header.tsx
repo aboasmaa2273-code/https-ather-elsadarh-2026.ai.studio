@@ -7,9 +7,11 @@ import {
   Database, 
   LogOut, 
   Globe, 
-  Sliders 
+  Sliders,
+  UserCog
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
+import { UserProfileModal } from './UserProfileModal';
 
 interface HeaderProps {
   currentUser: User;
@@ -40,6 +42,7 @@ export const Header: React.FC<HeaderProps> = ({
   const isEn = language === 'en';
 
   const [logoError, setLogoError] = useState(false);
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
 
   return (
     <header className="bg-[#172C40] text-white border-b-2 border-[#C6A66A] sticky top-0 z-40 shadow-sm">
@@ -209,6 +212,15 @@ export const Header: React.FC<HeaderProps> = ({
 
               {isLoggedIn ? (
                 <div className="flex items-center gap-2">
+                  <button
+                    onClick={() => setIsProfileOpen(true)}
+                    title={isEn ? 'Edit profile and password' : 'تعديل الحساب وكلمة المرور'}
+                    aria-label={isEn ? 'Edit profile' : 'تعديل الحساب'}
+                    className="p-2 rounded-lg bg-white/10 hover:bg-[#C6A66A]/20 text-white/90 transition-colors cursor-pointer border border-white/20 flex items-center"
+                  >
+                    <UserCog className="w-4 h-4 text-[#C6A66A]" />
+                    <span className="hidden sm:inline text-xs font-bold ms-1">{isEn ? 'Profile' : 'حسابي'}</span>
+                  </button>
                   {/* Logout button */}
                   <button
                     onClick={onLogoutClick}
@@ -286,6 +298,15 @@ export const Header: React.FC<HeaderProps> = ({
               <span>{t.nav.settings}</span>
             </button>
           </div>
+        )}
+        {isLoggedIn && (
+          <UserProfileModal
+            isOpen={isProfileOpen}
+            onClose={() => setIsProfileOpen(false)}
+            currentUser={currentUser}
+            onUserUpdated={onUserChange}
+            language={language}
+          />
         )}
       </header>
   );
