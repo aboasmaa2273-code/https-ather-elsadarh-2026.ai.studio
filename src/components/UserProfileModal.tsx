@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { User } from '../types';
-import { AtharStorageService } from '../services/storageService';
+import { atharRemoteAction } from '../services/gasBridgeClient';
 import { 
   KeyRound, 
   User as UserIcon, 
@@ -44,7 +44,7 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
+  const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setError('');
     setSuccessMessage('');
@@ -53,46 +53,39 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
       setError(isEn ? 'Full name is required.' : 'الاسم الكامل مطلوب.');
       return;
     }
-
     if (!username.trim()) {
       setError(isEn ? 'Username is required.' : 'اسم المستخدم مطلوب.');
       return;
     }
-
-    if (newPassword && newPassword.length < 3) {
-      setError(isEn ? 'New password must be at least 3 characters.' : 'كلمة المرور الجديدة يجب أن تتكون من 3 أحرف أو أرقام على الأقل.');
+    if (newPassword && newPassword.length < 10) {
+      setError(isEn ? 'New password must be at least 10 characters.' : 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.');
       return;
     }
-
     if (newPassword && newPassword !== confirmPassword) {
       setError(isEn ? 'Passwords do not match.' : 'كلمة المرور الجديدة وتأكيدها غير متطابقين.');
       return;
     }
 
     setIsSaving(true);
-    setTimeout(() => {
-      const res = AtharStorageService.updateUserCredentials(
-        currentUser.id,
-        username.trim(),
-        newPassword ? newPassword.trim() : undefined,
-        name.trim()
-      );
-
+    try {
+      const result = await atharRemoteAction('updateUserCredentials', {
+        id: currentUser.id,
+        name: name.trim(),
+        username: username.trim(),
+        password: newPassword.trim()
+      }) as { user?: User };
+      if (!result.user) throw new Error(isEn ? 'The server did not return the updated account.' : 'لم يُعِد الخادم بيانات الحساب بعد التحديث.');
+      onUserUpdated(result.user);
+      setNewPassword('');
+      setConfirmPassword('');
+      setSuccessMessage(isEn
+        ? 'Account details were saved centrally. Use the new credentials on your next sign-in.'
+        : 'تم حفظ بيانات الحساب في قاعدة البيانات المركزية. استخدم بيانات الدخول الجديدة عند تسجيل الدخول القادم.');
+    } catch (err) {
+      setError(err instanceof Error ? err.message : (isEn ? 'Update failed.' : 'تعذر حفظ بيانات الحساب.'));
+    } finally {
       setIsSaving(false);
-      if (res.success && res.user) {
-        onUserUpdated(res.user);
-        setSuccessMessage(
-          isEn 
-            ? 'Account credentials updated successfully! You can now use your new username and password.' 
-            : 'تم حفظ وتحديث اسم المستخدم وكلمة المرور بنجاح! يمكنك استخدامهما الآن لتسجيل الدخول في أي وقت.'
-        );
-        setTimeout(() => {
-          onClose();
-        }, 1400);
-      } else {
-        setError(res.error || (isEn ? 'Update failed.' : 'حدث خطأ أثناء حفظ التعديلات.'));
-      }
-    }, 150);
+    }
   };
 
   return (
@@ -140,16 +133,9 @@ export const UserProfileModal: React.FC<UserProfileModalProps> = ({
             </div>
           )}
 
-          {/* Current credentials hint */}
-          <div className="p-3 rounded-xl bg-[#F2EBDD]/40 border border-[#C6A66A]/30 text-xs text-[#172C40] flex items-center justify-between">
-            <div>
-              <span className="text-[11px] text-slate-500 block">اسم المستخدم الحالي:</span>
-              <span className="font-mono font-bold text-xs" dir="ltr">{currentUser.username || 'لم يُحدد'}</span>
-            </div>
-            <div className="text-end">
-              <span className="text-[11px] text-slate-500 block">كلمة المرور المسجلة:</span>
-              <span className="font-mono font-bold text-xs" dir="ltr">{currentUser.password || '123'}</span>
-            </div>
+          <div className="p-3 rounded-xl bg-[#F2EBDD]/40 border border-[#C6A66A]/30 text-xs text-[#172C40]">
+            <span className="font-semibold">{isEn ? 'Security note:' : 'تنبيه أمني:'}</span>{' '}
+            {isEn ? 'Your current password is never displayed. Changes are saved to the central school database.' : 'لا تُعرض كلمة المرور الحالية مطلقًا. تُحفظ التعديلات في قاعدة بيانات المدرسة المركزية.'}
           </div>
 
           {/* Full Name */}
