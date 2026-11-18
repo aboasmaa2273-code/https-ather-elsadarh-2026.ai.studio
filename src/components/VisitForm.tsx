@@ -340,7 +340,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   );
 
   // Recommendations & Strengths Banks (Multi-choice selectable banks)
-
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(() => {
     if (editingVisit?.strengths && editingVisit.strengths.length > 0) {
       return editingVisit.strengths;
@@ -378,15 +377,54 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   });
 
   const [selectedFollowUps, setSelectedFollowUps] = useState<string[]>(() => {
-    if (editingVisit?.suggestedFollowUpPlan) {
-      return editingVisit.suggestedFollowUpPlan.split('\n').map(s => s.trim()).filter(Boolean);
-    }
-    return [
-      isEn 
-        ? PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textEn 
-        : PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textAr
-    ];
+    if (editingVisit?.suggestedFollowUpPlan) return editingVisit.suggestedFollowUpPlan.split('\n').map(s => s.trim()).filter(Boolean);
+    return [isEn ? PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textEn : PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textAr];
   });
+  const [customStrength, setCustomStrength] = useState('');
+  const [customGrowth, setCustomGrowth] = useState('');
+  const [customRecommendation, setCustomRecommendation] = useState('');
+  const [customFollowUp, setCustomFollowUp] = useState('');
+  const [showCustomStrength, setShowCustomStrength] = useState(false);
+  const [showCustomGrowth, setShowCustomGrowth] = useState(false);
+  const [showCustomRecommendation, setShowCustomRecommendation] = useState(false);
+  const [showCustomFollowUp, setShowCustomFollowUp] = useState(false);
+
+  // Evaluator-owned custom bank entries are stored centrally and isolated by account.
+  const [customRecommendationBanks, setCustomRecommendationBanks] = useState<{
+    strengths: string[];
+    improvementAreas: string[];
+    practicalRecommendations: string[];
+    followUpPlans: string[];
+  }>({ strengths: [], improvementAreas: [], practicalRecommendations: [], followUpPlans: [] });
+
+  useEffect(() => {
+    if (!currentUser?.id || !['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)) return;
+    let active = true;
+    atharRemoteAction('getEvaluatorRecommendationBanks', {})
+      .then((result: any) => {
+        if (!active || !result?.banks) return;
+        const banks = result.banks;
+        setCustomRecommendationBanks({
+          strengths: Array.isArray(banks.strengths) ? banks.strengths : [],
+          improvementAreas: Array.isArray(banks.improvementAreas) ? banks.improvementAreas : [],
+          practicalRecommendations: Array.isArray(banks.practicalRecommendations) ? banks.practicalRecommendations : [],
+          followUpPlans: Array.isArray(banks.followUpPlans) ? banks.followUpPlans : []
+        });
+      })
+      .catch((error) => console.warn('تعذر تحميل البنود الخاصة بالمقيم:', error));
+    return () => { active = false; };
+  }, [currentUser?.id, currentUser?.role]);
+
+  const saveCustomBankItem = async (bankType: keyof typeof customRecommendationBanks, value: string) => {
+    const result: any = await atharRemoteAction('saveEvaluatorRecommendationBankItem', { bankType, text: value });
+    setCustomRecommendationBanks(prev => ({
+      ...prev,
+      [bankType]: prev[bankType].some(item => item.toLocaleLowerCase() === value.toLocaleLowerCase())
+        ? prev[bankType]
+        : [...prev[bankType], value]
+    }));
+    return result;
+  };
 
   const [strengthsText, setStrengthsText] = useState<string>(() => selectedStrengths.join('\n'));
   const [improvementAreasText, setImprovementAreasText] = useState<string>(() => selectedGrowth.join('\n'));
@@ -433,6 +471,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     });
     triggerAutoSave();
   };
+
+  // Add evaluator-defined entries to each qualitative bank
+  const handleAddCustomStrength = async () => { const value = customStrength.trim(); if (!value) return; try { await saveCustomBankItem('strengths', value); const next = selectedStrengths.includes(value) ? selectedStrengths : [...selectedStrengths, value]; setSelectedStrengths(next); setStrengthsText(next.join('\n')); setCustomStrength(''); setShowCustomStrength(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند القوة في بنك المقيم.'); } };
+  const handleAddCustomGrowth = async () => { const value = customGrowth.trim(); if (!value) return; try { await saveCustomBankItem('improvementAreas', value); const next = selectedGrowth.includes(value) ? selectedGrowth : [...selectedGrowth, value]; setSelectedGrowth(next); setImprovementAreasText(next.join('\n')); setCustomGrowth(''); setShowCustomGrowth(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند التطوير في بنك المقيم.'); } };
+  const handleAddCustomRecommendation = async () => { const value = customRecommendation.trim(); if (!value) return; try { await saveCustomBankItem('practicalRecommendations', value); const next = selectedRecommendations.includes(value) ? selectedRecommendations : [...selectedRecommendations, value]; setSelectedRecommendations(next); setPracticalRecommendations(next.join('\n')); setCustomRecommendation(''); setShowCustomRecommendation(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ التوصية في بنك المقيم.'); } };
+  const handleAddCustomFollowUp = async () => { const value = customFollowUp.trim(); if (!value) return; try { await saveCustomBankItem('followUpPlans', value); const next = selectedFollowUps.includes(value) ? selectedFollowUps : [...selectedFollowUps, value]; setSelectedFollowUps(next); setSuggestedFollowUpPlan(next.join('\n')); setCustomFollowUp(''); setShowCustomFollowUp(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ خطة المتابعة في بنك المقيم.'); } };
 
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
@@ -1680,7 +1724,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.strengths.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.strengths, ...customRecommendationBanks.strengths.map((text, index) => ({ id: 'evaluator-strength-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedStrengths.includes(optText);
 
@@ -1706,6 +1750,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomStrength(v => !v)} className="px-3 py-2 rounded-lg border border-emerald-400 bg-white text-emerald-800 font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomStrength && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customStrength} onChange={e => setCustomStrength(e.target.value)} placeholder={isEn ? 'Write another strength...' : 'اكتب نقطة القوة...'} className="flex-1 px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomStrength} className="px-3 py-2 rounded-lg bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1767,7 +1821,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.improvementAreas.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.improvementAreas, ...customRecommendationBanks.improvementAreas.map((text, index) => ({ id: 'evaluator-growth-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedGrowth.includes(optText);
 
@@ -1793,6 +1847,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomGrowth(v => !v)} className="px-3 py-2 rounded-lg border border-amber-400 bg-white text-amber-800 font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomGrowth && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customGrowth} onChange={e => setCustomGrowth(e.target.value)} placeholder={isEn ? 'Write another improvement area...' : 'اكتب مجال التحسين...'} className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomGrowth} className="px-3 py-2 rounded-lg bg-amber-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1854,7 +1918,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.practicalRecommendations.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.practicalRecommendations, ...customRecommendationBanks.practicalRecommendations.map((text, index) => ({ id: 'evaluator-recommendation-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedRecommendations.includes(optText);
 
@@ -1880,6 +1944,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomRecommendation(v => !v)} className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-[#172C40] font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomRecommendation && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customRecommendation} onChange={e => setCustomRecommendation(e.target.value)} placeholder={isEn ? 'Write another recommendation...' : 'اكتب التوصية...'} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomRecommendation} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1941,7 +2015,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.followUpPlans.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.followUpPlans, ...customRecommendationBanks.followUpPlans.map((text, index) => ({ id: 'evaluator-followup-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedFollowUps.includes(optText);
 
@@ -1967,6 +2041,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomFollowUp(v => !v)} className="px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-[#172C40] font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomFollowUp && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customFollowUp} onChange={e => setCustomFollowUp(e.target.value)} placeholder={isEn ? 'Write another follow-up action...' : 'اكتب إجراء المتابعة...'} className="flex-1 px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomFollowUp} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
