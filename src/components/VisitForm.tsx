@@ -317,6 +317,43 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [customRecommendation, setCustomRecommendation] = useState('');
   const [customFollowUp, setCustomFollowUp] = useState('');
 
+  // Evaluator-owned custom bank entries are stored centrally and isolated by account.
+  const [customRecommendationBanks, setCustomRecommendationBanks] = useState<{
+    strengths: string[];
+    improvementAreas: string[];
+    practicalRecommendations: string[];
+    followUpPlans: string[];
+  }>({ strengths: [], improvementAreas: [], practicalRecommendations: [], followUpPlans: [] });
+
+  useEffect(() => {
+    if (!currentUser?.id || !['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)) return;
+    let active = true;
+    atharRemoteAction('getEvaluatorRecommendationBanks', {})
+      .then((result: any) => {
+        if (!active || !result?.banks) return;
+        const banks = result.banks;
+        setCustomRecommendationBanks({
+          strengths: Array.isArray(banks.strengths) ? banks.strengths : [],
+          improvementAreas: Array.isArray(banks.improvementAreas) ? banks.improvementAreas : [],
+          practicalRecommendations: Array.isArray(banks.practicalRecommendations) ? banks.practicalRecommendations : [],
+          followUpPlans: Array.isArray(banks.followUpPlans) ? banks.followUpPlans : []
+        });
+      })
+      .catch((error) => console.warn('تعذر تحميل البنود الخاصة بالمقيم:', error));
+    return () => { active = false; };
+  }, [currentUser?.id, currentUser?.role]);
+
+  const saveCustomBankItem = async (bankType: keyof typeof customRecommendationBanks, value: string) => {
+    const result: any = await atharRemoteAction('saveEvaluatorRecommendationBankItem', { bankType, text: value });
+    setCustomRecommendationBanks(prev => ({
+      ...prev,
+      [bankType]: prev[bankType].some(item => item.toLocaleLowerCase() === value.toLocaleLowerCase())
+        ? prev[bankType]
+        : [...prev[bankType], value]
+    }));
+    return result;
+  };
+
   const [strengthsText, setStrengthsText] = useState<string>(() => selectedStrengths.join('\n'));
   const [improvementAreasText, setImprovementAreasText] = useState<string>(() => selectedGrowth.join('\n'));
   const [practicalRecommendations, setPracticalRecommendations] = useState<string>(() => selectedRecommendations.join('\n'));
@@ -364,10 +401,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   };
 
   // Add evaluator-defined entries to each qualitative bank
-  const handleAddCustomStrength = () => { const value = customStrength.trim(); if (!value) return; const next = [...selectedStrengths, value]; setSelectedStrengths(next); setStrengthsText(next.join('\n')); setCustomStrength(''); triggerAutoSave(); };
-  const handleAddCustomGrowth = () => { const value = customGrowth.trim(); if (!value) return; const next = [...selectedGrowth, value]; setSelectedGrowth(next); setImprovementAreasText(next.join('\n')); setCustomGrowth(''); triggerAutoSave(); };
-  const handleAddCustomRecommendation = () => { const value = customRecommendation.trim(); if (!value) return; const next = [...selectedRecommendations, value]; setSelectedRecommendations(next); setPracticalRecommendations(next.join('\n')); setCustomRecommendation(''); triggerAutoSave(); };
-  const handleAddCustomFollowUp = () => { const value = customFollowUp.trim(); if (!value) return; const next = [...selectedFollowUps, value]; setSelectedFollowUps(next); setSuggestedFollowUpPlan(next.join('\n')); setCustomFollowUp(''); triggerAutoSave(); };
+  const handleAddCustomStrength = async () => { const value = customStrength.trim(); if (!value) return; try { await saveCustomBankItem('strengths', value); const next = selectedStrengths.includes(value) ? selectedStrengths : [...selectedStrengths, value]; setSelectedStrengths(next); setStrengthsText(next.join('\n')); setCustomStrength(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند القوة في بنك المقيم.'); } };
+  const handleAddCustomGrowth = async () => { const value = customGrowth.trim(); if (!value) return; try { await saveCustomBankItem('improvementAreas', value); const next = selectedGrowth.includes(value) ? selectedGrowth : [...selectedGrowth, value]; setSelectedGrowth(next); setImprovementAreasText(next.join('\n')); setCustomGrowth(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند التطوير في بنك المقيم.'); } };
+  const handleAddCustomRecommendation = async () => { const value = customRecommendation.trim(); if (!value) return; try { await saveCustomBankItem('practicalRecommendations', value); const next = selectedRecommendations.includes(value) ? selectedRecommendations : [...selectedRecommendations, value]; setSelectedRecommendations(next); setPracticalRecommendations(next.join('\n')); setCustomRecommendation(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ التوصية في بنك المقيم.'); } };
+  const handleAddCustomFollowUp = async () => { const value = customFollowUp.trim(); if (!value) return; try { await saveCustomBankItem('followUpPlans', value); const next = selectedFollowUps.includes(value) ? selectedFollowUps : [...selectedFollowUps, value]; setSelectedFollowUps(next); setSuggestedFollowUpPlan(next.join('\n')); setCustomFollowUp(''); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ خطة المتابعة في بنك المقيم.'); } };
 
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
@@ -1578,7 +1615,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.strengths.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.strengths, ...customRecommendationBanks.strengths.map((text, index) => ({ id: 'evaluator-strength-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedStrengths.includes(optText);
 
@@ -1670,7 +1707,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.improvementAreas.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.improvementAreas, ...customRecommendationBanks.improvementAreas.map((text, index) => ({ id: 'evaluator-growth-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedGrowth.includes(optText);
 
@@ -1762,7 +1799,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.practicalRecommendations.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.practicalRecommendations, ...customRecommendationBanks.practicalRecommendations.map((text, index) => ({ id: 'evaluator-recommendation-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedRecommendations.includes(optText);
 
@@ -1854,7 +1891,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.followUpPlans.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.followUpPlans, ...customRecommendationBanks.followUpPlans.map((text, index) => ({ id: 'evaluator-followup-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedFollowUps.includes(optText);
 
