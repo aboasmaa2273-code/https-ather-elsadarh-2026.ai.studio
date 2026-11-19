@@ -235,16 +235,27 @@ function migrateCentralUsersToUsers_(ss) {
     vice_principal: 'vice_principal', assistant_principal: 'vice_principal',
     evaluator: 'evaluator', observer: 'evaluator', teacher: 'teacher'
   };
+  // Prevent duplicate identities as well as duplicate usernames. A CentralUsers row
+  // with an ID already present in Users must never be imported as a second person.
   var existing = {};
+  var existingIds = {};
   dst.slice(1).forEach(function(row) {
     var u = String(row[ix(dh, 'username')] || '').trim().toLowerCase();
+    var id = String(row[ix(dh, 'id')] || '').trim();
     if (u) existing[u] = true;
+    if (id) existingIds[id] = true;
   });
-  var imported = 0, skipped = 0, rows = [];
+  var imported = 0, skipped = 0, identityConflicts = 0, rows = [];
   for (var i = 1; i < src.length; i++) {
     var row = src[i];
     var username = String(row[ix(sh, 'username')] || '').trim();
+    var sourceId = String(row[ix(sh, 'userId')] || '').trim();
     if (!username || existing[username.toLowerCase()]) { skipped++; continue; }
+    if (sourceId && existingIds[sourceId]) {
+      skipped++;
+      identityConflicts++;
+      continue;
+    }
     var rawRole = String(row[ix(sh, 'role')] || '').trim().toLowerCase();
     var role = known[rawRole];
     if (!role) { skipped++; continue; }
@@ -265,10 +276,16 @@ function migrateCentralUsersToUsers_(ss) {
     };
     rows.push(dh.map(function(h) { return Object.prototype.hasOwnProperty.call(obj, h) ? obj[h] : ''; }));
     existing[username.toLowerCase()] = true;
+    if (sourceId) existingIds[sourceId] = true;
     imported++;
   }
   if (rows.length) target.getRange(target.getLastRow() + 1, 1, rows.length, dh.length).setValues(rows);
-  return { imported: imported, skipped: skipped, source: 'CentralUsers' };
+  return {
+    imported: imported,
+    skipped: skipped,
+    identityConflicts: identityConflicts,
+    source: 'CentralUsers'
+  };
 }
 
 // 3. بذر البيانات الأولية (Seeding)
@@ -694,6 +711,11 @@ function getPublicEvaluators_() {
     var visitorSchool = String(visitor.schoolId || schoolId);
     var visitorStatus = normalizeAtharStatus_(visitor.status);
     if (!account || visitorSchool !== schoolId || (visitorStatus !== 'active' && visitorStatus !== '')) return;
+    // Username alone is not a safe identity link: stale/duplicate directory rows
+    // can otherwise display one person's name under another person's account.
+    var visitorName = String(visitor.name || '').trim();
+    var accountName = String(account.name || '').trim();
+    if (visitorName && accountName && visitorName !== accountName) return;
     var key = String(account.id || username);
     if (seen[key]) return;
     seen[key] = true;
