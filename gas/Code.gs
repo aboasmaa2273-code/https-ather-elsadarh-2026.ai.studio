@@ -773,6 +773,24 @@ function jsonResponse_(data) {
     .setMimeType(ContentService.MimeType.JSON);
 }
 
+function getCentralAccountForIdentity_(ss, userId, username, schoolId) {
+  var sheet = ss && ss.getSheetByName('CentralUsers');
+  if (!sheet || sheet.getLastRow() < 2) return { found: false, account: null };
+  var wantedId = String(userId || '').trim();
+  var wantedUsername = String(username || '').trim().toLowerCase();
+  var wantedSchool = String(schoolId || 'sch_alsadara_01').trim();
+  var accounts = rowsAsObjects_(sheet);
+  for (var i = 0; i < accounts.length; i++) {
+    var account = accounts[i];
+    if (String(account.userId || '').trim() === wantedId &&
+        String(account.username || '').trim().toLowerCase() === wantedUsername &&
+        String(account.schoolId || 'sch_alsadara_01').trim() === wantedSchool) {
+      return { found: true, account: account };
+    }
+  }
+  return { found: false, account: null };
+}
+
 function apiLogin_(payload) {
   // Authentication is username-only; email is never accepted as a login identifier.
   var identifier = String(payload.username || '').trim().toLowerCase();
@@ -809,7 +827,14 @@ function apiLogin_(payload) {
       return { success: false, error: 'بيانات الدخول غير صحيحة.' };
     }
 
-    var rawRole = String(row[roleCol] || '').trim().toLowerCase();
+    var accountId = String(row[headers.indexOf('id')] || '');
+    var accountSchoolId = String(row[headers.indexOf('schoolId')] || 'sch_alsadara_01');
+    var centralIdentity = getCentralAccountForIdentity_(ss, accountId, rowUsername, accountSchoolId);
+    if (centralIdentity.found && normalizeAtharStatus_(centralIdentity.account.status) !== 'active') {
+      return { success: false, error: 'هذا الحساب معطّل أو غير مفعّل.' };
+    }
+    // CentralUsers is authoritative for the role when the same account exists in both sheets.
+    var rawRole = String(centralIdentity.found ? centralIdentity.account.role : row[roleCol] || '').trim().toLowerCase();
     var role = normalizeAtharRole_(rawRole);
     var allowed = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator', 'teacher'];
     if (allowed.indexOf(role) < 0) return { success: false, error: 'دور الحساب غير معتمد.' };
@@ -907,7 +932,18 @@ function validateSession_(token) {
         String(account.schoolId || 'sch_alsadara_01') === String(user.schoolId);
     })[0];
     if (!liveAccount || normalizeAtharStatus_(liveAccount.status) !== 'active') return null;
-    if (normalizeAtharRole_(liveAccount.role) !== user.role) return null;
+    var centralIdentity = getCentralAccountForIdentity_(
+      getDatabaseSpreadsheet_(), user.id, user.username, user.schoolId
+    );
+    if (centralIdentity.found) {
+      if (normalizeAtharStatus_(centralIdentity.account.status) !== 'active') return null;
+      // Refresh the session role from the central account so corrected roles
+      // take effect without changing credentials or invalidating the account.
+      user.role = normalizeAtharRole_(centralIdentity.account.role);
+    } else if (normalizeAtharRole_(liveAccount.role) !== user.role) {
+      return null;
+    }
+    if (allowed.indexOf(user.role) < 0) return null;
     return user;
   } catch (e) {
     return null;
