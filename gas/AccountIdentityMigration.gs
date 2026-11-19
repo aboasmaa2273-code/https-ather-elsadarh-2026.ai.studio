@@ -151,6 +151,15 @@ function previewAccountIdentityMigration_() {
     });
   }
 
+  var visitorIdCounts = {};
+  visitorValues.slice(1).forEach(function(row) {
+    var visitorId = atharMigrationCell_(row, vh, 'id');
+    if (visitorId) visitorIdCounts[visitorId] = (visitorIdCounts[visitorId] || 0) + 1;
+  });
+  Object.keys(visitorIdCounts).forEach(function(id) {
+    if (visitorIdCounts[id] > 1) blockers.push('معرّف سجل زائر مكرر في RegisteredVisitors: ' + id);
+  });
+
   var visitorUpdates = [];
   visitorValues.slice(1).forEach(function(row, i) {
     if (atharMigrationCell_(row, vh, 'schoolId') !== cfg.schoolId) return;
@@ -188,6 +197,7 @@ function applyAccountIdentityMigration_(confirmation) {
   if (!lock.tryLock(30000)) {
     return { success: false, error: 'تعذر الحصول على قفل قاعدة البيانات؛ لم يتم إجراء أي تعديل.' };
   }
+  var rollbackActions = [];
   try {
     var preview = previewAccountIdentityMigration_();
     if (!preview.success) {
@@ -203,7 +213,12 @@ function applyAccountIdentityMigration_(confirmation) {
 
     function setByHeader(sheet, headers, rowNumber, key, value) {
       var col = headers.indexOf(key);
-      if (col >= 0) sheet.getRange(rowNumber, col + 1).setValue(value);
+      if (col >= 0) {
+        var cell = sheet.getRange(rowNumber, col + 1);
+        var previousValue = cell.getValue();
+        rollbackActions.push(function() { cell.setValue(previousValue); });
+        cell.setValue(value);
+      }
     }
 
     preview.userUpdates.forEach(function(item) {
@@ -223,6 +238,10 @@ function applyAccountIdentityMigration_(confirmation) {
       put('username', item.username);
       // Deliberately leave email, teacherId, passwordSalt and passwordHash empty.
       users.appendRow(newRow);
+      var appendedRowNumber = users.getLastRow();
+      rollbackActions.push(function() {
+        users.getRange(appendedRowNumber, 1, 1, uh.length).clearContent();
+      });
     });
 
     preview.visitorUpdates.forEach(function(item) {
@@ -240,7 +259,21 @@ function applyAccountIdentityMigration_(confirmation) {
       message: 'اكتمل تحديث الهويات دون حذف صفوف أو تغيير بيانات كلمات المرور. الحسابات الجديدة غير مفعّلة.'
     };
   } catch (err) {
-    return { success: false, applied: false, error: String(err && err.message ? err.message : err) };
+    var rollbackErrors = [];
+    for (var rollbackIndex = rollbackActions.length - 1; rollbackIndex >= 0; rollbackIndex--) {
+      try {
+        rollbackActions[rollbackIndex]();
+      } catch (rollbackError) {
+        rollbackErrors.push(String(rollbackError && rollbackError.message ? rollbackError.message : rollbackError));
+      }
+    }
+    return {
+      success: false,
+      applied: false,
+      error: String(err && err.message ? err.message : err),
+      rollbackCompleted: rollbackErrors.length === 0,
+      rollbackErrors: rollbackErrors
+    };
   } finally {
     lock.releaseLock();
   }
