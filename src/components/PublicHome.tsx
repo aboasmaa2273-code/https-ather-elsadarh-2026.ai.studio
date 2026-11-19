@@ -40,31 +40,37 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   const isEn = language === 'en';
 
   // Load only centrally registered, active evaluator accounts for the public directory.
-  const [evaluators, setEvaluators] = useState<User[]>([]);
-  const [directoryLoading, setDirectoryLoading] = useState(true);
+  const PUBLIC_EVALUATORS_CACHE_KEY = 'athar_public_evaluators_cache_v1';
+  const readCachedEvaluators = (): User[] => {
+    try {
+      const cached = localStorage.getItem(PUBLIC_EVALUATORS_CACHE_KEY);
+      if (!cached) return [];
+      const parsed = JSON.parse(cached);
+      return Array.isArray(parsed?.items) ? parsed.items : [];
+    } catch {
+      return [];
+    }
+  };
+  const [evaluators, setEvaluators] = useState<User[]>(readCachedEvaluators);
+  const [directoryLoading, setDirectoryLoading] = useState(readCachedEvaluators().length === 0);
   const [directoryError, setDirectoryError] = useState('');
 
   useEffect(() => {
     let isMounted = true;
     const loadDirectory = async () => {
-      let lastError: unknown = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const items = await atharPublicEvaluators();
-          if (isMounted) {
-            setEvaluators(items);
-            setDirectoryError('');
-            setDirectoryLoading(false);
-          }
-          return;
-        } catch (error) {
-          lastError = error;
-          if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 900 * (attempt + 1)));
+      try {
+        const items = await atharPublicEvaluators();
+        if (isMounted) {
+          setEvaluators(items);
+          setDirectoryError('');
+          setDirectoryLoading(false);
+          try { localStorage.setItem(PUBLIC_EVALUATORS_CACHE_KEY, JSON.stringify({ savedAt: Date.now(), items })); } catch { /* Storage may be unavailable; live results remain usable. */ }
         }
-      }
-      if (isMounted) {
-        setDirectoryError(lastError instanceof Error ? lastError.message : 'تعذر تحميل دليل المقيمين.');
-        setDirectoryLoading(false);
+      } catch (error) {
+        if (isMounted) {
+          setDirectoryError(error instanceof Error ? error.message : 'تعذر تحميل دليل المقيمين.');
+          setDirectoryLoading(false);
+        }
       }
     };
     void loadDirectory();
