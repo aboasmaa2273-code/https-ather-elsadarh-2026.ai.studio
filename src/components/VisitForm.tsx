@@ -292,7 +292,11 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   };
 
   const handleVisitorChange = (id: string, field: 'name' | 'role' | 'roleTitle', value: string) => {
-    setVisitors(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
+    setVisitors(prev => prev.map(v => {
+      if (v.id !== id) return v;
+      if (field === 'role' && value !== 'other') return { ...v, role: value, roleTitle: '' };
+      return { ...v, [field]: value };
+    }));
     triggerAutoSave();
   };
 
@@ -1168,6 +1172,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                               if (found) {
                                 handleVisitorChange(visitor.id, 'name', found.name);
                                 handleVisitorChange(visitor.id, 'role', found.role);
+                                handleVisitorChange(visitor.id, 'roleTitle', found.roleTitle || '');
                               }
                             }}
                             defaultValue=""
