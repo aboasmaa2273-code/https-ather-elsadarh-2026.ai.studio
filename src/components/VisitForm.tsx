@@ -393,7 +393,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [showCustomRecommendation, setShowCustomRecommendation] = useState(false);
   const [showCustomFollowUp, setShowCustomFollowUp] = useState(false);
 
-  // Evaluator-owned custom bank entries are stored centrally and isolated by account.
+  // Custom bank entries stay on this browser/device only (no central sync).
   const [customRecommendationBanks, setCustomRecommendationBanks] = useState<{
     strengths: string[];
     improvementAreas: string[];
@@ -401,34 +401,37 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     followUpPlans: string[];
   }>({ strengths: [], improvementAreas: [], practicalRecommendations: [], followUpPlans: [] });
 
+  const customBanksStorageKey = `athar_custom_banks_v1_${currentUser?.id || 'guest'}`;
+
   useEffect(() => {
-    if (!currentUser?.id || !['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role)) return;
-    let active = true;
-    atharRemoteAction('getEvaluatorRecommendationBanks', {})
-      .then((result: any) => {
-        if (!active || !result?.banks) return;
-        const banks = result.banks;
-        setCustomRecommendationBanks({
-          strengths: Array.isArray(banks.strengths) ? banks.strengths : [],
-          improvementAreas: Array.isArray(banks.improvementAreas) ? banks.improvementAreas : [],
-          practicalRecommendations: Array.isArray(banks.practicalRecommendations) ? banks.practicalRecommendations : [],
-          followUpPlans: Array.isArray(banks.followUpPlans) ? banks.followUpPlans : []
-        });
-      })
-      .catch((error) => console.warn('تعذر تحميل البنود الخاصة بالمقيم:', error));
-    return () => { active = false; };
-  }, [currentUser?.id, currentUser?.role]);
+    try {
+      const saved = window.localStorage.getItem(customBanksStorageKey);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      setCustomRecommendationBanks({
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+        improvementAreas: Array.isArray(parsed.improvementAreas) ? parsed.improvementAreas : [],
+        practicalRecommendations: Array.isArray(parsed.practicalRecommendations) ? parsed.practicalRecommendations : [],
+        followUpPlans: Array.isArray(parsed.followUpPlans) ? parsed.followUpPlans : []
+      });
+    } catch (error) {
+      console.warn('تعذر تحميل البنود المخصصة من هذا الجهاز:', error);
+    }
+  }, [customBanksStorageKey]);
 
   const saveCustomBankItem = async (bankType: keyof typeof customRecommendationBanks, value: string) => {
-    const result: any = await atharRemoteAction('saveEvaluatorRecommendationBankItem', { bankType, text: value });
-    if (!result || result.success !== true) throw new Error(result?.error || 'تعذر حفظ البند في بنك المقيم.');
-    setCustomRecommendationBanks(prev => ({
-      ...prev,
-      [bankType]: prev[bankType].some(item => item.toLocaleLowerCase() === value.toLocaleLowerCase())
-        ? prev[bankType]
-        : [...prev[bankType], value]
-    }));
-    return result;
+    const next = {
+      ...customRecommendationBanks,
+      [bankType]: customRecommendationBanks[bankType].some(item => item.toLocaleLowerCase() === value.toLocaleLowerCase())
+        ? customRecommendationBanks[bankType]
+        : [...customRecommendationBanks[bankType], value]
+    };
+    setCustomRecommendationBanks(next);
+    try {
+      window.localStorage.setItem(customBanksStorageKey, JSON.stringify(next));
+    } catch (error) {
+      throw new Error('تعذر حفظ البند على هذا الجهاز. تحقق من مساحة التخزين وإعدادات المتصفح.');
+    }
   };
 
   const [strengthsText, setStrengthsText] = useState<string>(() => selectedStrengths.join('\n'));
