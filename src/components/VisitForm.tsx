@@ -1172,7 +1172,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                               if (found) {
                                 handleVisitorChange(visitor.id, 'name', found.name);
                                 handleVisitorChange(visitor.id, 'role', found.role);
-                                handleVisitorChange(visitor.id, 'roleTitle', found.roleTitle || '');
+                                handleVisitorChange(visitor.id, 'roleTitle', found.role === 'other' ? (found.roleTitle || '') : '');
                               }
                             }}
                             defaultValue=""
