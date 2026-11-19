@@ -111,7 +111,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     const seen = new Set<string>();
     return items.filter((visitor) => {
       const username = (visitor.username || '').trim().toLowerCase();
-      const jobNumber = (visitor.jobNumber || '').trim().toLowerCase();
+      const jobNumber = String(visitor.jobNumber ?? '').trim().toLowerCase();
       const name = (visitor.name || '').normalize('NFKC').replace(/[\s\u0640]/g, '').toLowerCase();
       // Prefer the stable employee number to collapse duplicate profiles even
       // when legacy rows were created with different usernames.
@@ -249,7 +249,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     setVisitorFormRole(vis.role as VisitorRole);
     setVisitorFormTitle(vis.roleTitle || '');
     setVisitorFormDept(vis.department || '');
-    setVisitorFormJobNumber(vis.jobNumber || '');
+    setVisitorFormJobNumber(String(vis.jobNumber ?? ''));
     setVisitorFormEmail(vis.email || '');
     setVisitorFormPhone(vis.phone || '');
     setVisitorFormUsername(vis.username || '');
@@ -295,7 +295,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         password: visitorFormPassword,
         role: accountRole,
         specialization: visitorFormTitle.trim(),
-        jobNumber: visitorFormJobNumber.trim(),
+        jobNumber: String(visitorFormJobNumber ?? '').trim(),
         email: visitorFormEmail.trim(),
         status: 'active'
       });
@@ -306,7 +306,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
         role: visitorFormRole,
         roleTitle: visitorFormTitle.trim() || undefined,
         department: visitorFormDept.trim() || undefined,
-        jobNumber: visitorFormJobNumber.trim() || undefined,
+        jobNumber: String(visitorFormJobNumber ?? '').trim() || undefined,
         email: visitorFormEmail.trim() || undefined,
         phone: visitorFormPhone.trim() || undefined,
         username
