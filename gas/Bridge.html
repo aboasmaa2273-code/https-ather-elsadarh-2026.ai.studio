@@ -12,21 +12,24 @@
         'use strict';
 
         // Accept bridge commands only from the published Athar frontend origin.
-        var ALLOWED_PARENT_ORIGIN = 'https://aboasmaa2273-code.github.io';
+        var ALLOWED_PARENT_ORIGINS = [
+          'https://ather-elsadarh-2026.ai.studio',
+          'https://aboasmaa2273-code.github.io'
+        ];
         var REQUEST_CHANNEL = 'ATHAR_GAS_REQUEST';
         var RESPONSE_CHANNEL = 'ATHAR_GAS_BRIDGE';
         var READY_CHANNEL = 'ATHAR_GAS_BRIDGE_READY';
 
-        function sendToParent(message) {
+        function sendToParent(message, targetOrigin) {
           try {
-            window.top.postMessage(message, ALLOWED_PARENT_ORIGIN);
+            window.top.postMessage(message, targetOrigin);
           } catch (error) {
             // Do not expose internal exception details to an untrusted origin.
           }
         }
 
         window.addEventListener('message', function (event) {
-          if (event.source !== window.top || event.origin !== ALLOWED_PARENT_ORIGIN) return;
+          if (event.source !== window.top || ALLOWED_PARENT_ORIGINS.indexOf(event.origin) === -1) return;
           var message = event.data;
           if (!message || message.channel !== REQUEST_CHANNEL || !message.id || !message.request) return;
 
@@ -36,7 +39,7 @@
                 channel: RESPONSE_CHANNEL,
                 id: message.id,
                 result: result
-              });
+              }, event.origin);
             })
             .withFailureHandler(function () {
               sendToParent({
@@ -46,12 +49,14 @@
                   success: false,
                   error: 'تعذر تنفيذ طلب قاعدة البيانات عبر Google Apps Script.'
                 }
-              });
+              }, event.origin);
             })
             .dispatchBridgeRequest(message.request);
         });
 
-        sendToParent({ channel: READY_CHANNEL });
+        ALLOWED_PARENT_ORIGINS.forEach(function (origin) {
+          sendToParent({ channel: READY_CHANNEL }, origin);
+        });
       })();
     </script>
   </body>

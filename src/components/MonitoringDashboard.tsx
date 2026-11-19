@@ -95,8 +95,8 @@ export const MonitoringDashboard: React.FC<MonitoringDashboardProps> = ({
     const map = new Map<number, { id: number; text: string; yes: number; needs: number; no: number; unseen: number }>();
     filtered.forEach(v => (v.indicators || []).forEach(i => {
       const current = map.get(i.indicatorId) || { id: i.indicatorId, text: i.indicatorText || String(i.indicatorId), yes: 0, needs: 0, no: 0, unseen: 0 };
-      if (i.rating === 'yes') current.yes++;
-      else if (i.rating === 'needs_improvement') current.needs++;
+      if (['excellent', 'very_good', 'good', 'yes'].includes(i.rating)) current.yes++;
+      else if (['acceptable', 'weak', 'needs_improvement'].includes(i.rating)) current.needs++;
       else if (i.rating === 'no') current.no++;
       else if (i.rating === 'not_observed') current.unseen++;
       map.set(i.indicatorId, current);

@@ -91,8 +91,8 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       if (!indicatorStats[res.indicatorId]) {
         indicatorStats[res.indicatorId] = { yes: 0, needsImp: 0, no: 0, text: res.indicatorText };
       }
-      if (res.rating === 'yes') indicatorStats[res.indicatorId].yes++;
-      else if (res.rating === 'needs_improvement') indicatorStats[res.indicatorId].needsImp++;
+      if (['excellent', 'very_good', 'good', 'yes'].includes(res.rating)) indicatorStats[res.indicatorId].yes++;
+      else if (['acceptable', 'weak', 'needs_improvement'].includes(res.rating)) indicatorStats[res.indicatorId].needsImp++;
       else if (res.rating === 'no') indicatorStats[res.indicatorId].no++;
     });
   });

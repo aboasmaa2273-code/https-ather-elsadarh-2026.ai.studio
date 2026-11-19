@@ -291,8 +291,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     triggerAutoSave();
   };
 
-  const handleVisitorChange = (id: string, field: 'name' | 'role', value: string) => {
-    setVisitors(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
+  const handleVisitorChange = (id: string, field: 'name' | 'role' | 'roleTitle', value: string) => {
+    setVisitors(prev => prev.map(v => {
+      if (v.id !== id) return v;
+      if (field === 'role' && value !== 'other') return { ...v, role: value, roleTitle: '' };
+      return { ...v, [field]: value };
+    }));
     triggerAutoSave();
   };
 
@@ -340,7 +344,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   );
 
   // Recommendations & Strengths Banks (Multi-choice selectable banks)
-
   const [selectedStrengths, setSelectedStrengths] = useState<string[]>(() => {
     if (editingVisit?.strengths && editingVisit.strengths.length > 0) {
       return editingVisit.strengths;
@@ -378,15 +381,58 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   });
 
   const [selectedFollowUps, setSelectedFollowUps] = useState<string[]>(() => {
-    if (editingVisit?.suggestedFollowUpPlan) {
-      return editingVisit.suggestedFollowUpPlan.split('\n').map(s => s.trim()).filter(Boolean);
-    }
-    return [
-      isEn 
-        ? PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textEn 
-        : PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textAr
-    ];
+    if (editingVisit?.suggestedFollowUpPlan) return editingVisit.suggestedFollowUpPlan.split('\n').map(s => s.trim()).filter(Boolean);
+    return [isEn ? PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textEn : PRESET_RECOMMENDATION_BANKS.followUpPlans[0].textAr];
   });
+  const [customStrength, setCustomStrength] = useState('');
+  const [customGrowth, setCustomGrowth] = useState('');
+  const [customRecommendation, setCustomRecommendation] = useState('');
+  const [customFollowUp, setCustomFollowUp] = useState('');
+  const [showCustomStrength, setShowCustomStrength] = useState(false);
+  const [showCustomGrowth, setShowCustomGrowth] = useState(false);
+  const [showCustomRecommendation, setShowCustomRecommendation] = useState(false);
+  const [showCustomFollowUp, setShowCustomFollowUp] = useState(false);
+
+  // Custom bank entries stay on this browser/device only (no central sync).
+  const [customRecommendationBanks, setCustomRecommendationBanks] = useState<{
+    strengths: string[];
+    improvementAreas: string[];
+    practicalRecommendations: string[];
+    followUpPlans: string[];
+  }>({ strengths: [], improvementAreas: [], practicalRecommendations: [], followUpPlans: [] });
+
+  const customBanksStorageKey = `athar_custom_banks_v1_${currentUser?.id || 'guest'}`;
+
+  useEffect(() => {
+    try {
+      const saved = window.localStorage.getItem(customBanksStorageKey);
+      if (!saved) return;
+      const parsed = JSON.parse(saved);
+      setCustomRecommendationBanks({
+        strengths: Array.isArray(parsed.strengths) ? parsed.strengths : [],
+        improvementAreas: Array.isArray(parsed.improvementAreas) ? parsed.improvementAreas : [],
+        practicalRecommendations: Array.isArray(parsed.practicalRecommendations) ? parsed.practicalRecommendations : [],
+        followUpPlans: Array.isArray(parsed.followUpPlans) ? parsed.followUpPlans : []
+      });
+    } catch (error) {
+      console.warn('تعذر تحميل البنود المخصصة من هذا الجهاز:', error);
+    }
+  }, [customBanksStorageKey]);
+
+  const saveCustomBankItem = async (bankType: keyof typeof customRecommendationBanks, value: string) => {
+    const next = {
+      ...customRecommendationBanks,
+      [bankType]: customRecommendationBanks[bankType].some(item => item.toLocaleLowerCase() === value.toLocaleLowerCase())
+        ? customRecommendationBanks[bankType]
+        : [...customRecommendationBanks[bankType], value]
+    };
+    setCustomRecommendationBanks(next);
+    try {
+      window.localStorage.setItem(customBanksStorageKey, JSON.stringify(next));
+    } catch (error) {
+      throw new Error('تعذر حفظ البند على هذا الجهاز. تحقق من مساحة التخزين وإعدادات المتصفح.');
+    }
+  };
 
   const [strengthsText, setStrengthsText] = useState<string>(() => selectedStrengths.join('\n'));
   const [improvementAreasText, setImprovementAreasText] = useState<string>(() => selectedGrowth.join('\n'));
@@ -433,6 +479,12 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     });
     triggerAutoSave();
   };
+
+  // Add evaluator-defined entries to each qualitative bank
+  const handleAddCustomStrength = async () => { const value = customStrength.trim(); if (!value) return; try { await saveCustomBankItem('strengths', value); const next = selectedStrengths.includes(value) ? selectedStrengths : [...selectedStrengths, value]; setSelectedStrengths(next); setStrengthsText(next.join('\n')); setCustomStrength(''); setShowCustomStrength(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند القوة في بنك المقيم.'); } };
+  const handleAddCustomGrowth = async () => { const value = customGrowth.trim(); if (!value) return; try { await saveCustomBankItem('improvementAreas', value); const next = selectedGrowth.includes(value) ? selectedGrowth : [...selectedGrowth, value]; setSelectedGrowth(next); setImprovementAreasText(next.join('\n')); setCustomGrowth(''); setShowCustomGrowth(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ بند التطوير في بنك المقيم.'); } };
+  const handleAddCustomRecommendation = async () => { const value = customRecommendation.trim(); if (!value) return; try { await saveCustomBankItem('practicalRecommendations', value); const next = selectedRecommendations.includes(value) ? selectedRecommendations : [...selectedRecommendations, value]; setSelectedRecommendations(next); setPracticalRecommendations(next.join('\n')); setCustomRecommendation(''); setShowCustomRecommendation(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ التوصية في بنك المقيم.'); } };
+  const handleAddCustomFollowUp = async () => { const value = customFollowUp.trim(); if (!value) return; try { await saveCustomBankItem('followUpPlans', value); const next = selectedFollowUps.includes(value) ? selectedFollowUps : [...selectedFollowUps, value]; setSelectedFollowUps(next); setSuggestedFollowUpPlan(next.join('\n')); setCustomFollowUp(''); setShowCustomFollowUp(false); triggerAutoSave(); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر حفظ خطة المتابعة في بنك المقيم.'); } };
 
   // Auto-save state
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
@@ -592,7 +644,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       evaluatorName: currentUser.name,
       date,
       time,
-      visitGoal,
+      visitGoal: visitType === 'full' ? (isEn ? 'Official Visit' : 'زيارة رسمية') : visitGoal,
       status: finalStatus,
 
       // New Student Demographics & Attendance
@@ -661,7 +713,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             <span aria-hidden="true">·</span>
             <span className="text-[#C6A66A] font-bold">
               {visitType === 'full' 
-                ? (isEn ? 'Full Visit (Complete Lesson)' : 'الزيارة الكاملة (الحصة كاملة)') 
+                ? (isEn ? 'Official Visit (Complete Lesson)' : 'زيارة رسمية (الحصة كاملة)') 
                 : (isEn ? 'Quick Walkthrough (10-15 min)' : 'الزيارة السريعة (10-15 دقيقة)')}
             </span>
           </div>
@@ -1123,6 +1175,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                               if (found) {
                                 handleVisitorChange(visitor.id, 'name', found.name);
                                 handleVisitorChange(visitor.id, 'role', found.role);
+                                handleVisitorChange(visitor.id, 'roleTitle', found.role === 'other' ? (found.roleTitle || '') : '');
                               }
                             }}
                             defaultValue=""
@@ -1183,6 +1236,17 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                           </button>
                         )}
                       </div>
+
+                      {visitor.role === 'other' && (
+                        <input
+                          type="text"
+                          value={visitor.roleTitle || ''}
+                          onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
+                          placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
+                          aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
+                          className="w-full mt-2 px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
@@ -1190,7 +1254,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             </div>
           </div>
 
-          {/* Visit Goal Dropdown & Editor */}
+          {visitType === 'quick' && (
           <div className="space-y-2 p-4 rounded-xl bg-slate-50/80 border border-slate-200">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="flex items-center gap-2 font-bold text-[#172C40] text-xs">
@@ -1260,6 +1324,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               </div>
             )}
           </div>
+
+          )}
 
           {/* Quick visit indicator selector */}
           {visitType === 'quick' && (
@@ -1379,8 +1445,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
               </h3>
               <p className="text-slate-500 mt-0.5">
                 {isEn 
-                  ? 'Rating Options: Yes · Needs Improvement · No · Not Observed (strictly excluded from calculation).'
-                  : 'الخيارات: نعم · لا · يحتاج إلى تحسين · لم يُشاهد (لا يُحسب إخفاقاً ولا يدخل في مقام النسبة).'}
+                  ? 'Rating Options: Excellent · Very Good · Good · Acceptable · Weak · Not Observed (excluded from calculation).'
+                  : 'درجات التقييم: ممتاز · جيد جدًا · جيد · مقبول · ضعيف · لم يُشاهد (يُستبعد من حساب النسبة).'}
               </p>
             </div>
             <div className="text-xs bg-[#F2EBDD] text-[#172C40] font-bold px-3 py-1.5 rounded-lg border border-[#C6A66A]/30 self-start">
@@ -1408,12 +1474,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                       <div 
                         key={ind.id} 
                         className={`p-4 rounded-xl border transition-all ${
-                          currentRating === 'yes'
-                            ? 'bg-emerald-50/30 border-emerald-200'
-                            : currentRating === 'needs_improvement'
-                            ? 'bg-amber-50/30 border-amber-200'
-                            : currentRating === 'no'
-                            ? 'bg-rose-50/30 border-rose-200'
+                          currentRating === 'excellent'
+                            ? 'bg-emerald-50/40 border-emerald-300'
+                            : currentRating === 'very_good'
+                            ? 'bg-green-50/40 border-green-300'
+                            : currentRating === 'good'
+                            ? 'bg-sky-50/40 border-sky-300'
+                            : currentRating === 'acceptable'
+                            ? 'bg-amber-50/40 border-amber-300'
+                            : currentRating === 'weak'
+                            ? 'bg-rose-50/40 border-rose-300'
                             : 'bg-white border-slate-200'
                         }`}
                       >
@@ -1434,57 +1504,30 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                             )}
                           </div>
 
-                          {/* 4 Ratings Buttons */}
+                          {/* Six agreed rating options */}
                           <div className="flex flex-wrap items-center gap-1.5 shrink-0">
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'yes')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'yes'
-                                  ? 'bg-emerald-700 text-white shadow-xs'
-                                  : 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50'
-                              }`}
-                            >
-                              <Check className="w-3.5 h-3.5" />
-                              <span>{t.ratings.yes}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'needs_improvement')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'needs_improvement'
-                                  ? 'bg-amber-600 text-white shadow-xs'
-                                  : 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-50'
-                              }`}
-                            >
-                              <span>{t.ratings.needs_improvement}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'no')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'no'
-                                  ? 'bg-rose-700 text-white shadow-xs'
-                                  : 'bg-white text-rose-800 border border-rose-300 hover:bg-rose-50'
-                              }`}
-                            >
-                              <span>{t.ratings.no}</span>
-                            </button>
-
-                            <button
-                              type="button"
-                              onClick={() => handleRatingChange(ind.id, 'not_observed')}
-                              className={`px-3 py-1.5 rounded-lg font-bold text-xs flex items-center gap-1 transition-all cursor-pointer ${
-                                currentRating === 'not_observed'
-                                  ? 'bg-slate-700 text-white shadow-xs'
-                                  : 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50'
-                              }`}
-                              title={isEn ? 'Not observed in this period (excluded from metrics)' : 'لم يُشاهد في هذه الحصة (يُستبعد تماماً من الاحتساب)'}
-                            >
-                              <span>{t.ratings.not_observed}</span>
-                            </button>
+                            {([
+                              { value: 'excellent', label: t.ratings.excellent, active: 'bg-emerald-700 text-white', idle: 'bg-white text-emerald-800 border border-emerald-300 hover:bg-emerald-50' },
+                              { value: 'very_good', label: t.ratings.very_good, active: 'bg-green-700 text-white', idle: 'bg-white text-green-800 border border-green-300 hover:bg-green-50' },
+                              { value: 'good', label: t.ratings.good, active: 'bg-sky-700 text-white', idle: 'bg-white text-sky-800 border border-sky-300 hover:bg-sky-50' },
+                              { value: 'acceptable', label: t.ratings.acceptable, active: 'bg-amber-600 text-white', idle: 'bg-white text-amber-800 border border-amber-300 hover:bg-amber-50' },
+                              { value: 'weak', label: t.ratings.weak, active: 'bg-rose-700 text-white', idle: 'bg-white text-rose-800 border border-rose-300 hover:bg-rose-50' },
+                              { value: 'not_observed', label: t.ratings.not_observed, active: 'bg-slate-700 text-white', idle: 'bg-white text-slate-600 border border-slate-300 hover:bg-slate-50' }
+                            ] as const).map(option => (
+                              <button
+                                key={option.value}
+                                type="button"
+                                onClick={() => handleRatingChange(ind.id, option.value)}
+                                className={`px-3 py-1.5 rounded-lg font-bold text-xs transition-all cursor-pointer ${
+                                  currentRating === option.value ? option.active : option.idle
+                                }`}
+                                title={option.value === 'not_observed'
+                                  ? (isEn ? 'Not observed in this period (excluded from metrics)' : 'لم يُشاهد في هذه الحصة (يُستبعد تماماً من الاحتساب)')
+                                  : option.label}
+                              >
+                                <span>{option.label}</span>
+                              </button>
+                            ))}
                           </div>
                         </div>
 
@@ -1680,7 +1723,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.strengths.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.strengths, ...customRecommendationBanks.strengths.map((text, index) => ({ id: 'evaluator-strength-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedStrengths.includes(optText);
 
@@ -1706,6 +1749,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomStrength(v => !v)} className="px-3 py-2 rounded-lg border border-emerald-400 bg-white text-emerald-800 font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomStrength && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customStrength} onChange={e => setCustomStrength(e.target.value)} placeholder={isEn ? 'Write another strength...' : 'اكتب نقطة القوة...'} className="flex-1 px-3 py-2 rounded-lg border border-emerald-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomStrength} className="px-3 py-2 rounded-lg bg-emerald-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1767,7 +1820,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.improvementAreas.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.improvementAreas, ...customRecommendationBanks.improvementAreas.map((text, index) => ({ id: 'evaluator-growth-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedGrowth.includes(optText);
 
@@ -1793,6 +1846,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomGrowth(v => !v)} className="px-3 py-2 rounded-lg border border-amber-400 bg-white text-amber-800 font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomGrowth && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customGrowth} onChange={e => setCustomGrowth(e.target.value)} placeholder={isEn ? 'Write another improvement area...' : 'اكتب مجال التحسين...'} className="flex-1 px-3 py-2 rounded-lg border border-amber-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomGrowth} className="px-3 py-2 rounded-lg bg-amber-700 text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1854,7 +1917,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.practicalRecommendations.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.practicalRecommendations, ...customRecommendationBanks.practicalRecommendations.map((text, index) => ({ id: 'evaluator-recommendation-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedRecommendations.includes(optText);
 
@@ -1880,6 +1943,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomRecommendation(v => !v)} className="px-3 py-2 rounded-lg border border-slate-300 bg-white text-[#172C40] font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomRecommendation && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customRecommendation} onChange={e => setCustomRecommendation(e.target.value)} placeholder={isEn ? 'Write another recommendation...' : 'اكتب التوصية...'} className="flex-1 px-3 py-2 rounded-lg border border-slate-300 bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomRecommendation} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}
@@ -1941,7 +2014,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
             {/* Selectable Options Grid */}
             <div className="grid grid-cols-1 md:grid-cols-2 gap-2">
-              {PRESET_RECOMMENDATION_BANKS.followUpPlans.map((opt) => {
+              {[...PRESET_RECOMMENDATION_BANKS.followUpPlans, ...customRecommendationBanks.followUpPlans.map((text, index) => ({ id: 'evaluator-followup-' + index, textAr: text, textEn: text }))].map((opt) => {
                 const optText = isEn ? opt.textEn : opt.textAr;
                 const isSelected = selectedFollowUps.includes(optText);
 
@@ -1967,6 +2040,16 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                   </button>
                 );
               })}
+            </div>
+
+            <div className="pt-2">
+              <button type="button" onClick={() => setShowCustomFollowUp(v => !v)} className="px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-[#172C40] font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4" />{isEn ? 'Other' : 'أخرى'}</button>
+              {showCustomFollowUp && (
+                <div className="flex gap-2 mt-2">
+                  <input value={customFollowUp} onChange={e => setCustomFollowUp(e.target.value)} placeholder={isEn ? 'Write another follow-up action...' : 'اكتب إجراء المتابعة...'} className="flex-1 px-3 py-2 rounded-lg border border-[#C6A66A] bg-white text-xs" />
+                  <button type="button" onClick={handleAddCustomFollowUp} className="px-3 py-2 rounded-lg bg-[#172C40] text-white font-bold text-xs inline-flex items-center gap-1"><Plus className="w-4 h-4 text-[#C6A66A]" />{isEn ? 'Add' : 'إضافة'}</button>
+                </div>
+              )}
             </div>
 
             {/* Selected Pills Display */}

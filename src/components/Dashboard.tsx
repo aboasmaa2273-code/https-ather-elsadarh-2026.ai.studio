@@ -113,11 +113,9 @@ export const Dashboard: React.FC<DashboardProps> = ({
     visibleVisits.forEach(v => {
       v.indicators.forEach(res => {
         if (domainIndicators.includes(res.indicatorId)) {
-          if (res.rating === 'yes') {
-            positiveRatings++;
+          if (res.rating !== 'not_observed' && ['excellent', 'very_good', 'good', 'acceptable', 'weak', 'yes', 'needs_improvement', 'no'].includes(res.rating)) {
             totalRatings++;
-          } else if (res.rating === 'needs_improvement' || res.rating === 'no') {
-            totalRatings++;
+            if (['excellent', 'very_good', 'good', 'yes'].includes(res.rating)) positiveRatings++;
           }
         }
       });
@@ -142,8 +140,8 @@ export const Dashboard: React.FC<DashboardProps> = ({
       if (!indicatorStats[res.indicatorId]) {
         indicatorStats[res.indicatorId] = { id: res.indicatorId, yes: 0, needsImprovement: 0, no: 0, text: res.indicatorText, code: 'IND' };
       }
-      if (res.rating === 'yes') indicatorStats[res.indicatorId].yes++;
-      else if (res.rating === 'needs_improvement') indicatorStats[res.indicatorId].needsImprovement++;
+      if (['excellent', 'very_good', 'good', 'yes'].includes(res.rating)) indicatorStats[res.indicatorId].yes++;
+      else if (['acceptable', 'weak', 'needs_improvement'].includes(res.rating)) indicatorStats[res.indicatorId].needsImprovement++;
       else if (res.rating === 'no') indicatorStats[res.indicatorId].no++;
     });
   });
