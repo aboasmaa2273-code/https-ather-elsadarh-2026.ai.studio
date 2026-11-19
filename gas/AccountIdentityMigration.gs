@@ -92,6 +92,9 @@ function previewAccountIdentityMigration_() {
       }
     });
     if (person.username === 'vp' && matches.length === 0) {
+      (usernameRows[person.username] || []).forEach(function(entry) {
+        blockers.push('اسم المستخدم vp محجوز لسجل آخر: ' + entry.name);
+      });
       plannedUserCreates.push({ name: person.name, username: person.username, role: person.role, status: 'inactive', reason: 'إنشاء حساب مستقل بلا كلمة مرور' });
     } else if (matches.length !== 1) {
       blockers.push('يجب أن يوجد سجل Users واحد فقط للاسم "' + person.name + '"؛ الموجود: ' + matches.length);
@@ -99,7 +102,7 @@ function previewAccountIdentityMigration_() {
       var match = matches[0];
       var occupied = usernameRows[person.username] || [];
       occupied.forEach(function(entry) {
-        if (entry.rowNumber !== match.rowNumber && entry.name !== 'صالحه مبارك محمد عبدالله البلوشي') {
+        if (entry.rowNumber !== match.rowNumber) {
           blockers.push('اسم المستخدم المستهدف "' + person.username + '" محجوز لسجل آخر: ' + entry.name);
         }
       });
