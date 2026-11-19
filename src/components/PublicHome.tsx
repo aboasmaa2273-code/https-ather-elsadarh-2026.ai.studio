@@ -47,24 +47,18 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   useEffect(() => {
     let isMounted = true;
     const loadDirectory = async () => {
-      let lastError: unknown = null;
-      for (let attempt = 0; attempt < 3; attempt++) {
-        try {
-          const items = await atharPublicEvaluators();
-          if (isMounted) {
-            setEvaluators(items);
-            setDirectoryError('');
-            setDirectoryLoading(false);
-          }
-          return;
-        } catch (error) {
-          lastError = error;
-          if (attempt < 2) await new Promise(resolve => window.setTimeout(resolve, 900 * (attempt + 1)));
+      try {
+        const items = await atharPublicEvaluators();
+        if (isMounted) {
+          setEvaluators(items);
+          setDirectoryError('');
         }
-      }
-      if (isMounted) {
-        setDirectoryError(lastError instanceof Error ? lastError.message : 'تعذر تحميل دليل المقيمين.');
-        setDirectoryLoading(false);
+      } catch (error) {
+        if (isMounted) {
+          setDirectoryError(error instanceof Error ? error.message : 'تعذر تحميل دليل المقيمين.');
+        }
+      } finally {
+        if (isMounted) setDirectoryLoading(false);
       }
     };
     void loadDirectory();
@@ -76,6 +70,19 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
     onLoginClick();
   };
+
+  // Apply the verified school role title to the named leadership profile.
+  // All other profiles continue to use their central-directory role title.
+  const displayEvaluators = evaluators.map(person => {
+    const normalizedName = String(person.name || '').replace(/\s+/g, ' ').trim();
+    if (normalizedName === 'طلال معتوق على سعيد النعيمي') {
+      return { ...person, roleTitle: 'نائب مدير - مساعد مدير' };
+    }
+    if (normalizedName === 'صالحه مبارك محمد عبدالله البلوشي') {
+      return { ...person, roleTitle: 'رئيس هيئة تدريس المواد العربية' };
+    }
+    return person;
+  });
 
   return (
     <div className="min-h-screen space-y-12 pb-16">
