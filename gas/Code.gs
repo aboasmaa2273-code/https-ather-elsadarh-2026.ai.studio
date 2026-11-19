@@ -704,7 +704,7 @@ function getPublicEvaluators_() {
       role: String(account.publicRole || account.role || 'evaluator'),
       status: 'active',
       schoolId: schoolId,
-      roleTitle: String(account.publicRole === 'vice_principal' ? 'نائب مدير - مساعد مدير' : (visitor.roleTitle || account.roleTitle || 'مقيّم معتمد')),
+      roleTitle: String((String(visitor.name || account.name || '').normalize('NFKC').replace(/[\\s\\u0640]/g, '').indexOf('طلالمعتوق') === 0) ? 'نائب مدير - مساعد مدير' : (account.publicRole === 'vice_principal' ? 'نائب مدير - مساعد مدير' : (visitor.roleTitle || account.roleTitle || 'مقيّم معتمد'))),
       specialization: String(account.specialization || ''),
       department: String(visitor.department || account.department || ''),
       profileSummary: String(account.profileSummary || ''),
