@@ -273,7 +273,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
         {/* Evaluators Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
-          {evaluators.map((user) => {
+          {displayEvaluators.map((user) => {
             const isAisha = user.id === 'user_cluster_director_aisha' || user.name.includes('عائشة الغفلي');
             const isHeadArabic = user.id === 'user_head_arabic' || user.name.includes('المواد العربية');
             const isPrincipal = user.role === 'school_admin' || user.name.includes('مدير المدرسة');
