@@ -1236,7 +1236,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
           </div>
 
           {visitType === 'quick' && (
-            {/* Quick visit goal editor: full official visits do not require a separate goal. */}
           <div className="space-y-2 p-4 rounded-xl bg-slate-50/80 border border-slate-200">
             <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-2">
               <label className="flex items-center gap-2 font-bold text-[#172C40] text-xs">
