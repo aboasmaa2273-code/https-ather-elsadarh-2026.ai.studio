@@ -1217,17 +1217,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                           <option value="other">{t.visitorRoles.other}</option>
                         </select>
 
-                        {visitor.role === 'other' && (
-                          <input
-                            type="text"
-                            value={visitor.roleTitle || ''}
-                            onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
-                            placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
-                            aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
-                            className="w-full mt-2 px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
-                          />
-                        )}
-
                         {visitors.length > 1 && (
                           <button
                             type="button"
@@ -1239,6 +1228,17 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                           </button>
                         )}
                       </div>
+
+                      {visitor.role === 'other' && (
+                        <input
+                          type="text"
+                          value={visitor.roleTitle || ''}
+                          onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
+                          placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
+                          aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
+                          className="w-full mt-2 px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                        />
+                      )}
                     </div>
                   </div>
                 </div>
