@@ -291,7 +291,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     triggerAutoSave();
   };
 
-  const handleVisitorChange = (id: string, field: 'name' | 'role', value: string) => {
+  const handleVisitorChange = (id: string, field: 'name' | 'role' | 'roleTitle', value: string) => {
     setVisitors(prev => prev.map(v => v.id === id ? { ...v, [field]: value } : v));
     triggerAutoSave();
   };
@@ -1216,6 +1216,17 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                           <option value="teacher">{t.visitorRoles.teacher}</option>
                           <option value="other">{t.visitorRoles.other}</option>
                         </select>
+
+                        {visitor.role === 'other' && (
+                          <input
+                            type="text"
+                            value={visitor.roleTitle || ''}
+                            onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
+                            placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
+                            aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
+                            className="w-full mt-2 px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                          />
+                        )}
 
                         {visitors.length > 1 && (
                           <button
