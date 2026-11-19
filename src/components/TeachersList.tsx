@@ -66,7 +66,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
 
     const matchesSearch = 
       tch.fullName.toLowerCase().includes(searchTerm.toLowerCase()) ||
-      tch.jobNumber.includes(searchTerm);
+      String(tch.jobNumber ?? '').includes(searchTerm);
 
     const matchesSpec = filterSpecialization === 'ALL' || tch.specialization === filterSpecialization;
     const matchesStatus = filterStatus === 'ALL' || tch.status === filterStatus;
