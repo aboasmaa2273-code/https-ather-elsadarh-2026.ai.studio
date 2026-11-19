@@ -273,7 +273,8 @@ export class AtharStorageService {
 
   static isJobNumberDuplicate(jobNumber: string, excludeId?: string): boolean {
     const teachers = this.getTeachers();
-    return teachers.some(t => t.jobNumber.trim() === jobNumber.trim() && t.id !== excludeId);
+    const normalizedJobNumber = String(jobNumber ?? '').trim();
+    return teachers.some(t => String(t.jobNumber ?? '').trim() === normalizedJobNumber && t.id !== excludeId);
   }
 
   static saveTeacher(teacher: Omit<Teacher, 'id' | 'dateAdded'> & { id?: string }): { success: boolean; teacher?: Teacher; error?: string } {
@@ -282,7 +283,7 @@ export class AtharStorageService {
       return { success: false, error: 'غير مصرح لك بإدارة بيانات المعلمين وفق صلاحياتك الحالية.' };
     }
 
-    if (!teacher.fullName?.trim() || !teacher.jobNumber?.trim() || !teacher.specialization?.trim()) {
+    if (!String(teacher.fullName ?? '').trim() || !String(teacher.jobNumber ?? '').trim() || !String(teacher.specialization ?? '').trim()) {
       return { success: false, error: 'جميع الحقول الأساسية (الاسم، الرقم الوظيفي، التخصص) مطلوبة.' };
     }
 
@@ -364,7 +365,7 @@ export class AtharStorageService {
     }
 
     const currentTeachers = this.getTeachers();
-    const existingJobNumbers = new Set(currentTeachers.map(t => t.jobNumber.trim()));
+    const existingJobNumbers = new Set(currentTeachers.map(t => String(t.jobNumber ?? '').trim()));
     const batchJobNumbers = new Set<string>();
 
     const imported: Teacher[] = [];
