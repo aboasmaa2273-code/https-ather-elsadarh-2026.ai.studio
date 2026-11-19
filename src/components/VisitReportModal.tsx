@@ -1,6 +1,5 @@
 import React from 'react';
 import { ClassroomVisit, PlatformSettings } from '../types';
-import schoolLogo from '../assets/images/athar_school_emblem_1793852788755.jpg';
 import { AtharStorageService } from '../services/storageService';
 import { 
   Printer, 
@@ -12,6 +11,7 @@ import {
   CheckCircle2, 
   AlertCircle,
   Clock,
+  Compass,
   Users,
   GraduationCap,
   Trash2
@@ -195,21 +195,16 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
 
             <div className="text-center">
               <div className="w-16 h-16 mx-auto rounded-full border border-[#C6A66A] p-1 bg-[#F2EBDD]/20 overflow-hidden flex items-center justify-center">
-                <img 
-                  src={platformSettings.logoUrl && !platformSettings.logoUrl.startsWith('/src/assets/')
-                    ? platformSettings.logoUrl
-                    : schoolLogo}
-                  alt="شعار المدرسة" 
-                  referrerPolicy="no-referrer"
-                  onError={(event) => {
-                    const image = event.currentTarget;
-                    if (!image.dataset.fallbackApplied) {
-                      image.dataset.fallbackApplied = 'true';
-                      image.src = schoolLogo;
-                    }
-                  }}
-                  className="w-full h-full object-contain"
-                />
+                {platformSettings.logoUrl ? (
+                  <img 
+                    src={platformSettings.logoUrl} 
+                    alt="شعار المدرسة" 
+                    referrerPolicy="no-referrer"
+                    className="w-full h-full object-contain"
+                  />
+                ) : (
+                  <Compass className="w-8 h-8 text-[#172C40]" />
+                )}
               </div>
               <div className="text-[10px] text-slate-400 mt-1 font-mono">{visit.id}</div>
             </div>
