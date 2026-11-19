@@ -563,9 +563,9 @@ function saveTeacher_(teacherData) {
       throw new Error('ورقة المعلمين غير موجودة. شغّل initializeDatabase() من محرر Apps Script.');
     }
 
-    var jobNumber = teacherData.jobNumber.toString().trim();
-    var fullName = teacherData.fullName.trim();
-    var specialization = teacherData.specialization.trim();
+    var jobNumber = String(teacherData.jobNumber === undefined || teacherData.jobNumber === null ? '' : teacherData.jobNumber).trim();
+    var fullName = String(teacherData.fullName === undefined || teacherData.fullName === null ? '' : teacherData.fullName).trim();
+    var specialization = String(teacherData.specialization === undefined || teacherData.specialization === null ? '' : teacherData.specialization).trim();
 
     if (!jobNumber || !fullName || !specialization) {
       return { success: false, error: 'الاسم والرقم الوظيفي والتخصص حقول إلزامية.' };
