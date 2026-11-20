@@ -315,7 +315,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
                         {user.name}
                       </h3>
                       <p className="text-[11px] text-[#668575] font-semibold mt-0.5">
-                        {user.specialization || (isEn ? translations.en.roles[user.role] : AtharStorageService.getRoleLabel(user.role))}
+                        {user.roleTitle || user.specialization || (isEn ? translations.en.roles[user.role] : AtharStorageService.getRoleLabel(user.role))}
                       </p>
                     </div>
                   </div>
