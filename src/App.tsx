@@ -255,11 +255,11 @@ export default function App() {
             }}
             canManageReports={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
             onArchiveReports={async (ids) => {
-              await Promise.all(ids.map((id) => changeVisitStatusCentral(id, 'archived')));
+              for (const id of ids) await changeVisitStatusCentral(id, 'archived');
               await refreshAllData();
             }}
             onRestoreReports={async (ids) => {
-              await Promise.all(ids.map((id) => restoreVisitCentral(id)));
+              for (const id of ids) await restoreVisitCentral(id);
               await refreshAllData();
             }}
             language={language}
