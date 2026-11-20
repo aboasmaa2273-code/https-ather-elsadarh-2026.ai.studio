@@ -766,7 +766,6 @@ export const DEFAULT_REGISTERED_VISITORS: RegisteredVisitor[] = [
     phone: '+971 50 999 8877',
     department: 'إدارة النطاق التعليمي 2.8 - وزارة التربية والتعليم',
     username: 'aisha',
-    password: '123'
   },
   {
     id: 'vis_01',
@@ -778,7 +777,6 @@ export const DEFAULT_REGISTERED_VISITORS: RegisteredVisitor[] = [
     phone: '+971 50 112 3456',
     department: 'قسم المواد العربية والممارسات التدريسية',
     username: 'arabic',
-    password: '123'
   },
   {
     id: 'vis_02',
@@ -790,7 +788,6 @@ export const DEFAULT_REGISTERED_VISITORS: RegisteredVisitor[] = [
     phone: '+971 50 223 4567',
     department: 'القيادة المدرسية العليا',
     username: 'principal',
-    password: '123'
   },
   {
     id: 'vis_03',
@@ -802,7 +799,6 @@ export const DEFAULT_REGISTERED_VISITORS: RegisteredVisitor[] = [
     phone: '+971 50 445 6789',
     department: 'الشؤون الأكاديمية والتعليمية',
     username: 'vp',
-    password: '123'
   },
   {
     id: 'vis_05',
@@ -814,7 +810,6 @@ export const DEFAULT_REGISTERED_VISITORS: RegisteredVisitor[] = [
     phone: '+971 50 556 7890',
     department: 'التوجيه والإشراف التربوي التخصصي - وزارة التربية والتعليم',
     username: 'hessa',
-    password: '123'
   },
   {
     id: 'vis_06',
