@@ -1910,6 +1910,7 @@ function updateUserCredentials_(payload, session) {
   }
   if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود أو لا تملك صلاحية تعديله.' };
   var row = data[rowIndex - 1].slice();
+  var previousUsername = String(row[usernameCol] || '').trim().toLowerCase();
   var targetRole = normalizeAtharRole_(row[roleCol]);
   if (!isSelf && session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
     return { success: false, error: 'لا يمكن لإدارة المدرسة تعديل بيانات حساب مسؤول المنصة أو مسؤول المدرسة.' };
@@ -1928,6 +1929,21 @@ function updateUserCredentials_(payload, session) {
   row[nameCol] = name;
   row[usernameCol] = username;
   sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
+  var directorySheetForIdentity = ss.getSheetByName('RegisteredVisitors');
+  if (directorySheetForIdentity) {
+    var directoryValuesForIdentity = directorySheetForIdentity.getDataRange().getValues();
+    var directoryHeadersForIdentity = directoryValuesForIdentity[0].map(String);
+    var directorySchoolCol = directoryHeadersForIdentity.indexOf('schoolId');
+    var directoryNameCol = directoryHeadersForIdentity.indexOf('name');
+    var directoryUsernameCol = directoryHeadersForIdentity.indexOf('username');
+    for (var directoryIndex = 1; directoryIndex < directoryValuesForIdentity.length; directoryIndex++) {
+      if (String(directoryValuesForIdentity[directoryIndex][directorySchoolCol] || 'sch_alsadara_01') === String(row[schoolCol] || session.schoolId) &&
+          String(directoryValuesForIdentity[directoryIndex][directoryUsernameCol] || '').trim().toLowerCase() === previousUsername) {
+        if (directoryNameCol >= 0) directorySheetForIdentity.getRange(directoryIndex + 1, directoryNameCol + 1).setValue(name);
+        if (directoryUsernameCol >= 0) directorySheetForIdentity.getRange(directoryIndex + 1, directoryUsernameCol + 1).setValue(username);
+      }
+    }
+  }
   invalidatePublicEvaluatorCache_();
   if (password) {
     var salt = Utilities.getUuid() + Utilities.getUuid();
