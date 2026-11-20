@@ -981,6 +981,8 @@ function normalizeAtharRole_(value) {
     assistant_principal: 'vice_principal', vice_principal: 'vice_principal',
     'مساعد المدير': 'vice_principal', 'مساعد مدير المدرسة': 'vice_principal',
     observer: 'evaluator', evaluator: 'evaluator',
+    cluster_director: 'evaluator', zone_director: 'evaluator',
+    'مدير النطاق': 'evaluator', 'مدير المنطقة': 'evaluator',
     'مقيم': 'evaluator', 'مقيّم': 'evaluator',
     'مقيم الزيارة الصفية': 'evaluator', 'مقيّم الزيارة الصفية': 'evaluator',
     teacher: 'teacher', 'معلم': 'teacher', 'معلم صف': 'teacher'
