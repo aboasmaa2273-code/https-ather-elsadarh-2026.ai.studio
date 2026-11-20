@@ -36,7 +36,7 @@ interface VisitReportModalProps {
   onClose: () => void;
   language?: Language;
   canDelete?: boolean;
-  onDeleteReport?: (visitId: string) => void;
+  onDeleteReport?: (visitId: string) => Promise<void>;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -160,17 +160,20 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             </button>
             {canDelete && visit.status !== 'archived' && onDeleteReport && (
               <button
-                onClick={() => {
-                  if (confirm(isEn ? 'Are you sure you want to delete this report permanently?' : 'هل تريد أرشفة هذا التقرير مع الاحتفاظ به وإمكانية استعادته؟')) {
-                    onDeleteReport(visit.id);
+                onClick={async () => {
+                  if (!confirm(isEn ? 'Archive this report? It can be restored later.' : 'هل تريد أرشفة هذا التقرير مع الاحتفاظ به وإمكانية استعادته؟')) return;
+                  try {
+                    await onDeleteReport(visit.id);
                     onClose();
+                  } catch (error) {
+                    alert(error instanceof Error ? error.message : (isEn ? 'Failed to archive the report.' : 'تعذر أرشفة التقرير.'));
                   }
                 }}
                 className="px-3 py-1.5 bg-rose-600/90 text-white rounded-lg font-bold text-xs hover:bg-rose-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs border border-rose-400/40"
-                title={isEn ? 'Delete Report' : 'حذف التقرير'}
+                title={isEn ? 'Archive Report' : 'أرشفة التقرير'}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{isEn ? 'Delete Report' : 'حذف التقرير'}</span>
+                <span>{isEn ? 'Archive Report' : 'أرشفة التقرير'}</span>
               </button>
             )}
             <button
