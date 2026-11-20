@@ -2320,7 +2320,7 @@ function saveVisitor_(payload, session) {
     phone: String(payload.phone || ''),
     username: String(payload.username || '').trim().toLowerCase(),
     status: String(payload.status || 'active'),
-    createdAt: String(payload.createdAt || new Date().toISOString())
+    createdAt: String(payload.createdAt || (existingDirectoryRecord && existingDirectoryRecord.createdAt) || new Date().toISOString())
   };
   // Reuse an existing directory record for the same login instead of creating duplicates on retries.
   if (!payload.id && visitor.username) {
@@ -2328,7 +2328,10 @@ function saveVisitor_(payload, session) {
       return String(item.schoolId || '') === String(visitor.schoolId) &&
         String(item.username || '').trim().toLowerCase() === visitor.username;
     })[0];
-    if (existingVisitor && existingVisitor.id) visitor.id = String(existingVisitor.id);
+    if (existingVisitor && existingVisitor.id) {
+      visitor.id = String(existingVisitor.id);
+      visitor.createdAt = String(existingVisitor.createdAt || visitor.createdAt);
+    }
   }
   var result = upsertObjectRow_('RegisteredVisitors', visitor, 'id', visitor.schoolId);
   if (result.success) { invalidatePublicEvaluatorCache_(); logAuditAction(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role); }
