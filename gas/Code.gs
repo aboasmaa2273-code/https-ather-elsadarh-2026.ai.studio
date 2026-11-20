@@ -722,7 +722,7 @@ function getPublicEvaluators_() {
       role: String(account.publicRole || account.role || 'evaluator'),
       status: 'active',
       schoolId: schoolId,
-      roleTitle: String(visitor.roleTitle || account.roleTitle || (account.publicRole === 'platform_admin' ? 'مسؤول المنصة' : account.publicRole === 'school_admin' ? 'مدير المدرسة' : account.publicRole === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد')),
+      roleTitle: String(account.specialization || visitor.roleTitle || account.roleTitle || (account.publicRole === 'platform_admin' ? 'مسؤول المنصة' : account.publicRole === 'school_admin' ? 'مدير المدرسة' : account.publicRole === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد')),
       specialization: String(account.specialization || ''),
       department: String(visitor.department || account.department || ''),
       profileSummary: String(account.profileSummary || ''),
@@ -746,7 +746,7 @@ function getPublicEvaluators_() {
       role: role,
       status: 'active',
       schoolId: schoolId,
-      roleTitle: String(user.roleTitle || user.jobTitle || (role === 'platform_admin' ? 'مسؤول المنصة' : role === 'school_admin' ? 'مدير المدرسة' : role === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد')),
+      roleTitle: String(user.roleTitle || user.jobTitle || user.specialization || (role === 'platform_admin' ? 'مسؤول المنصة' : role === 'school_admin' ? 'مدير المدرسة' : role === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد')),
       specialization: String(user.specialization || ''),
       department: String(user.department || ''),
       profileSummary: String(user.profileSummary || ''),
@@ -856,7 +856,7 @@ function apiLogin_(payload) {
           normalizeAtharStatus_(visitor.status) !== 'inactive';
       })[0];
       if (directoryUser) {
-        user.roleTitle = String(directoryUser.roleTitle || user.roleTitle || '');
+        user.roleTitle = String(user.specialization || directoryUser.roleTitle || user.roleTitle || '');
         user.department = String(directoryUser.department || user.department || '');
       }
     }
