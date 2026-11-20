@@ -1451,6 +1451,7 @@ function dispatchApiAction_(action, payload, session) {
       return String(p.id) === requestedPlanId && String(p.schoolId) === String(schoolId);
     })[0] : null;
     if (requestedPlanId && !existingPlan) return { success: false, error: 'خطة التطوير غير موجودة أو لا تتبع المدرسة.' };
+    if (existingPlan && String(existingPlan.archiveStatus || '') === 'archived') return { success: false, error: 'لا يمكن تعديل خطة مؤرشفة. استعدها أولاً من الأرشيف.' };
     if (session.role === 'evaluator' && existingPlan && String(existingPlan.evaluatorId || '') !== String(session.id)) {
       return { success: false, error: 'يمكنك تعديل خطط التطوير التي أنشأتها فقط.' };
     }
@@ -1481,6 +1482,8 @@ function dispatchApiAction_(action, payload, session) {
     var planArchiveSheet = ss.getSheetByName('ImprovementPlans');
     var planArchiveMigration = ensurePlanArchiveColumns_(planArchiveSheet);
     if (!planArchiveMigration.success) return planArchiveMigration;
+    var planArchiveOwnership = ensureImprovementPlanOwnershipColumns_(planArchiveSheet);
+    if (!planArchiveOwnership.success) return planArchiveOwnership;
     var requestedPlanIds = Array.isArray(payload.ids) ? payload.ids.map(String).filter(Boolean) : [];
     if (!requestedPlanIds.length) return { success: false, error: 'حدد خطة واحدة على الأقل لأرشفتها. لم يتم تغيير أي سجل.' };
     var planArchiveData = planArchiveSheet.getDataRange().getValues();
@@ -1516,6 +1519,8 @@ function dispatchApiAction_(action, payload, session) {
     var restorePlanSheet = ss.getSheetByName('ImprovementPlans');
     var restorePlanMigration = ensurePlanArchiveColumns_(restorePlanSheet);
     if (!restorePlanMigration.success) return restorePlanMigration;
+    var restorePlanOwnership = ensureImprovementPlanOwnershipColumns_(restorePlanSheet);
+    if (!restorePlanOwnership.success) return restorePlanOwnership;
     var restoreIds = Array.isArray(payload.ids) ? payload.ids.map(String).filter(Boolean) : [];
     if (!restoreIds.length) return { success: false, error: 'حدد خطة واحدة على الأقل لاستعادتها.' };
     var restoreValues = restorePlanSheet.getDataRange().getValues();
@@ -1751,7 +1756,8 @@ function saveUserAccount_(payload, session) {
   var headers = data[0].map(function(value) { return String(value).trim(); });
   var idCol = headers.indexOf('id');
   var schoolCol = headers.indexOf('schoolId');
-  if (idCol < 0 || schoolCol < 0) return { success: false, error: 'بنية ورقة الحسابات غير مكتملة؛ لم يتم حفظ أي تغيير.' };
+  var usernameCol = headers.indexOf('username');
+  if (idCol < 0 || schoolCol < 0 || usernameCol < 0) return { success: false, error: 'بنية ورقة الحسابات غير مكتملة؛ لم يتم حفظ أي تغيير.' };
 
   var requestedId = String(payload.id || '').trim();
   var rowIndex = -1;
@@ -1781,7 +1787,7 @@ function saveUserAccount_(payload, session) {
   if (allowedRoles.indexOf(role) < 0) return { success: false, error: 'الدور المطلوب غير مسموح لهذا الحساب الإداري.' };
   if (data.slice(1).some(function(row, index) {
     return String(row[idCol] || '') !== String(requestedId || '') &&
-      String(row[headers.indexOf('username')] || '').trim().toLowerCase() === username;
+      String(row[usernameCol] || '').trim().toLowerCase() === username;
   })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
 
   var password = String(payload.password || '');
