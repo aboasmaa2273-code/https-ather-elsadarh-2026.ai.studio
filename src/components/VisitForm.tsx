@@ -1168,7 +1168,6 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         )}
                       </div>
 
-remove directory quick pick
                       <input
                         type="text"
                         value={visitor.name}
@@ -1190,45 +1189,44 @@ remove directory quick pick
                           {visitor.roleTitle || currentUser.roleTitle || (isEn ? 'Authenticated evaluator' : AtharStorageService.getVisitorRoleLabel(visitor.role))}
                         </div>
                       ) : (
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={visitor.role}
-                          onChange={(e) => handleVisitorChange(visitor.id, 'role', e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
-                        >
-                          <option value="evaluator">{t.visitorRoles.evaluator}</option>
-                          <option value="head_of_arabic">{t.visitorRoles.head_of_arabic || 'رئيس هيئة تدريس المواد العربية'}</option>
-                          <option value="department_head">{t.visitorRoles.department_head || 'رئيس قسم'}</option>
-                          <option value="cluster_director">{t.visitorRoles.cluster_director}</option>
-                          <option value="principal">{t.visitorRoles.principal}</option>
-                          <option value="vice_principal">{t.visitorRoles.vice_principal}</option>
-                          <option value="academic_supervisor">{t.visitorRoles.academic_supervisor}</option>
-                          <option value="admin">{t.visitorRoles.admin}</option>
-                          <option value="teacher">{t.visitorRoles.teacher}</option>
-                          <option value="other">{t.visitorRoles.other}</option>
-                        </select>
-
-                        {visitors.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVisitor(visitor.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-                            title={t.visitorsSection.removeVisitor}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      {visitor.role === 'other' && (
-                        <input
-                          type="text"
-                          value={visitor.roleTitle || ''}
-                          onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
-                          placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
-                          aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
-                          className="w-full mt-2 px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
-                        />
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={visitor.role}
+                              onChange={(e) => handleVisitorChange(visitor.id, 'role', e.target.value)}
+                              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
+                            >
+                              <option value="evaluator">{t.visitorRoles.evaluator}</option>
+                              <option value="head_of_arabic">{t.visitorRoles.head_of_arabic || 'رئيس هيئة تدريس المواد العربية'}</option>
+                              <option value="department_head">{t.visitorRoles.department_head || 'رئيس قسم'}</option>
+                              <option value="cluster_director">{t.visitorRoles.cluster_director}</option>
+                              <option value="principal">{t.visitorRoles.principal}</option>
+                              <option value="vice_principal">{t.visitorRoles.vice_principal}</option>
+                              <option value="academic_supervisor">{t.visitorRoles.academic_supervisor}</option>
+                              <option value="admin">{t.visitorRoles.admin}</option>
+                              <option value="teacher">{t.visitorRoles.teacher}</option>
+                              <option value="other">{t.visitorRoles.other}</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveVisitor(visitor.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                              title={t.visitorsSection.removeVisitor}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {visitor.role === 'other' && (
+                            <input
+                              type="text"
+                              value={visitor.roleTitle || ''}
+                              onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
+                              placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
+                              aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
+                              className="w-full px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                            />
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
