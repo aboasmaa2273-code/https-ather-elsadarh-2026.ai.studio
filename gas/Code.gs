@@ -2090,20 +2090,48 @@ function recordVisitSnapshot_(ss, visitId, oldVisitRow, visitHeaders, schoolId, 
   ]);
 }
 
+
+// Adds visit-archive metadata columns without deleting or rewriting existing visit rows.
+function ensureVisitArchiveColumns_(sheet) {
+  if (!sheet) return { success: false, error: 'ورقة الزيارات غير موجودة.' };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(value) { return String(value).trim(); });
+  var required = ['statusBeforeArchive', 'archivedAt', 'archivedBy', 'restoredAt', 'restoredBy'];
+  var added = [];
+  required.forEach(function(name) {
+    if (headers.indexOf(name) >= 0) return;
+    sheet.getRange(1, sheet.getLastColumn() + 1).setValue(name);
+    headers.push(name);
+    added.push(name);
+  });
+  return { success: true, headers: headers, added: added };
+}
+
 function archiveVisit_(visitId, session, schoolId) {
   if (!visitId) return { success: false, error: 'رقم التقرير مطلوب.' };
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss.getSheetByName('Visits');
+  var migration = ensureVisitArchiveColumns_(sheet);
+  if (!migration.success) return migration;
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(String);
   var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
+  var priorStatusCol = headers.indexOf('statusBeforeArchive');
+  var archivedAtCol = headers.indexOf('archivedAt');
+  var archivedByCol = headers.indexOf('archivedBy');
+  if ([statusCol, priorStatusCol, archivedAtCol, archivedByCol].some(function(index) { return index < 0; })) return { success: false, error: 'أعمدة أرشفة الزيارة غير مهيأة.' };
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+    var previousStatus = String(data[i][statusCol] || 'completed');
+    if (previousStatus === 'archived') return { success: false, error: 'التقرير مؤرشف بالفعل.' };
     recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'أرشفة التقرير');
+    var now = new Date().toISOString();
+    sheet.getRange(i + 1, priorStatusCol + 1).setValue(previousStatus);
+    sheet.getRange(i + 1, archivedAtCol + 1).setValue(now);
+    sheet.getRange(i + 1, archivedByCol + 1).setValue(session.name);
     sheet.getRange(i + 1, statusCol + 1).setValue('archived');
-    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
-    logAuditAction(schoolId, session.name, 'أرشفة تقرير زيارة', 'تمت أرشفة التقرير ' + visitId, session.role);
-    return { success: true, id: visitId, status: 'archived' };
+    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(now);
+    logAuditAction(schoolId, session.name, 'أرشفة تقرير زيارة', 'تمت أرشفة التقرير ' + visitId + ' مع حفظ حالته السابقة.', session.role);
+    return { success: true, id: visitId, status: 'archived', previousStatus: previousStatus };
   }
   return { success: false, error: 'التقرير غير موجود في المدرسة.' };
 }
@@ -2130,17 +2158,28 @@ function restoreVisit_(visitId, session, schoolId) {
   if (!visitId) return { success: false, error: 'رقم التقرير مطلوب.' };
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss.getSheetByName('Visits');
+  var migration = ensureVisitArchiveColumns_(sheet);
+  if (!migration.success) return migration;
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(String);
   var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
+  var priorStatusCol = headers.indexOf('statusBeforeArchive');
+  var restoredAtCol = headers.indexOf('restoredAt');
+  var restoredByCol = headers.indexOf('restoredBy');
+  if ([statusCol, priorStatusCol, restoredAtCol, restoredByCol].some(function(index) { return index < 0; })) return { success: false, error: 'أعمدة استعادة الزيارة غير مهيأة.' };
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
     if (String(data[i][statusCol]) !== 'archived') return { success: false, error: 'هذا التقرير ليس مؤرشفًا.' };
+    var previousStatus = String(data[i][priorStatusCol] || 'completed');
+    if (['draft', 'completed', 'approved'].indexOf(previousStatus) < 0) previousStatus = 'completed';
     recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'استعادة التقرير من الأرشيف');
-    sheet.getRange(i + 1, statusCol + 1).setValue('completed');
-    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
-    logAuditAction(schoolId, session.name, 'استعادة تقرير من الأرشيف', 'تمت استعادة التقرير ' + visitId, session.role);
-    return { success: true, id: visitId, status: 'completed' };
+    var now = new Date().toISOString();
+    sheet.getRange(i + 1, statusCol + 1).setValue(previousStatus);
+    sheet.getRange(i + 1, restoredAtCol + 1).setValue(now);
+    sheet.getRange(i + 1, restoredByCol + 1).setValue(session.name);
+    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(now);
+    logAuditAction(schoolId, session.name, 'استعادة تقرير من الأرشيف', 'تمت استعادة التقرير ' + visitId + ' إلى حالته السابقة: ' + previousStatus, session.role);
+    return { success: true, id: visitId, status: previousStatus };
   }
   return { success: false, error: 'التقرير غير موجود في المدرسة.' };
 }
