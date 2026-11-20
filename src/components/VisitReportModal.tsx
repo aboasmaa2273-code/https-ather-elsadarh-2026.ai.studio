@@ -1,4 +1,5 @@
 import React from 'react';
+import schoolEmblem from '../assets/images/athar_school_emblem_1793852788755.jpg';
 import { ClassroomVisit, PlatformSettings } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { 
@@ -50,6 +51,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
 
   const t = translations[language];
   const isEn = language === 'en';
+  const reportLogo = platformSettings.logoUrl || schoolEmblem;
 
   const handlePrint = () => {
     window.print();
@@ -159,7 +161,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             {canDelete && onDeleteReport && (
               <button
                 onClick={() => {
-                  if (confirm(isEn ? 'Are you sure you want to delete this report permanently?' : 'هل أنت متأكد من رغبتك في حذف هذا التقرير نهائياً؟')) {
+                  if (confirm(isEn ? 'Are you sure you want to delete this report permanently?' : 'هل تريد أرشفة هذا التقرير مع الاحتفاظ به وإمكانية استعادته؟')) {
                     onDeleteReport(visit.id);
                     onClose();
                   }
@@ -195,11 +197,12 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
 
             <div className="text-center">
               <div className="w-16 h-16 mx-auto rounded-full border border-[#C6A66A] p-1 bg-[#F2EBDD]/20 overflow-hidden flex items-center justify-center">
-                {platformSettings.logoUrl ? (
+                {reportLogo ? (
                   <img 
-                    src={platformSettings.logoUrl} 
+                    src={reportLogo} 
                     alt="شعار المدرسة" 
                     referrerPolicy="no-referrer"
+                    onError={(event) => { event.currentTarget.src = schoolEmblem; }}
                     className="w-full h-full object-contain"
                   />
                 ) : (
@@ -253,6 +256,9 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             <div>
               <span className="text-slate-400 block text-[10px]">{t.visitReportModal.evaluator}</span>
               <span className="font-bold text-[#172C40]">{visit.evaluatorName}</span>
+              {(visit.visitors?.[0]?.roleTitle) && (
+                <span className="block text-[10px] text-slate-500 mt-0.5">{visit.visitors[0].roleTitle}</span>
+              )}
             </div>
             <div>
               <span className="text-slate-400 block text-[10px]">{t.visits.visitTime}:</span>
@@ -507,9 +513,9 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">{visit.teacherName}</div>
             </div>
             <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.principalSig}:</span>
+              <span className="text-slate-500 block mb-6">{isEn ? 'School Approval' : 'اعتماد إدارة المدرسة'}:</span>
               <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">
-                {platformSettings.principalName || (isEn ? 'School Leadership' : 'إدارة مدرسة الصدارة')}
+                {isEn ? 'School Administration' : 'إدارة المدرسة'}
               </div>
             </div>
           </div>
