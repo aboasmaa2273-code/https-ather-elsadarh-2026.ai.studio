@@ -2112,9 +2112,20 @@ function saveVisitor_(payload, session) {
   var sheet = ensureRegisteredVisitorsSheet_();
   var name = String(payload.name || '').trim();
   if (!name) return { success: false, error: 'اسم الزائر مطلوب.' };
+  var visitorSchoolId = String(session.schoolId || 'sch_alsadara_01');
+  if (payload.id) {
+    var existingDirectoryRecord = rowsAsObjects_(sheet).filter(function(item) { return String(item.id) === String(payload.id); })[0];
+    if (existingDirectoryRecord) {
+      var existingDirectorySchool = String(existingDirectoryRecord.schoolId || 'sch_alsadara_01');
+      if (existingDirectorySchool !== visitorSchoolId && normalizeAtharRole_(session.role) !== 'platform_admin') {
+        return { success: false, error: 'لا يمكن تعديل سجل زائر تابع لمدرسة أخرى.' };
+      }
+      visitorSchoolId = existingDirectorySchool;
+    }
+  }
   var visitor = {
     id: String(payload.id || Utilities.getUuid()),
-    schoolId: session.schoolId || 'sch_alsadara_01',
+    schoolId: visitorSchoolId,
     name: name,
     role: String(payload.role || 'evaluator'),
     roleTitle: String(payload.roleTitle || ''),
