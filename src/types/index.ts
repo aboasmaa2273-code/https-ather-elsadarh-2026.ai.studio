@@ -146,7 +146,6 @@ export interface RegisteredVisitor {
   department?: string;
   isCustom?: boolean;
   username?: string;
-  password?: string;
   status?: 'active' | 'inactive';
 }
 
