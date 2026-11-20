@@ -1955,7 +1955,9 @@ function updateUserCredentials_(payload, session) {
     var directoryNameCol = directoryHeadersForIdentity.indexOf('name');
     var directoryUsernameCol = directoryHeadersForIdentity.indexOf('username');
     for (var directoryIndex = 1; directoryIndex < directoryValuesForIdentity.length; directoryIndex++) {
-      if (String(directoryValuesForIdentity[directoryIndex][directorySchoolCol] || 'sch_alsadara_01') === String(row[schoolCol] || session.schoolId) &&
+      if (previousUsername &&
+          directorySchoolCol >= 0 && directoryUsernameCol >= 0 &&
+          String(directoryValuesForIdentity[directoryIndex][directorySchoolCol] || 'sch_alsadara_01') === String(row[schoolCol] || session.schoolId) &&
           String(directoryValuesForIdentity[directoryIndex][directoryUsernameCol] || '').trim().toLowerCase() === previousUsername) {
         if (directoryNameCol >= 0) directorySheetForIdentity.getRange(directoryIndex + 1, directoryNameCol + 1).setValue(name);
         if (directoryUsernameCol >= 0) directorySheetForIdentity.getRange(directoryIndex + 1, directoryUsernameCol + 1).setValue(username);
