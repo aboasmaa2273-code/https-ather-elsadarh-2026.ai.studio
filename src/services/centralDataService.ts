@@ -137,6 +137,16 @@ export async function restoreVisitCentral(id: string) {
   return atharRemoteAction('restoreVisit', { id });
 }
 
+export async function archiveVisitsCentral(ids: string[]) {
+  if (!ids.length) throw new Error('حدد تقريراً واحداً على الأقل.');
+  return atharRemoteAction('archiveVisits', { ids });
+}
+
+export async function restoreVisitsCentral(ids: string[]) {
+  if (!ids.length) throw new Error('حدد تقريراً واحداً على الأقل.');
+  return atharRemoteAction('restoreVisits', { ids });
+}
+
 export async function archivePlansCentral(ids: string[]) {
   if (!ids.length) throw new Error('حدد خطة واحدة على الأقل.');
   return atharRemoteAction('deletePlans', { ids });
