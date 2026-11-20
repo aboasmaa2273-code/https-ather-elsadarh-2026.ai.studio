@@ -722,7 +722,7 @@ function getPublicEvaluators_() {
       role: String(account.publicRole || account.role || 'evaluator'),
       status: 'active',
       schoolId: schoolId,
-      roleTitle: String(visitor.roleTitle || visitor.role || account.roleTitle || 'مقيّم معتمد'),
+      roleTitle: String(visitor.roleTitle || account.roleTitle || (account.publicRole === 'platform_admin' ? 'مسؤول المنصة' : account.publicRole === 'school_admin' ? 'مدير المدرسة' : account.publicRole === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد')),
       specialization: String(account.specialization || ''),
       department: String(visitor.department || account.department || ''),
       profileSummary: String(account.profileSummary || ''),
@@ -746,7 +746,7 @@ function getPublicEvaluators_() {
       role: role,
       status: 'active',
       schoolId: schoolId,
-      roleTitle: String(user.roleTitle || user.jobTitle || 'مقيّم معتمد'),
+      roleTitle: String(user.roleTitle || user.jobTitle || (role === 'platform_admin' ? 'مسؤول المنصة' : role === 'school_admin' ? 'مدير المدرسة' : role === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد')),
       specialization: String(user.specialization || ''),
       department: String(user.department || ''),
       profileSummary: String(user.profileSummary || ''),
@@ -868,6 +868,7 @@ function apiLogin_(payload) {
       })[0];
       if (matchedTeacher) user.teacherId = String(matchedTeacher.id || '');
     }
+    if (!user.roleTitle) user.roleTitle = role === 'platform_admin' ? 'مسؤول المنصة' : role === 'school_admin' ? 'مدير المدرسة' : role === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد';
     var token = createSessionToken_(user);
     logAuditAction(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.', user.role);
     return { success: true, token: token, user: user, expiresIn: 21600 };
