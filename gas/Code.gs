@@ -1771,6 +1771,14 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'استعادة التقارير المؤرشفة مقتصرة على الإدارة المخولة.' };
     return restoreVisit_(payload.id, session, schoolId);
   }
+  if (action === 'archiveVisits') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'أرشفة التقارير مقتصرة على الإدارة المخولة.' };
+    return archiveVisits_(payload.ids, session, schoolId);
+  }
+  if (action === 'restoreVisits') {
+    if (!requireRole_(session, managementRoles)) return { success: false, error: 'استعادة التقارير مقتصرة على الإدارة المخولة.' };
+    return restoreVisits_(payload.ids, session, schoolId);
+  }
   if (action === 'deleteVisit') {
     return { success: false, error: 'الحذف النهائي للتقارير غير متاح. استخدم إجراء الأرشفة للاحتفاظ بالسجل التاريخي.' };
   }
@@ -2211,6 +2219,74 @@ function restoreVisit_(visitId, session, schoolId) {
     return { success: true, id: visitId, status: previousStatus };
   }
   return { success: false, error: 'التقرير غير موجود في المدرسة.' };
+}
+
+function archiveVisits_(visitIds, session, schoolId) {
+  var ids = Array.isArray(visitIds) ? Array.from(new Set(visitIds.map(function(id) { return String(id || '').trim(); }).filter(Boolean))) : [];
+  if (!ids.length) return { success: false, error: 'حدد تقريراً واحداً على الأقل لأرشفته.' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. حاول مرة أخرى.' };
+  try {
+    var sheet = getDatabaseSpreadsheet_().getSheetByName('Visits');
+    var migration = ensureVisitArchiveColumns_(sheet);
+    if (!migration.success) return migration;
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0].map(String);
+    var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status');
+    if ([idCol, schoolCol, statusCol].some(function(index) { return index < 0; })) return { success: false, error: 'بنية سجل الزيارات غير مكتملة.' };
+    var found = {};
+    for (var row = 1; row < data.length; row++) {
+      var id = String(data[row][idCol] || '');
+      if (ids.indexOf(id) < 0) continue;
+      if (String(data[row][schoolCol] || '') !== String(schoolId)) return { success: false, error: 'أحد التقارير المحددة لا يتبع المدرسة الحالية. لم يتم تغيير أي سجل.' };
+      if (String(data[row][statusCol] || '') === 'archived') return { success: false, error: 'أحد التقارير المحددة مؤرشف بالفعل. لم يتم تغيير أي سجل.' };
+      found[id] = true;
+    }
+    if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
+    var archived = [];
+    for (var i = 0; i < ids.length; i++) {
+      var result = archiveVisit_(ids[i], session, schoolId);
+      if (!result.success) return { success: false, error: result.error || 'تعذرت أرشفة أحد التقارير.', archivedCount: archived.length, archivedIds: archived };
+      archived.push(ids[i]);
+    }
+    return { success: true, archivedCount: archived.length, archivedIds: archived };
+  } finally {
+    lock.releaseLock();
+  }
+}
+
+function restoreVisits_(visitIds, session, schoolId) {
+  var ids = Array.isArray(visitIds) ? Array.from(new Set(visitIds.map(function(id) { return String(id || '').trim(); }).filter(Boolean))) : [];
+  if (!ids.length) return { success: false, error: 'حدد تقريراً واحداً على الأقل لاستعادته.' };
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. حاول مرة أخرى.' };
+  try {
+    var sheet = getDatabaseSpreadsheet_().getSheetByName('Visits');
+    var migration = ensureVisitArchiveColumns_(sheet);
+    if (!migration.success) return migration;
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0].map(String);
+    var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status');
+    if ([idCol, schoolCol, statusCol].some(function(index) { return index < 0; })) return { success: false, error: 'بنية سجل الزيارات غير مكتملة.' };
+    var found = {};
+    for (var row = 1; row < data.length; row++) {
+      var id = String(data[row][idCol] || '');
+      if (ids.indexOf(id) < 0) continue;
+      if (String(data[row][schoolCol] || '') !== String(schoolId)) return { success: false, error: 'أحد التقارير المحددة لا يتبع المدرسة الحالية. لم يتم تغيير أي سجل.' };
+      if (String(data[row][statusCol] || '') !== 'archived') return { success: false, error: 'أحد التقارير المحددة ليس في الأرشيف. لم يتم تغيير أي سجل.' };
+      found[id] = true;
+    }
+    if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
+    var restored = [];
+    for (var i = 0; i < ids.length; i++) {
+      var result = restoreVisit_(ids[i], session, schoolId);
+      if (!result.success) return { success: false, error: result.error || 'تعذرت استعادة أحد التقارير.', restoredCount: restored.length, restoredIds: restored };
+      restored.push(ids[i]);
+    }
+    return { success: true, restoredCount: restored.length, restoredIds: restored };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 function saveVisitor_(payload, session) {
