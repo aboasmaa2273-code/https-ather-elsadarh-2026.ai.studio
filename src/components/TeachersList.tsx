@@ -305,7 +305,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
                             {canDeleteTeacher && (
                               <button
                                 onClick={() => handleDeleteTeacher(teacher.id, teacher.fullName)}
-                                title={isEn ? 'Delete Teacher (Authorized only)' : 'حذف المعلم (للمخولين فقط)'}
+                                title={isEn ? 'Deactivate teacher and preserve history' : 'تعطيل سجل المعلم مع الاحتفاظ بالزيارات والتقارير'}
                                 className="p-1 hover:bg-rose-50 rounded text-rose-600 hover:text-rose-800 cursor-pointer"
                               >
                                 <Trash2 className="w-4 h-4" />
