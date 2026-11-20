@@ -773,34 +773,8 @@ export class AtharStorageService {
       this.logAction(currentUser, 'إضافة زائر جديد', `تم تسجيل الزائر: ${visitor.name} بصفة (${this.getVisitorRoleLabel(visitor.role)})`);
     }
 
-    // Synchronize login credentials for the evaluator if username and password provided
-    if (visitor.username && visitor.username.trim()) {
-      const cleanUsername = visitor.username.trim().toLowerCase();
-      const cleanPassword = visitor.password?.trim() || '123';
-      const customUsers = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
-      const userIndex = customUsers.findIndex(u => u.username?.toLowerCase() === cleanUsername || u.name === visitor.name);
-
-      if (userIndex >= 0) {
-        customUsers[userIndex].name = visitor.name;
-        customUsers[userIndex].username = cleanUsername;
-        customUsers[userIndex].password = cleanPassword;
-        customUsers[userIndex].specialization = visitor.roleTitle || visitor.department || 'مقيّم معتمد';
-        setStored(STORAGE_KEYS.CUSTOM_USERS, customUsers);
-      } else {
-        const newEvaluatorUser: User = {
-          id: `user_eval_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-          name: visitor.name,
-          username: cleanUsername,
-          password: cleanPassword,
-          role: 'evaluator',
-          schoolId: 'sch_alsadara_01',
-          email: visitor.email || `${cleanUsername}@alsadara.sch.ae`,
-          specialization: visitor.roleTitle || visitor.department || 'مقيّم معتمد'
-        };
-        customUsers.push(newEvaluatorUser);
-        setStored(STORAGE_KEYS.CUSTOM_USERS, customUsers);
-      }
-    }
+    // Credentials are managed only by the central Users sheet.
+    // Never synthesize a local password or create a local login from directory data.
 
     setStored(STORAGE_KEYS.REGISTERED_VISITORS, visitors);
     return { success: true };
