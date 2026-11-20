@@ -1472,7 +1472,12 @@ function dispatchApiAction_(action, payload, session) {
       status: payload.status || (existingPlan && existingPlan.status) || 'in_progress',
       evaluatorId: existingPlan ? (existingPlan.evaluatorId || session.id) : session.id,
       evaluatorName: existingPlan ? (existingPlan.evaluatorName || session.name) : session.name,
-      createdAt: existingPlan ? existingPlan.createdAt : (payload.createdAt || new Date().toISOString())
+      createdAt: existingPlan ? existingPlan.createdAt : (payload.createdAt || new Date().toISOString()),
+      archiveStatus: existingPlan ? (existingPlan.archiveStatus || 'active') : 'active',
+      archivedAt: existingPlan ? (existingPlan.archivedAt || '') : '',
+      archivedBy: existingPlan ? (existingPlan.archivedBy || '') : '',
+      restoredAt: existingPlan ? (existingPlan.restoredAt || '') : '',
+      restoredBy: existingPlan ? (existingPlan.restoredBy || '') : ''
     };
     var savedPlan = upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
     if (savedPlan.success) logAuditAction(schoolId, session.name, 'حفظ خطة تطوير', 'تم حفظ خطة تطوير للمعلم: ' + planTeacher.fullName, session.role);
