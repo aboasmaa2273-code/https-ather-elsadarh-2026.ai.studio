@@ -2151,13 +2151,14 @@ function archiveVisit_(visitId, session, schoolId) {
   if (!migration.success) return migration;
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(String);
+  var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId');
   var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
   var priorStatusCol = headers.indexOf('statusBeforeArchive');
   var archivedAtCol = headers.indexOf('archivedAt');
   var archivedByCol = headers.indexOf('archivedBy');
-  if ([statusCol, priorStatusCol, archivedAtCol, archivedByCol].some(function(index) { return index < 0; })) return { success: false, error: 'أعمدة أرشفة الزيارة غير مهيأة.' };
+  if ([idCol, schoolCol, statusCol, priorStatusCol, archivedAtCol, archivedByCol].some(function(index) { return index < 0; })) return { success: false, error: 'أعمدة أرشفة الزيارة غير مهيأة.' };
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+    if (String(data[i][idCol]) !== String(visitId) || String(data[i][schoolCol]) !== String(schoolId)) continue;
     var previousStatus = String(data[i][statusCol] || 'completed');
     if (previousStatus === 'archived') return { success: false, error: 'التقرير مؤرشف بالفعل.' };
     recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'أرشفة التقرير');
@@ -2199,13 +2200,14 @@ function restoreVisit_(visitId, session, schoolId) {
   if (!migration.success) return migration;
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(String);
+  var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId');
   var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
   var priorStatusCol = headers.indexOf('statusBeforeArchive');
   var restoredAtCol = headers.indexOf('restoredAt');
   var restoredByCol = headers.indexOf('restoredBy');
-  if ([statusCol, priorStatusCol, restoredAtCol, restoredByCol].some(function(index) { return index < 0; })) return { success: false, error: 'أعمدة استعادة الزيارة غير مهيأة.' };
+  if ([idCol, schoolCol, statusCol, priorStatusCol, restoredAtCol, restoredByCol].some(function(index) { return index < 0; })) return { success: false, error: 'أعمدة استعادة الزيارة غير مهيأة.' };
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+    if (String(data[i][idCol]) !== String(visitId) || String(data[i][schoolCol]) !== String(schoolId)) continue;
     if (String(data[i][statusCol]) !== 'archived') return { success: false, error: 'هذا التقرير ليس مؤرشفًا.' };
     var previousStatus = String(data[i][priorStatusCol] || 'completed');
     if (['draft', 'in_progress', 'completed', 'approved'].indexOf(previousStatus) < 0) previousStatus = 'completed';
