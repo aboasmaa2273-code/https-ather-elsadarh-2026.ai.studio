@@ -12,7 +12,7 @@ import {
 } from './types';
 import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS, DEFAULT_USERS } from './data/defaultData';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
-import { loadCentralData, changeVisitStatusCentral, restoreVisitCentral } from './services/centralDataService';
+import { loadCentralData, changeVisitStatusCentral, archiveVisitsCentral, restoreVisitsCentral } from './services/centralDataService';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -255,11 +255,11 @@ export default function App() {
             }}
             canManageReports={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
             onArchiveReports={async (ids) => {
-              for (const id of ids) await changeVisitStatusCentral(id, 'archived');
+              await archiveVisitsCentral(ids);
               await refreshAllData();
             }}
             onRestoreReports={async (ids) => {
-              for (const id of ids) await restoreVisitCentral(id);
+              await restoreVisitsCentral(ids);
               await refreshAllData();
             }}
             language={language}
