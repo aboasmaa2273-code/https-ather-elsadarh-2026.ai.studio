@@ -12,7 +12,7 @@ import {
 } from './types';
 import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS, DEFAULT_USERS } from './data/defaultData';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
-import { loadCentralData, changeVisitStatusCentral } from './services/centralDataService';
+import { loadCentralData, changeVisitStatusCentral, restoreVisitCentral } from './services/centralDataService';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -63,6 +63,7 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [visits, setVisits] = useState<ClassroomVisit[]>([]);
   const [plans, setPlans] = useState<ImprovementPlan[]>([]);
+  const [archivedPlans, setArchivedPlans] = useState<ImprovementPlan[]>([]);
   const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -80,6 +81,7 @@ export default function App() {
       setTeachers(data.teachers);
       setVisits(data.visits);
       setPlans(data.plans);
+      setArchivedPlans(data.archivedPlans);
       setAcademicSettings(data.academicSettings);
       setPlatformSettings(data.platformSettings);
       setAuditLogs(data.auditLogs);
@@ -109,6 +111,7 @@ export default function App() {
     setTeachers([]);
     setVisits([]);
     setPlans([]);
+    setArchivedPlans([]);
     setAuditLogs([]);
     setRegisteredVisitors([]);
     setActiveTab('home');
@@ -231,6 +234,7 @@ export default function App() {
         {isLoggedIn && activeTab === 'plans' && (
           <ImprovementPlansList
             plans={plans}
+            archivedPlans={archivedPlans}
             teachers={teachers}
             currentUser={currentUser}
             onRefreshPlans={refreshAllData}
@@ -248,6 +252,15 @@ export default function App() {
             onOpenTeacherReport={(t) => {
               setSelectedTeacherForReport(t);
               setActiveTab('teacher-report');
+            }}
+            canManageReports={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
+            onArchiveReports={async (ids) => {
+              await Promise.all(ids.map((id) => changeVisitStatusCentral(id, 'archived')));
+              await refreshAllData();
+            }}
+            onRestoreReports={async (ids) => {
+              await Promise.all(ids.map((id) => restoreVisitCentral(id)));
+              await refreshAllData();
             }}
             language={language}
           />
@@ -326,6 +339,7 @@ export default function App() {
                 setTeachers([]);
                 setVisits([]);
                 setPlans([]);
+    setArchivedPlans([]);
                 setAuditLogs([]);
                 setRegisteredVisitors([]);
                 setActiveTab('home');
