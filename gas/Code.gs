@@ -1705,24 +1705,11 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'deleteVisitor') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف بيانات الزائرين مقتصر على الإدارة.' };
-    var visitorSheetToArchive = ss.getSheetByName('RegisteredVisitors');
-    if (!visitorSheetToArchive || visitorSheetToArchive.getLastRow() < 2) return { success: false, error: 'سجل الزائر غير موجود.' };
-    var visitorRowsToArchive = visitorSheetToArchive.getDataRange().getValues();
-    var visitorHeadersToArchive = visitorRowsToArchive[0].map(String);
-    var visitorIdColumn = visitorHeadersToArchive.indexOf('id');
-    var visitorSchoolColumn = visitorHeadersToArchive.indexOf('schoolId');
-    var visitorStatusColumn = visitorHeadersToArchive.indexOf('status');
-    if ([visitorIdColumn, visitorSchoolColumn, visitorStatusColumn].some(function(index) { return index < 0; })) return { success: false, error: 'تعذر تحديد أعمدة سجل الزائر.' };
-    for (var visitorIndex = 1; visitorIndex < visitorRowsToArchive.length; visitorIndex++) {
-      if (String(visitorRowsToArchive[visitorIndex][visitorIdColumn]) !== String(payload.id) ||
-          String(visitorRowsToArchive[visitorIndex][visitorSchoolColumn]) !== String(schoolId)) continue;
-      visitorSheetToArchive.getRange(visitorIndex + 1, visitorStatusColumn + 1).setValue('inactive');
-      invalidatePublicEvaluatorCache_();
-      logAuditAction(schoolId, session.name, 'أرشفة سجل زائر', 'تمت أرشفة سجل الزائر ' + payload.id + ' مع الاحتفاظ به.', session.role);
-      return { success: true, id: payload.id, status: 'inactive', preservedRecord: true };
-    }
-    return { success: false, error: 'سجل الزائر غير موجود في المدرسة.' };
+    var deletedVisitor = deleteById_('RegisteredVisitors', payload.id, schoolId);
+    if (deletedVisitor.success) logAuditAction(schoolId, session.name, 'حذف زائر', 'تم حذف سجل الزائر ' + payload.id, session.role);
+    return deletedVisitor;
   }
+
   if (action === 'deleteAuditLogs') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف سجل العمليات مقتصر على مسؤول المنصة أو إدارة المدرسة.' };
     var auditSheet = ss.getSheetByName('AuditLog');
