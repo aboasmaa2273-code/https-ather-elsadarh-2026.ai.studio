@@ -1763,13 +1763,14 @@ function dispatchApiAction_(action, payload, session) {
     if (linkedUsersSheet && linkedUsersSheet.getLastRow() > 1) {
       var linkedUserData = linkedUsersSheet.getDataRange().getValues();
       var linkedUserHeaders = linkedUserData[0].map(String);
-      var linkedIdCol = linkedUserHeaders.indexOf('id');
       var linkedSchoolCol = linkedUserHeaders.indexOf('schoolId');
       var linkedRoleCol = linkedUserHeaders.indexOf('role');
       var linkedTeacherCol = linkedUserHeaders.indexOf('teacherId');
       var linkedJobCol = linkedUserHeaders.indexOf('jobNumber');
       var linkedStatusCol = linkedUserHeaders.indexOf('status');
-      if (linkedStatusCol < 0) return { success: false, error: 'تعذر تعطيل حساب المعلم المرتبط؛ عمود حالة الحساب غير موجود. لم يتم تغيير سجل المعلم.' };
+      if ([linkedSchoolCol, linkedRoleCol, linkedStatusCol].some(function(index) { return index < 0; })) {
+        return { success: false, error: 'تعذر التحقق من حسابات المعلم المرتبطة؛ بنية ورقة الحسابات غير مكتملة. لم يتم تغيير سجل المعلم.' };
+      }
       for (var lui = 1; lui < linkedUserData.length; lui++) {
         var linkedRole = normalizeAtharRole_(linkedRoleCol >= 0 ? linkedUserData[lui][linkedRoleCol] : '');
         var linkedSchool = String(linkedUserData[lui][linkedSchoolCol] || 'sch_alsadara_01');
