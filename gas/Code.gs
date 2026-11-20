@@ -1821,13 +1821,12 @@ function saveUserAccount_(payload, session) {
   if (existingRow && existingSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') {
     return { success: false, error: 'لا يمكن تعديل حساب تابع لمدرسة أخرى.' };
   }
-  // Enforce protected-role rules on the server, not only in the directory UI.
-  // A school administrator must never demote or rewrite another school/platform administrator
-  // by submitting an otherwise permitted role in a crafted saveUserAccount request.
-  if (existingRow && session.role !== 'platform_admin') {
+  // Protected administrator accounts are managed through the dedicated account
+  // credentials/status flows, never through the evaluator-directory save endpoint.
+  if (existingRow) {
     var protectedTargetRole = normalizeAtharRole_(existing.role);
     if (['platform_admin', 'school_admin'].indexOf(protectedTargetRole) >= 0) {
-      return { success: false, error: 'لا يمكن لإدارة المدرسة تعديل حساب مسؤول المنصة أو مسؤول المدرسة من خلال دليل المقيمين.' };
+      return { success: false, error: 'لا يمكن تعديل حساب مسؤول المنصة أو مسؤول المدرسة من خلال دليل المقيمين.' };
     }
   }
 
