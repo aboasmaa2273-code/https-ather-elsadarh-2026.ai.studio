@@ -1871,6 +1871,7 @@ function setUserStatus_(payload, session) {
 }
 
 function updateUserCredentials_(payload, session) {
+  session.role = normalizeAtharRole_(session.role);
   var targetId = String(payload.id || session.id || '');
   var isSelf = targetId === String(session.id || '');
   if (!isSelf && ['platform_admin', 'school_admin'].indexOf(session.role) < 0) {
@@ -1894,14 +1895,15 @@ function updateUserCredentials_(payload, session) {
   }
   var rowIndex = -1;
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][idCol]) === targetId && String(data[i][schoolCol]) === String(session.schoolId)) {
-      rowIndex = i + 1;
-      break;
-    }
+    if (String(data[i][idCol]) !== targetId) continue;
+    var rowSchoolId = String(data[i][schoolCol] || 'sch_alsadara_01');
+    if (rowSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') continue;
+    rowIndex = i + 1;
+    break;
   }
-  if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود في المدرسة المرتبطة بك.' };
-  var row = data[rowIndex - 1];
-  var targetRole = String(row[roleCol] || '');
+  if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود أو لا تملك صلاحية تعديله.' };
+  var row = data[rowIndex - 1].slice();
+  var targetRole = normalizeAtharRole_(row[roleCol]);
   if (!isSelf && session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
     return { success: false, error: 'لا يمكن لإدارة المدرسة تعديل بيانات حساب مسؤول المنصة أو مسؤول المدرسة.' };
   }
@@ -1915,8 +1917,10 @@ function updateUserCredentials_(payload, session) {
   })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
   if (password && password.length < 10) return { success: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.' };
   if (password && (saltCol < 0 || hashCol < 0)) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة.' };
-  sheet.getRange(rowIndex, nameCol + 1).setValue(name);
-  sheet.getRange(rowIndex, usernameCol + 1).setValue(username);
+
+  row[nameCol] = name;
+  row[usernameCol] = username;
+  sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
   invalidatePublicEvaluatorCache_();
   if (password) {
     var salt = Utilities.getUuid() + Utilities.getUuid();
@@ -1935,6 +1939,18 @@ function updateUserCredentials_(payload, session) {
     status: String(row[statusCol] || 'active'),
     teacherId: String(row[headers.indexOf('teacherId')] || '')
   };
+  var directorySheet = ss.getSheetByName('RegisteredVisitors');
+  if (directorySheet) {
+    var directoryMatch = rowsAsObjects_(directorySheet).filter(function(visitor) {
+      return String(visitor.schoolId || updatedUser.schoolId) === updatedUser.schoolId &&
+        String(visitor.username || '').trim().toLowerCase() === username &&
+        normalizeAtharStatus_(visitor.status) !== 'inactive';
+    })[0];
+    if (directoryMatch) {
+      updatedUser.roleTitle = String(directoryMatch.roleTitle || '');
+      updatedUser.department = String(directoryMatch.department || '');
+    }
+  }
   logAuditAction(updatedUser.schoolId, session.name, 'تحديث بيانات الدخول', 'تم تحديث الاسم واسم المستخدم للحساب ' + targetId, session.role);
   return { success: true, user: updatedUser };
 }
