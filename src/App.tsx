@@ -311,10 +311,9 @@ export default function App() {
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
           canDelete={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
-          onDeleteReport={(visitId) => {
-            void changeVisitStatusCentral(visitId, 'archived')
-              .then(() => refreshAllData())
-              .catch((error) => alert(error instanceof Error ? error.message : 'تعذر أرشفة التقرير.'));
+          onDeleteReport={async (visitId) => {
+            await changeVisitStatusCentral(visitId, 'archived');
+            await refreshAllData();
           }}
         />
       )}
