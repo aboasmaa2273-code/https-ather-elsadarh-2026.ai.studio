@@ -91,7 +91,9 @@ function getDatabaseSpreadsheet_() {
 }
 
 function invalidatePublicEvaluatorCache_() {
-  CacheService.getScriptCache().remove('ATHAR_PUBLIC_EVALUATORS_V1');
+  var cache = CacheService.getScriptCache();
+  cache.remove('ATHAR_PUBLIC_EVALUATORS_V1');
+  cache.remove('ATHAR_PUBLIC_EVALUATORS_V2');
 }
 // ====================================================
 // 2. تهيئة قاعدة البيانات وأوراق العمل (19 ورقة عمل)
