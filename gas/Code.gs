@@ -2200,7 +2200,7 @@ function restoreVisit_(visitId, session, schoolId) {
     if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
     if (String(data[i][statusCol]) !== 'archived') return { success: false, error: 'هذا التقرير ليس مؤرشفًا.' };
     var previousStatus = String(data[i][priorStatusCol] || 'completed');
-    if (['draft', 'completed', 'approved'].indexOf(previousStatus) < 0) previousStatus = 'completed';
+    if (['draft', 'in_progress', 'completed', 'approved'].indexOf(previousStatus) < 0) previousStatus = 'completed';
     recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'استعادة التقرير من الأرشيف');
     var now = new Date().toISOString();
     sheet.getRange(i + 1, statusCol + 1).setValue(previousStatus);
