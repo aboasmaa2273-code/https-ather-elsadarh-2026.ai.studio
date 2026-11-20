@@ -36,7 +36,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSpecialization, setFilterSpecialization] = useState('ALL');
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('active');
   
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
