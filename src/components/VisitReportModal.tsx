@@ -158,7 +158,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <Printer className="w-4 h-4" />
               <span>{t.visitReportModal.printBtn}</span>
             </button>
-            {canDelete && onDeleteReport && (
+            {canDelete && visit.status !== 'archived' && onDeleteReport && (
               <button
                 onClick={() => {
                   if (confirm(isEn ? 'Are you sure you want to delete this report permanently?' : 'هل تريد أرشفة هذا التقرير مع الاحتفاظ به وإمكانية استعادته؟')) {
