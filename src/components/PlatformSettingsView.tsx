@@ -752,9 +752,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           <KeyRound className="w-3 h-3 text-[#C6A66A]" />
                           <span>@{vis.username}</span>
                         </span>
-                        <span className="text-[9px] text-slate-500 font-mono" dir="ltr">
-                          pass: {vis.password || '123'}
-                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono">{isEn ? 'Password is never displayed' : 'كلمة المرور لا تُعرض لأسباب أمنية'}</span>
                       </div>
                     )}
                   </div>
@@ -864,7 +862,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-slate-600">
                     <span className="text-[10px] text-slate-400 font-sans">{isEn ? 'Password:' : 'كلمة المرور:'}</span>
-                    <span className="font-bold text-slate-700" dir="ltr">{user.password || '123'}</span>
+                    <span className="font-bold text-slate-700">{isEn ? 'Not displayed for security' : 'لا تُعرض لأسباب أمنية'}</span>
                   </div>
                 </div>
 
