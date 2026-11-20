@@ -37,6 +37,8 @@ export interface User {
   schoolId: string;
   jobNumber?: string;
   specialization?: string;
+  roleTitle?: string;
+  department?: string;
   avatarUrl?: string;
   username?: string;
   password?: string;
@@ -205,6 +207,9 @@ export interface ClassroomVisit {
 export type PlanStatus = 'not_started' | 'in_progress' | 'completed' | 'needs_follow_up';
 
 export interface ImprovementPlan {
+  archiveStatus?: 'active' | 'archived';
+  archivedAt?: string;
+  archivedBy?: string;
   id: string;
   schoolId: string;
   teacherId: string;
