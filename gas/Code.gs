@@ -2232,8 +2232,7 @@ function archiveVisits_(visitIds, session, schoolId) {
   if (!lock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. حاول مرة أخرى.' };
   try {
     var sheet = getDatabaseSpreadsheet_().getSheetByName('Visits');
-    var migration = ensureVisitArchiveColumns_(sheet);
-    if (!migration.success) return migration;
+    if (!sheet) return { success: false, error: 'ورقة الزيارات غير موجودة.' };
     var data = sheet.getDataRange().getValues();
     var headers = data[0].map(String);
     var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status');
@@ -2247,6 +2246,8 @@ function archiveVisits_(visitIds, session, schoolId) {
       found[id] = true;
     }
     if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
+    var migration = ensureVisitArchiveColumns_(sheet);
+    if (!migration.success) return migration;
     var archived = [];
     for (var i = 0; i < ids.length; i++) {
       var result = archiveVisit_(ids[i], session, schoolId);
@@ -2266,8 +2267,7 @@ function restoreVisits_(visitIds, session, schoolId) {
   if (!lock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. حاول مرة أخرى.' };
   try {
     var sheet = getDatabaseSpreadsheet_().getSheetByName('Visits');
-    var migration = ensureVisitArchiveColumns_(sheet);
-    if (!migration.success) return migration;
+    if (!sheet) return { success: false, error: 'ورقة الزيارات غير موجودة.' };
     var data = sheet.getDataRange().getValues();
     var headers = data[0].map(String);
     var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status');
@@ -2281,6 +2281,8 @@ function restoreVisits_(visitIds, session, schoolId) {
       found[id] = true;
     }
     if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
+    var migration = ensureVisitArchiveColumns_(sheet);
+    if (!migration.success) return migration;
     var restored = [];
     for (var i = 0; i < ids.length; i++) {
       var result = restoreVisit_(ids[i], session, schoolId);
