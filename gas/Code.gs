@@ -1164,6 +1164,14 @@ function dispatchApiAction_(action, payload, session) {
     var visitorRows = registeredVisitorsSheet
       ? rowsAsObjects_(registeredVisitorsSheet).filter(function(x) { return String(x.schoolId) === String(schoolId); })
       : [];
+    // Never send legacy plaintext password fields or password hashes to the browser.
+    visitorRows = visitorRows.map(function(visitor) {
+      var safeVisitor = Object.assign({}, visitor);
+      delete safeVisitor.password;
+      delete safeVisitor.passwordSalt;
+      delete safeVisitor.passwordHash;
+      return safeVisitor;
+    });
     var auditLogs = [];
     if (['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
       auditLogs = rowsAsObjects_(ss.getSheetByName('AuditLog'))
