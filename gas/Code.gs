@@ -1706,7 +1706,10 @@ function dispatchApiAction_(action, payload, session) {
   if (action === 'deleteVisitor') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف بيانات الزائرين مقتصر على الإدارة.' };
     var deletedVisitor = deleteById_('RegisteredVisitors', payload.id, schoolId);
-    if (deletedVisitor.success) logAuditAction(schoolId, session.name, 'حذف زائر', 'تم حذف سجل الزائر ' + payload.id, session.role);
+    if (deletedVisitor.success) {
+      invalidatePublicEvaluatorCache_();
+      logAuditAction(schoolId, session.name, 'حذف زائر', 'تم حذف سجل الزائر ' + payload.id, session.role);
+    }
     return deletedVisitor;
   }
 
