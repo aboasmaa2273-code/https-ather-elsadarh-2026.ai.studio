@@ -251,7 +251,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
               {visibleVisits.length > 0 ? (
                 visibleVisits.map((visit) => {
                   const canEdit = visit.status !== 'archived' && AtharStorageService.canEditVisit(currentUser, visit);
-                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && visit.status !== 'approved';
+                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && !['approved', 'archived'].includes(visit.status);
                   const canDelete = ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role);
 
                   return (
