@@ -191,7 +191,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
         }
 
         if (prev.length === 0) {
-          return [{ id: `vis-${Date.now()}-1`, name: currentUser.name, role: userRole }];
+          return [{ id: `vis-${Date.now()}-1`, name: currentUser.name, role: userRole, roleTitle: matched?.roleTitle || currentUser.roleTitle || '' }];
         }
         const updated = [...prev];
         updated[0] = {
@@ -1171,6 +1171,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                       <input
                         type="text"
                         value={visitor.name}
+                        readOnly={idx === 0}
                         onChange={(e) => handleVisitorChange(visitor.id, 'name', e.target.value)}
                         placeholder={t.visitorsSection.visitorName}
                         className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
