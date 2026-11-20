@@ -161,7 +161,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       {
         id: `vis-${Date.now()}-1`,
         name: currentUser.name || (isEn ? 'Lead Observer' : 'المقيم الزائر'),
-        role: editingVisit?.visitorRole || defaultRole
+        role: editingVisit?.visitorRole || defaultRole,
+        roleTitle: matched?.roleTitle || currentUser.roleTitle || ''
       }
     ];
   });
@@ -196,7 +197,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
         updated[0] = {
           ...updated[0],
           name: currentUser.name,
-          role: userRole
+          role: userRole,
+          roleTitle: matched?.roleTitle || currentUser.roleTitle || updated[0]?.roleTitle || ''
         };
         return updated;
       });
@@ -1166,31 +1168,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         )}
                       </div>
 
-                      {activeRegisteredVisitors.length > 0 && (
-                        <div className="flex items-center justify-between text-[10px] text-slate-500">
-                          <span>{t.visitorsManagement.quickPick}:</span>
-                          <select
-                            onChange={(e) => {
-                              const found = activeRegisteredVisitors.find(rv => rv.id === e.target.value);
-                              if (found) {
-                                handleVisitorChange(visitor.id, 'name', found.name);
-                                handleVisitorChange(visitor.id, 'role', found.role);
-                                handleVisitorChange(visitor.id, 'roleTitle', found.role === 'other' ? (found.roleTitle || '') : '');
-                              }
-                            }}
-                            defaultValue=""
-                            className="bg-[#F2EBDD]/60 border border-[#C6A66A]/50 rounded px-1.5 py-0.5 text-[10px] font-bold text-[#172C40] focus:outline-none"
-                          >
-                            <option value="">{isEn ? '-- Select from directory --' : '-- اختيار من الدليل المعتمد --'}</option>
-                            {activeRegisteredVisitors.map(rv => (
-                              <option key={rv.id} value={rv.id}>
-                                {rv.name} ({rv.roleTitle || (isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role))})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
+remove directory quick pick
                       <input
                         type="text"
                         value={visitor.name}
@@ -1207,6 +1185,11 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         <span>{isEn ? 'Visitor / Evaluator Role:' : 'وظيفة الزائر / المقيم:'}</span>
                       </div>
 
+                      {idx === 0 ? (
+                        <div className="w-full px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-md font-bold text-emerald-900">
+                          {visitor.roleTitle || currentUser.roleTitle || (isEn ? 'Authenticated evaluator' : AtharStorageService.getVisitorRoleLabel(visitor.role))}
+                        </div>
+                      ) : (
                       <div className="flex items-center gap-2">
                         <select
                           value={visitor.role}
