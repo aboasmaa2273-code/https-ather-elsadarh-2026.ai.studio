@@ -13,7 +13,9 @@ import {
   TrendingUp, 
   Calendar,
   Layers,
-  Award
+  Award,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 
@@ -24,6 +26,9 @@ interface ReportsViewProps {
   platformSettings: PlatformSettings;
   onOpenVisitReport: (visit: ClassroomVisit) => void;
   onOpenTeacherReport: (teacher: Teacher) => void;
+  canManageReports?: boolean;
+  onArchiveReports?: (ids: string[]) => Promise<void>;
+  onRestoreReports?: (ids: string[]) => Promise<void>;
   language?: Language;
 }
 
@@ -34,22 +39,66 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
   platformSettings,
   onOpenVisitReport,
   onOpenTeacherReport,
+  canManageReports = false,
+  onArchiveReports,
+  onRestoreReports,
   language = 'ar'
 }) => {
   const [filterTerm, setFilterTerm] = useState('ALL');
   const [filterSubject, setFilterSubject] = useState('ALL');
   const [filterType, setFilterType] = useState('ALL');
+  const [reportView, setReportView] = useState<'active' | 'archived'>('active');
+  const [selectedReportIds, setSelectedReportIds] = useState<string[]>([]);
 
   const t = translations[language];
   const isEn = language === 'en';
 
   // Filtered visits
   const filteredVisits = visits.filter(v => {
+    if (v.status === 'archived') return false;
     const matchTerm = filterTerm === 'ALL' || v.term === filterTerm;
     const matchSubject = filterSubject === 'ALL' || v.subject === filterSubject;
     const matchType = filterType === 'ALL' || v.visitType === filterType;
     return matchTerm && matchSubject && matchType;
   });
+
+  const reportRows = visits.filter(v => {
+    const inSelectedView = reportView === 'archived' ? v.status === 'archived' : v.status !== 'archived';
+    const matchTerm = filterTerm === 'ALL' || v.term === filterTerm;
+    const matchSubject = filterSubject === 'ALL' || v.subject === filterSubject;
+    const matchType = filterType === 'ALL' || v.visitType === filterType;
+    return inSelectedView && matchTerm && matchSubject && matchType;
+  });
+  const toggleReportSelection = (id: string) => setSelectedReportIds(current =>
+    current.includes(id) ? current.filter(item => item !== id) : [...current, id]
+  );
+  const toggleAllVisibleReports = () => {
+    const visibleIds = reportRows.map(report => report.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedReportIds.includes(id));
+    setSelectedReportIds(current => allSelected
+      ? current.filter(id => !visibleIds.includes(id))
+      : Array.from(new Set([...current, ...visibleIds])));
+  };
+  const handleArchiveSelectedReports = async () => {
+    if (!selectedReportIds.length || !onArchiveReports) return;
+    if (!confirm(isEn ? 'Archive the selected reports? They can be restored later.' : 'هل تريد أرشفة التقارير المحددة؟ يمكن استعادتها لاحقًا.')) return;
+    try {
+      await onArchiveReports(selectedReportIds);
+      setSelectedReportIds([]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر أرشفة التقارير المحددة.');
+    }
+  };
+  const handleRestoreSelectedReports = async () => {
+    if (!selectedReportIds.length || !onRestoreReports) return;
+    if (!confirm(isEn ? 'Restore the selected reports?' : 'هل تريد استعادة التقارير المحددة؟')) return;
+    try {
+      await onRestoreReports(selectedReportIds);
+      setSelectedReportIds([]);
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر استعادة التقارير المحددة.');
+    }
+  };
 
   const subjectsList = Array.from(new Set(visits.map(v => v.subject)));
   const evaluatorsList = Array.from(new Set(visits.map(v => v.evaluatorName)));
@@ -338,6 +387,87 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           </div>
         </div>
       </div>
+
+      {/* Recoverable visit-report management */}
+      <section className="bg-white border border-[#E2E8F0] rounded-xl p-5 shadow-sm space-y-4">
+        <div className="flex flex-col md:flex-row md:items-center justify-between gap-3">
+          <div>
+            <h3 className="font-bold text-sm text-[#172C40] font-['Tajawal']">{isEn ? 'Visit Report Records' : 'إدارة تقارير الزيارات الصفية'}</h3>
+            <p className="text-[11px] text-slate-500 mt-1">{isEn ? 'Archive individual or selected reports. Archived records remain recoverable.' : 'أرشف تقريرًا منفردًا أو تقارير محددة، مع الاحتفاظ بإمكانية الاستعادة.'}</p>
+          </div>
+          <div className="flex items-center gap-2">
+            <button type="button" onClick={() => { setReportView('active'); setSelectedReportIds([]); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${reportView === 'active' ? 'bg-[#172C40] text-white border-[#172C40]' : 'bg-white text-slate-600 border-slate-200'}`}>
+              {isEn ? 'Active reports' : 'التقارير النشطة'}
+            </button>
+            <button type="button" onClick={() => { setReportView('archived'); setSelectedReportIds([]); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${reportView === 'archived' ? 'bg-[#172C40] text-white border-[#172C40]' : 'bg-white text-slate-600 border-slate-200'}`}>
+              {isEn ? 'Archive' : 'الأرشيف'}
+            </button>
+          </div>
+        </div>
+        {canManageReports && (
+          <div className="flex flex-wrap items-center gap-2">
+            <button type="button" onClick={toggleAllVisibleReports} disabled={!reportRows.length} className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-bold disabled:opacity-40 cursor-pointer">
+              {isEn ? 'Select all visible' : 'تحديد كل التقارير الظاهرة'}
+            </button>
+            {reportView === 'active' ? (
+              <button type="button" onClick={handleArchiveSelectedReports} disabled={!selectedReportIds.length} className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
+                <Trash2 className="w-3.5 h-3.5" /> {isEn ? 'Archive selected' : `أرشفة المحدد (${selectedReportIds.length})`}
+              </button>
+            ) : (
+              <button type="button" onClick={handleRestoreSelectedReports} disabled={!selectedReportIds.length} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5" /> {isEn ? 'Restore selected' : `استعادة المحدد (${selectedReportIds.length})`}
+              </button>
+            )}
+          </div>
+        )}
+        <div className="overflow-x-auto">
+          <table className="w-full text-xs text-right border-collapse">
+            <thead>
+              <tr className="bg-slate-50 text-slate-600">
+                {canManageReports && <th className="p-2 w-10 text-center"><input aria-label={isEn ? 'Select all reports' : 'تحديد كل التقارير'} type="checkbox" checked={reportRows.length > 0 && reportRows.every(report => selectedReportIds.includes(report.id))} onChange={toggleAllVisibleReports} /></th>}
+                <th className="p-2">{isEn ? 'Teacher' : 'المعلم'}</th>
+                <th className="p-2">{isEn ? 'Evaluator' : 'المقيم'}</th>
+                <th className="p-2">{isEn ? 'Date' : 'التاريخ'}</th>
+                <th className="p-2">{isEn ? 'Status' : 'الحالة'}</th>
+                <th className="p-2 text-center">{isEn ? 'Actions' : 'الإجراءات'}</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-slate-100">
+              {reportRows.map(report => (
+                <tr key={report.id} className="hover:bg-slate-50">
+                  {canManageReports && <td className="p-2 text-center"><input aria-label={`Select report ${report.id}`} type="checkbox" checked={selectedReportIds.includes(report.id)} onChange={() => toggleReportSelection(report.id)} /></td>}
+                  <td className="p-2 font-bold text-[#172C40]">{report.teacherName}</td>
+                  <td className="p-2">{report.evaluatorName}</td>
+                  <td className="p-2 font-mono">{report.date}</td>
+                  <td className="p-2">{AtharStorageService.getVisitStatusLabel(report.status, language)}</td>
+                  <td className="p-2 text-center">
+                    <div className="inline-flex items-center gap-2">
+                      <button type="button" onClick={() => onOpenVisitReport(report)} className="px-2 py-1 rounded bg-slate-100 hover:bg-slate-200 text-slate-700 cursor-pointer">{isEn ? 'View' : 'عرض التقرير'}</button>
+                      {canManageReports && reportView === 'active' && (
+                        <button type="button" onClick={async () => {
+                          if (!onArchiveReports || !confirm(isEn ? 'Archive this report? It can be restored later.' : 'هل تريد أرشفة هذا التقرير؟ يمكن استعادته لاحقًا.')) return;
+                          try { await onArchiveReports([report.id]); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر أرشفة التقرير.'); }
+                        }} className="p-1.5 rounded bg-rose-50 text-rose-700 hover:bg-rose-100 cursor-pointer" title={isEn ? 'Archive report' : 'أرشفة التقرير'}>
+                          <Trash2 className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                      {canManageReports && reportView === 'archived' && (
+                        <button type="button" onClick={async () => {
+                          if (!onRestoreReports || !confirm(isEn ? 'Restore this report?' : 'هل تريد استعادة هذا التقرير؟')) return;
+                          try { await onRestoreReports([report.id]); } catch (error) { alert(error instanceof Error ? error.message : 'تعذر استعادة التقرير.'); }
+                        }} className="p-1.5 rounded bg-emerald-50 text-emerald-700 hover:bg-emerald-100 cursor-pointer" title={isEn ? 'Restore report' : 'استعادة التقرير'}>
+                          <RotateCcw className="w-3.5 h-3.5" />
+                        </button>
+                      )}
+                    </div>
+                  </td>
+                </tr>
+              ))}
+              {!reportRows.length && <tr><td colSpan={canManageReports ? 6 : 5} className="p-8 text-center text-slate-400">{isEn ? 'No reports in this view.' : 'لا توجد تقارير في هذا العرض.'}</td></tr>}
+            </tbody>
+          </table>
+        </div>
+      </section>
     </div>
   );
 };
