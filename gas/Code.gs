@@ -1156,6 +1156,19 @@ function dispatchApiAction_(action, payload, session) {
         .sort(function(a, b) { return String(b.timestamp).localeCompare(String(a.timestamp)); })
         .slice(0, 300);
     }
+    // Evaluators receive only their own visits and notes. The school-wide
+    // administrative dashboards remain available only to management roles.
+    if (session.role === 'evaluator') {
+      visits = visits.filter(function(x) { return String(x.evaluatorId || '') === String(session.id); });
+      internalNotes = internalNotes.filter(function(x) { return String(x.createdById || '') === String(session.id); });
+      var ownedNoteIds = {};
+      internalNotes.forEach(function(note) { ownedNoteIds[String(note.id)] = true; });
+      internalNoteHistory = internalNoteHistory.filter(function(x) { return !!ownedNoteIds[String(x.noteId || '')]; });
+      visitorRows = visitorRows.filter(function(x) {
+        return String(x.username || '').trim().toLowerCase() === String(session.username || '').trim().toLowerCase() ||
+          String(x.name || '') === String(session.name || '');
+      });
+    }
     var users = [];
     if (requireRole_(session, adminRoles)) {
       users = rowsAsObjects_(ss.getSheetByName('Users'))
