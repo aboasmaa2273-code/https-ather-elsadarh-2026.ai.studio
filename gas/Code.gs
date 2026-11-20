@@ -220,6 +220,21 @@ function ensureImprovementPlanOwnershipColumns_(sheet) {
 
 
 // Adds archive metadata columns without deleting or rewriting existing plan rows.
+
+// Adds password-hash columns only when an administrator is explicitly saving a new password.
+// Existing account rows and stored credentials are never rewritten by this helper.
+function ensureUserPasswordColumns_(sheet) {
+  if (!sheet || sheet.getLastColumn() < 1) return { success: false, error: 'ورقة الحسابات غير مهيأة.' };
+  var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(value) { return String(value).trim(); });
+  var required = ['passwordSalt', 'passwordHash'];
+  required.forEach(function(name) {
+    if (headers.indexOf(name) >= 0) return;
+    sheet.getRange(1, sheet.getLastColumn() + 1).setValue(name);
+    headers.push(name);
+  });
+  return { success: true, headers: headers };
+}
+
 function ensurePlanArchiveColumns_(sheet) {
   if (!sheet) return { success: false, error: 'ورقة خطط التطوير غير موجودة.' };
   var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(value) { return String(value).trim(); });
@@ -1771,6 +1786,10 @@ function saveUserAccount_(payload, session) {
   var sheet = ss.getSheetByName('Users');
   if (!sheet || sheet.getLastRow() < 1 || sheet.getLastColumn() < 1) return { success: false, error: 'ورقة الحسابات غير موجودة أو لا تحتوي على عناوين.' };
 
+  if (String(payload.password || '')) {
+    var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
+    if (!passwordColumnSetup.success) return passwordColumnSetup;
+  }
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(function(value) { return String(value).trim(); });
   var idCol = headers.indexOf('id');
@@ -1905,6 +1924,10 @@ function updateUserCredentials_(payload, session) {
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss.getSheetByName('Users');
   if (!sheet || sheet.getLastRow() < 2) return { success: false, error: 'لم يتم العثور على سجل الحساب.' };
+  if (String(payload.password || '')) {
+    var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
+    if (!passwordColumnSetup.success) return passwordColumnSetup;
+  }
   var data = sheet.getDataRange().getValues();
   var headers = data[0].map(String);
   var idCol = headers.indexOf('id');
