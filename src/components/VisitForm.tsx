@@ -492,6 +492,9 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<string>('');
   const autoSaveTimerRef = useRef<any>(null);
+  // Preserve the pre-edit report exactly once, before the first autosave overwrites its details.
+  const editHistoryCapturedRef = useRef(false);
+  const editHistoryCapturePromiseRef = useRef<Promise<void> | null>(null);
 
   // Auto-fill teacher info when teacher selection changes
   const handleTeacherChange = (teacherId: string) => {
@@ -678,7 +681,23 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
     const visitObj = buildVisitObject(finalStatus);
     try {
-      await saveVisitCentral({ ...visitObj, recordHistory: isExplicitFinish });
+      if (editingVisit && !editHistoryCapturedRef.current) {
+        // The first save in an edit session must snapshot the original report before
+        // autosave replaces its indicator/domain rows. Concurrent saves wait for that snapshot.
+        let ownsHistoryCapture = false;
+        if (!editHistoryCapturePromiseRef.current) {
+          ownsHistoryCapture = true;
+          editHistoryCapturePromiseRef.current = saveVisitCentral({ ...visitObj, recordHistory: true })
+            .then(() => { editHistoryCapturedRef.current = true; })
+            .finally(() => { editHistoryCapturePromiseRef.current = null; });
+        }
+        await editHistoryCapturePromiseRef.current;
+        if (!ownsHistoryCapture) {
+          await saveVisitCentral({ ...visitObj, recordHistory: false });
+        }
+      } else {
+        await saveVisitCentral({ ...visitObj, recordHistory: false });
+      }
       setAutoSaveStatus('saved');
       setLastSavedTime(new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-AE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       if (isExplicitFinish) onSaveSuccess(visitObj);
