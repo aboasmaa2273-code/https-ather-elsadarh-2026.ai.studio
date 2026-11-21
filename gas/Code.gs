@@ -541,6 +541,7 @@ function saveClassroomVisit_(visitData) {
       { sheet: indSheet, label: 'المؤشرات' },
       { sheet: ss.getSheetByName('VisitDomains'), label: 'المجالات' }
     ];
+    var existingDetailRowCount = 0;
     for (var ds = 0; ds < detailSheetsToCheck.length; ds++) {
       var detailSheet = detailSheetsToCheck[ds].sheet;
       if (!detailSheet || detailSheet.getLastRow() < 2) continue;
@@ -565,7 +566,6 @@ function saveClassroomVisit_(visitData) {
     }
 
     // التحقق هل الزيارة موجودة للتعديل
-    var existingDetailRowCount = 0;
     var data = visitsSheet.getDataRange().getValues();
     var matchingVisitRows = [];
     for (var r = 1; r < data.length; r++) {
