@@ -189,10 +189,119 @@
         '<button class="btn-primary" type="submit" id="account-save">حفظ التغييرات</button><p id="account-feedback" aria-live="polite" style="margin-top:1rem;"></p></form></section>';
       document.getElementById('athar-account-form').addEventListener('submit', saveAtharAccount);
     } else if (tabId === 'new-visit') {
-      viewport.innerHTML = '<div class="table-box" style="padding:2rem;"><h2 style="color:#172C40;">تسجيل زيارة صفية جديدة</h2><p style="margin-top:.7rem;color:#64748B;">واجهة إدخال الزيارة وحفظ مؤشراتها لم تُستكمل بعد في نسخة الاختبار. لم نضع نموذجًا شكليًا قد يوهمك بأن البيانات تُحفظ.</p></div>';
+      renderNewVisitForm(viewport);
     } else {
       viewport.innerHTML = empty('القسم غير متاح.');
     }
+  }
+
+  function renderNewVisitForm(viewport) {
+    var data = atharState.bootstrap || {};
+    var teachers = (data.teachers || []).filter(function(t){ return String(t.status || 'active') !== 'inactive'; });
+    var indicators = (data.indicators || []).filter(function(i){ return i.isActive !== false; });
+    var groups = [];
+    indicators.forEach(function(item){
+      var group = String(item.group || 'مؤشرات عامة');
+      if (groups.indexOf(group) < 0) groups.push(group);
+    });
+    var teacherOptions = '<option value="">— اختر المعلم —</option>' + teachers.map(function(t){
+      return '<option value="'+escapeHtml(t.id)+'">'+escapeHtml(t.fullName || t.name || '')+'</option>';
+    }).join('');
+    var gradeOptions = '<option value="">— اختر الصف —</option>' + [5,6,7,8].map(function(n){return '<option value="'+n+'">الصف '+n+'</option>';}).join('');
+    var sectionOptions = '<option value="">— اختر الشعبة —</option>' + [1,2,3,4,5,6].map(function(n){return '<option value="'+n+'">الشعبة '+n+'</option>';}).join('');
+    var indicatorMarkup = groups.map(function(group){
+      var rows = indicators.filter(function(i){return String(i.group || 'مؤشرات عامة') === group;});
+      return '<section class="table-box" style="padding:1rem;margin:1rem 0;"><h3 style="color:#172C40;margin-bottom:.7rem;">'+escapeHtml(group)+'</h3>' +
+        rows.map(function(item){
+          var id = String(item.id || item.code || '');
+          return '<div class="visit-indicator" data-indicator-id="'+escapeHtml(id)+'" data-indicator-text="'+escapeHtml(item.text || '')+'" data-indicator-group="'+escapeHtml(group)+'" style="padding:.8rem 0;border-bottom:1px solid #E2E8F0;">' +
+            '<label style="display:block;font-weight:600;margin-bottom:.5rem;">'+escapeHtml(item.text || '')+'</label>' +
+            '<select class="indicator-rating" aria-label="تقييم المؤشر" style="width:100%;padding:.65rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+              '<option value="not_observed">لم يُشاهد</option><option value="outstanding">متميز</option><option value="very_good">جيد جدًا</option><option value="good">جيد</option><option value="acceptable">مقبول</option><option value="weak">يحتاج إلى تحسين</option>' +
+            '</select><textarea class="indicator-notes" rows="2" placeholder="ملاحظات المشاهدة (اختياري)" style="width:100%;margin-top:.5rem;padding:.6rem;border:1px solid #CBD5E1;border-radius:6px;"></textarea></div>';
+        }).join('') + '</section>';
+    }).join('');
+    viewport.innerHTML = '<section class="login-card" style="max-width:100%;"><h2 style="color:#172C40;">تسجيل زيارة صفية جديدة</h2>' +
+      '<p style="color:#64748B;margin:.5rem 0 1rem;">أدخل بيانات المشاهدة، ثم قيّم المؤشرات التي تمت ملاحظتها. يمكنك ترك المؤشر على «لم يُشاهد» عند عدم توفر دليل عليه.</p>' +
+      '<form id="athar-visit-form"><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">' +
+      '<div><label for="visit-teacher">المعلم</label><select id="visit-teacher" required style="width:100%;padding:.7rem;">'+teacherOptions+'</select><p id="visit-teacher-meta" style="font-size:.85rem;color:#64748B;margin-top:.3rem;"></p></div>' +
+      '<div><label for="visit-grade">الصف</label><select id="visit-grade" required style="width:100%;padding:.7rem;">'+gradeOptions+'</select></div>' +
+      '<div><label for="visit-section">الشعبة</label><select id="visit-section" required style="width:100%;padding:.7rem;">'+sectionOptions+'</select></div>' +
+      '<div><label for="visit-subject">المادة</label><input id="visit-subject" required maxlength="80" placeholder="اكتب اسم المادة" style="width:100%;padding:.7rem;"></div>' +
+      '<div><label for="visit-type">نوع الزيارة</label><select id="visit-type" required style="width:100%;padding:.7rem;"><option value="full">مشاهدة الحصة كاملة</option><option value="targeted">زيارة سريعة مستهدفة (10–15 دقيقة)</option></select></div>' +
+      '<div><label for="visit-date">تاريخ الزيارة</label><input id="visit-date" type="date" required value="'+new Date().toISOString().slice(0,10)+'" style="width:100%;padding:.7rem;"></div>' +
+      '<div><label for="visit-time">وقت الزيارة</label><input id="visit-time" type="time" required style="width:100%;padding:.7rem;"></div>' +
+      '</div><div style="margin-top:1rem;"><label for="visit-goal">هدف الزيارة / محور التركيز</label><textarea id="visit-goal" rows="2" maxlength="1000" style="width:100%;padding:.7rem;" placeholder="اكتب الهدف، خصوصًا في الزيارة السريعة المستهدفة"></textarea></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-status">حالة التقرير</label><select id="visit-status" style="padding:.7rem;"><option value="draft">مسودة</option><option value="completed">مكتمل</option></select></div>' +
+      '<h3 style="margin:1.5rem 0 .5rem;color:#172C40;">مؤشرات المشاهدة والتقييم</h3>' + (indicatorMarkup || '<p>لا توجد مؤشرات متاحة في بيانات المنصة.</p>') +
+      '<div style="margin-top:1rem;"><label for="visit-strengths">نقاط القوة</label><textarea id="visit-strengths" rows="3" style="width:100%;padding:.7rem;" placeholder="اكتب كل نقطة في سطر مستقل"></textarea></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-improvements">مجالات التحسين</label><textarea id="visit-improvements" rows="3" style="width:100%;padding:.7rem;" placeholder="اكتب كل مجال في سطر مستقل"></textarea></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-recommendations">التوصيات العملية</label><textarea id="visit-recommendations" rows="3" style="width:100%;padding:.7rem;"></textarea></div>' +
+      '<button class="btn-primary" type="submit" id="visit-save" style="margin-top:1.2rem;">حفظ تقرير الزيارة</button><p id="visit-feedback" role="status" aria-live="polite" style="margin-top:.8rem;"></p></form></section>';
+    document.getElementById('visit-teacher').addEventListener('change', function(){
+      var selected = teachers.find(function(t){return String(t.id) === this.value;}, this);
+      document.getElementById('visit-teacher-meta').textContent = selected ? 'الرقم الوظيفي: ' + (selected.jobNumber || '—') + ' | التخصص: ' + (selected.specialization || '—') : '';
+    });
+    document.getElementById('athar-visit-form').addEventListener('submit', saveAtharVisit);
+  }
+
+  function saveAtharVisit(event) {
+    event.preventDefault();
+    var button = document.getElementById('visit-save');
+    var feedback = document.getElementById('visit-feedback');
+    var teacherId = document.getElementById('visit-teacher').value;
+    if (!teacherId) { feedback.textContent = 'اختر المعلم أولاً.'; return; }
+    var teacher = (atharState.teachers || []).find(function(t){return String(t.id) === String(teacherId);});
+    if (!teacher) { feedback.textContent = 'تعذر العثور على بيانات المعلم المحدد. حدّث الصفحة وحاول مجددًا.'; return; }
+    var indicatorRows = Array.prototype.slice.call(document.querySelectorAll('.visit-indicator'));
+    var indicators = indicatorRows.map(function(row){
+      return {
+        indicatorId: row.getAttribute('data-indicator-id'),
+        indicatorText: row.getAttribute('data-indicator-text'),
+        group: row.getAttribute('data-indicator-group'),
+        rating: row.querySelector('.indicator-rating').value,
+        notes: row.querySelector('.indicator-notes').value.trim()
+      };
+    });
+    if (!indicators.length) { feedback.textContent = 'لا توجد مؤشرات محمّلة؛ لم يتم إرسال التقرير.'; return; }
+    var visitData = {
+      id: 'VST-' + Date.now(),
+      teacherId: teacherId,
+      grade: document.getElementById('visit-grade').value,
+      section: document.getElementById('visit-section').value,
+      subject: document.getElementById('visit-subject').value.trim(),
+      visitType: document.getElementById('visit-type').value,
+      date: document.getElementById('visit-date').value,
+      time: document.getElementById('visit-time').value,
+      visitGoal: document.getElementById('visit-goal').value.trim(),
+      status: document.getElementById('visit-status').value,
+      indicators: indicators,
+      strengths: document.getElementById('visit-strengths').value.split(/\\r?\\n/).map(function(x){return x.trim();}).filter(Boolean),
+      improvementAreas: document.getElementById('visit-improvements').value.split(/\\r?\\n/).map(function(x){return x.trim();}).filter(Boolean),
+      practicalRecommendations: document.getElementById('visit-recommendations').value.trim(),
+      domains: []
+    };
+    if (!visitData.grade || !visitData.section || !visitData.subject || !visitData.date || !visitData.time) {
+      feedback.textContent = 'أكمل الصف والشعبة والمادة والتاريخ والوقت قبل الحفظ.'; return;
+    }
+    button.disabled = true;
+    feedback.style.color = '#64748B';
+    feedback.textContent = 'جارٍ حفظ تقرير الزيارة ومؤشراته...';
+    google.script.run.withSuccessHandler(function(result){
+      button.disabled = false;
+      if (!result || !result.success) {
+        feedback.style.color = '#B91C1C';
+        feedback.textContent = result && result.error ? result.error : 'لم يؤكد الخادم حفظ التقرير.';
+        return;
+      }
+      feedback.style.color = '#047857';
+      feedback.textContent = 'تم حفظ تقرير الزيارة بنجاح. رقم التقرير: ' + (result.id || visitData.id);
+      loadAuthenticatedData();
+    }).withFailureHandler(function(){
+      button.disabled = false;
+      feedback.style.color = '#B91C1C';
+      feedback.textContent = 'تعذر الاتصال بالخادم؛ لم نتمكن من تأكيد الحفظ. تحقق من سجل الزيارات قبل إعادة المحاولة.';
+    }).dispatchBridgeRequest({action:'saveVisit',token:atharSessionToken,payload:visitData});
   }
 
   function saveAtharAccount(event) {
