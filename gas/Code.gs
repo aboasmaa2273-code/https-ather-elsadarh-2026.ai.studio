@@ -498,6 +498,23 @@ function saveClassroomVisit_(visitData) {
     if (!Array.isArray(indicators)) throw new Error('بيانات مؤشرات الزيارة غير صالحة؛ أوقفنا الحفظ دون تعديل.');
     var requestedDomains = visitData.domains === undefined || visitData.domains === null ? [] : visitData.domains;
     if (!Array.isArray(requestedDomains)) throw new Error('بيانات مجالات الزيارة غير صالحة؛ أوقفنا الحفظ دون تعديل.');
+
+    // Reject duplicate logical items in the incoming payload before any sheet writes.
+    var requestedIndicatorIds = {};
+    for (var ii = 0; ii < indicators.length; ii++) {
+      var requestedIndicatorId = String(indicators[ii] && indicators[ii].indicatorId || '').trim();
+      if (!requestedIndicatorId) throw new Error('يوجد مؤشر دون معرّف؛ أوقفنا الحفظ دون تعديل.');
+      if (requestedIndicatorIds[requestedIndicatorId]) throw new Error('يوجد مؤشر مكرر في بيانات الزيارة؛ أوقفنا الحفظ دون تعديل.');
+      requestedIndicatorIds[requestedIndicatorId] = true;
+    }
+    var requestedDomainIds = {};
+    for (var dd = 0; dd < requestedDomains.length; dd++) {
+      var requestedDomainId = String(requestedDomains[dd] && requestedDomains[dd].domainId || '').trim();
+      if (!requestedDomainId) throw new Error('يوجد مجال دون معرّف؛ أوقفنا الحفظ دون تعديل.');
+      if (requestedDomainIds[requestedDomainId]) throw new Error('يوجد مجال مكرر في بيانات الزيارة؛ أوقفنا الحفظ دون تعديل.');
+      requestedDomainIds[requestedDomainId] = true;
+    }
+
     var domainsSheet = ss.getSheetByName('VisitDomains');
     if (requestedDomains.length && !domainsSheet) {
       throw new Error('ورقة مجالات الزيارة غير موجودة؛ أوقفنا الحفظ حتى لا يُحفظ التقرير دون تقييم المجالات.');
