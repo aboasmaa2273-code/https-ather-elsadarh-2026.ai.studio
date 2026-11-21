@@ -503,14 +503,16 @@ function saveClassroomVisit_(visitData) {
       throw new Error('ورقة مجالات الزيارة غير موجودة؛ أوقفنا الحفظ حتى لا يُحفظ التقرير دون تقييم المجالات.');
     }
     var indicatorHeaders = indSheet.getRange(1, 1, 1, indSheet.getLastColumn()).getValues()[0].map(String);
-    if (['id', 'visitId', 'indicatorId', 'indicatorText', 'group', 'rating', 'notes', 'timestamp'].some(function(name) {
-      return indicatorHeaders.indexOf(name) < 0;
-    })) throw new Error('أعمدة تفاصيل المؤشرات غير مكتملة؛ أوقفنا الحفظ دون تعديل.');
+    var expectedIndicatorHeaders = ['id', 'visitId', 'indicatorId', 'indicatorText', 'group', 'rating', 'notes', 'timestamp'];
+    if (expectedIndicatorHeaders.some(function(name, index) {
+      return indicatorHeaders[index] !== name;
+    })) throw new Error('ترتيب أعمدة تفاصيل المؤشرات غير مطابق؛ أوقفنا الحفظ دون تعديل لحماية البيانات.');
     if (domainsSheet) {
       var domainHeaders = domainsSheet.getRange(1, 1, 1, domainsSheet.getLastColumn()).getValues()[0].map(String);
-      if (['id', 'visitId', 'domainId', 'domainName', 'rating'].some(function(name) {
-        return domainHeaders.indexOf(name) < 0;
-      })) throw new Error('أعمدة تقييم المجالات غير مكتملة؛ أوقفنا الحفظ دون تعديل.');
+      var expectedDomainHeaders = ['id', 'visitId', 'domainId', 'domainName', 'rating'];
+      if (expectedDomainHeaders.some(function(name, index) {
+        return domainHeaders[index] !== name;
+      })) throw new Error('ترتيب أعمدة تقييم المجالات غير مطابق؛ أوقفنا الحفظ دون تعديل لحماية البيانات.');
     }
 
     // Preflight detail-row identity before changing the parent visit or replacing child rows.
@@ -607,7 +609,7 @@ function saveClassroomVisit_(visitData) {
     if (existingRowIndex > 0 && indSheet.getLastRow() > 1) {
       var indicatorRows = indSheet.getDataRange().getValues();
       for (var ir = indicatorRows.length - 1; ir >= 1; ir--) {
-        if (indicatorRows[ir][1] === visitId) {
+        if (String(indicatorRows[ir][1] || '') === String(visitId)) {
           indSheet.deleteRow(ir + 1);
         }
       }
