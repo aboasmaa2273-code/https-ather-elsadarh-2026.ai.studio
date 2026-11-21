@@ -420,8 +420,7 @@ export const DEFAULT_USERS: User[] = [
     role: 'evaluator',
     schoolId: 'sch_alsadara_01',
     specialization: 'مديرة نطاق 2.8',
-    username: 'aisha',
-    password: '123'
+    username: 'aisha'
   },
   {
     id: 'user_head_arabic',
@@ -430,8 +429,7 @@ export const DEFAULT_USERS: User[] = [
     role: 'evaluator',
     schoolId: 'sch_alsadara_01',
     specialization: 'رئيس هيئة تدريس المواد العربية',
-    username: 'arabic',
-    password: '123'
+    username: 'arabic'
   },
   {
     id: 'user_principal',
@@ -440,8 +438,7 @@ export const DEFAULT_USERS: User[] = [
     role: 'school_admin',
     schoolId: 'sch_alsadara_01',
     specialization: 'الإدارة المدرسية والقيادة التعليمية',
-    username: 'principal',
-    password: '123'
+    username: 'principal'
   },
   {
     id: 'user_vice_principal',
@@ -450,8 +447,7 @@ export const DEFAULT_USERS: User[] = [
     role: 'vice_principal',
     schoolId: 'sch_alsadara_01',
     specialization: 'الشؤون الأكاديمية والتعليمية',
-    username: 'vp',
-    password: '123'
+    username: 'vp'
   }
 ];
 
