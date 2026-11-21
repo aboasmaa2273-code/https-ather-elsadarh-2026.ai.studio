@@ -848,18 +848,20 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                handleOpenAddVisitor();
-                setVisitorFormRole('evaluator');
-                setActiveSubTab('visitors');
-              }}
-              className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
-            >
-              <UserPlus className="w-4 h-4 text-[#C6A66A]" />
-              <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenAddVisitor();
+                  setVisitorFormRole('evaluator');
+                  setActiveSubTab('visitors');
+                }}
+                className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
+              >
+                <UserPlus className="w-4 h-4 text-[#C6A66A]" />
+                <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -894,25 +896,29 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 </div>
 
                 <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedUserForCredentials(user)}
-                    className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-[#172C40] text-slate-700 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
-                    title={isEn ? 'Edit Credentials & Details' : 'تعديل البيانات واليوزرنيم والباسوورد'}
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
-                    <span>{isEn ? 'Edit Details' : 'تعديل البيانات'}</span>
-                  </button>
+                  {canEdit && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUserForCredentials(user)}
+                        className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-[#172C40] text-slate-700 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
+                        title={isEn ? 'Edit Credentials & Details' : 'تعديل البيانات واليوزرنيم والباسوورد'}
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
+                        <span>{isEn ? 'Edit Details' : 'تعديل البيانات'}</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteUser(user.id, user.name)}
-                    className="py-1.5 px-3 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-rose-200"
-                    title={isEn ? 'Delete Evaluator' : 'حذف المقيم'}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{isEn ? 'Delete' : 'حذف'}</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user.id, user.name)}
+                        className="py-1.5 px-3 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-rose-200"
+                        title={isEn ? 'Deactivate Evaluator' : 'تعطيل المقيم'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{isEn ? 'Deactivate' : 'تعطيل'}</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
