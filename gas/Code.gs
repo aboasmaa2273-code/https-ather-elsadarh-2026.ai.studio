@@ -1597,6 +1597,12 @@ function dispatchApiAction_(action, payload, session) {
     try {
       // Snapshot all original archive fields before the first write.
       planRowsToArchive.forEach(function(rowNumber) {
+        var livePlanId = String(planArchiveSheet.getRange(rowNumber, planIdCol + 1).getValue() || '');
+        var liveSchoolId = String(planArchiveSheet.getRange(rowNumber, planSchoolCol + 1).getValue() || '');
+        var liveArchiveStatus = String(planArchiveSheet.getRange(rowNumber, archiveStatusCol + 1).getValue() || 'active');
+        if (requestedPlanIds.indexOf(livePlanId) < 0 || liveSchoolId !== String(schoolId) || liveArchiveStatus === 'archived') {
+          throw new Error('تغيرت إحدى الخطط بعد الفحص الأولي؛ ألغيت العملية دون متابعة.');
+        }
         archiveSnapshots.push({
           row: rowNumber,
           status: planArchiveSheet.getRange(rowNumber, archiveStatusCol + 1).getValue(),
@@ -1670,6 +1676,12 @@ function dispatchApiAction_(action, payload, session) {
     try {
       // Snapshot all original restore fields before the first write.
       rowsToRestore.forEach(function(rowNumber) {
+        var liveRestoreId = String(restorePlanSheet.getRange(rowNumber, restoreIdCol + 1).getValue() || '');
+        var liveRestoreSchoolId = String(restorePlanSheet.getRange(rowNumber, restoreSchoolCol + 1).getValue() || '');
+        var liveRestoreStatus = String(restorePlanSheet.getRange(rowNumber, restoreStatusCol + 1).getValue() || '');
+        if (restoreIds.indexOf(liveRestoreId) < 0 || liveRestoreSchoolId !== String(schoolId) || liveRestoreStatus !== 'archived') {
+          throw new Error('تغيرت إحدى الخطط بعد الفحص الأولي؛ ألغيت العملية دون متابعة.');
+        }
         restoreSnapshots.push({
           row: rowNumber,
           status: restorePlanSheet.getRange(rowNumber, restoreStatusCol + 1).getValue(),
