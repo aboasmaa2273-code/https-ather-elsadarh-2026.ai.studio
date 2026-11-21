@@ -75,7 +75,10 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 
   // Filter plans based on role and query
   const visiblePlans = (showArchived ? archivedPlans : plans).filter(p => {
-    if (isTeacher && p.teacherJobNumber !== currentUser.jobNumber && p.teacherName !== currentUser.name) {
+    if (isTeacher && (
+      !currentUser.jobNumber ||
+      String(p.teacherJobNumber || '').trim() !== String(currentUser.jobNumber).trim()
+    )) {
       return false;
     }
 
