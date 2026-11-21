@@ -60,7 +60,10 @@ export const TeachersList: React.FC<TeachersListProps> = ({
 
   // Filtered teachers list
   const filtered = teachers.filter(tch => {
-    if (isTeacher && tch.jobNumber !== currentUser.jobNumber && tch.fullName !== currentUser.name) {
+    if (isTeacher && (
+      !currentUser.jobNumber ||
+      String(tch.jobNumber || '').trim() !== String(currentUser.jobNumber).trim()
+    )) {
       return false;
     }
 
