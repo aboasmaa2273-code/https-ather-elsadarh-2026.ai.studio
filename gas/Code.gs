@@ -494,6 +494,34 @@ function saveClassroomVisit_(visitData) {
       timestamp
     ];
 
+    // Preflight detail-row identity before changing the parent visit or replacing child rows.
+    // Ambiguous child IDs make a safe update impossible, so fail closed.
+    var detailSheetsToCheck = [
+      { sheet: indSheet, label: 'المؤشرات' },
+      { sheet: ss.getSheetByName('VisitDomains'), label: 'المجالات' }
+    ];
+    for (var ds = 0; ds < detailSheetsToCheck.length; ds++) {
+      var detailSheet = detailSheetsToCheck[ds].sheet;
+      if (!detailSheet || detailSheet.getLastRow() < 2) continue;
+      var detailValues = detailSheet.getDataRange().getValues();
+      var detailHeaders = detailValues[0].map(String);
+      var detailIdCol = detailHeaders.indexOf('id');
+      var detailVisitIdCol = detailHeaders.indexOf('visitId');
+      if (detailIdCol < 0 || detailVisitIdCol < 0) {
+        throw new Error('تعذر التحقق من معرّفات تفاصيل ' + detailSheetsToCheck[ds].label + '؛ أوقفنا الحفظ دون تعديل.');
+      }
+      var seenDetailIds = {};
+      for (var dr = 1; dr < detailValues.length; dr++) {
+        if (String(detailValues[dr][detailVisitIdCol] || '') !== String(visitId)) continue;
+        var detailId = String(detailValues[dr][detailIdCol] || '');
+        if (!detailId) continue;
+        if (seenDetailIds[detailId]) {
+          throw new Error('يوجد معرّف مكرر ضمن تفاصيل ' + detailSheetsToCheck[ds].label + ' لهذا التقرير؛ أوقفنا الحفظ احترازيًا دون تعديل.');
+        }
+        seenDetailIds[detailId] = true;
+      }
+    }
+
     // التحقق هل الزيارة موجودة للتعديل
     var data = visitsSheet.getDataRange().getValues();
     var matchingVisitRows = [];
