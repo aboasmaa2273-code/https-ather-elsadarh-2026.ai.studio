@@ -40,8 +40,15 @@ function getDatabaseHealth_() {
     // Read-only check: opening the configured spreadsheet and checking existing tabs.
     // Do not create sheets, initialize data, or modify Script Properties here.
     var properties = PropertiesService.getScriptProperties();
-    var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID') ||
-      '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L8AwcYLM';
+    var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
+    if (!spreadsheetId) {
+      return {
+        success: false,
+        service: 'athar-api',
+        databaseReady: false,
+        error: 'لم يتم ضبط ATHAR_DATABASE_SPREADSHEET_ID. حدّد معرّف جدول البيانات المخصص لهذا المشروع أولاً.'
+      };
+    }
     var ss = SpreadsheetApp.openById(spreadsheetId);
     var usersSheet = !!ss.getSheetByName('Users');
     var teachersSheet = !!ss.getSheetByName('Teachers');
@@ -82,9 +89,7 @@ function getDatabaseSpreadsheet_() {
   var properties = PropertiesService.getScriptProperties();
   var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
   if (!spreadsheetId) {
-    // Use the existing school database rather than silently creating a second database.
-    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L8AwcYLM';
-    properties.setProperty('ATHAR_DATABASE_SPREADSHEET_ID', spreadsheetId);
+    throw new Error('لم يتم ضبط ATHAR_DATABASE_SPREADSHEET_ID. أوقف التنفيذ وحدّد معرّف قاعدة البيانات المخصصة لهذا المشروع قبل المتابعة.');
   }
   ATHAR_SPREADSHEET_INSTANCE_ = SpreadsheetApp.openById(spreadsheetId);
   return ATHAR_SPREADSHEET_INSTANCE_;
