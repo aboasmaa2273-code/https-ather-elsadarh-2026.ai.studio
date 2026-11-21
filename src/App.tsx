@@ -174,7 +174,7 @@ export default function App() {
         currentUser={currentUser}
         onUserChange={handleUserChange}
         activeTab={activeTab}
-        onTabChange={handleTabChange}
+        onTabChange={handleNavigate}
         platformSettings={platformSettings}
         isLoggedIn={isLoggedIn}
         onLoginClick={() => setIsLoginModalOpen(true)}
