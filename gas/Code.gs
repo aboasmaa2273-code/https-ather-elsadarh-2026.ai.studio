@@ -1374,10 +1374,12 @@ function dispatchApiAction_(action, payload, session) {
     var teacher = teacherRows.filter(function(t) { return String(t.id) === String(payload.id) && String(t.schoolId) === String(schoolId); })[0];
     if (!teacher) return { success: false, error: 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
     teacher.status = payload.status === 'active' ? 'active' : 'inactive';
-    // Disabling a teacher also disables linked teacher logins. Reactivation is deliberate.
-    var disabledLinkedTeacherAccounts = 0;
+    // Validate and collect linked accounts before changing either record.
+    var teacherUsersSheet = null;
+    var teacherUserStatusCol = -1;
+    var linkedTeacherUserRows = [];
     if (teacher.status === 'inactive') {
-      var teacherUsersSheet = ss.getSheetByName('Users');
+      teacherUsersSheet = ss.getSheetByName('Users');
       if (teacherUsersSheet && teacherUsersSheet.getLastRow() > 1) {
         var teacherUserData = teacherUsersSheet.getDataRange().getValues();
         var teacherUserHeaders = teacherUserData[0].map(String);
@@ -1385,20 +1387,16 @@ function dispatchApiAction_(action, payload, session) {
         var teacherUserRoleCol = teacherUserHeaders.indexOf('role');
         var teacherUserIdCol = teacherUserHeaders.indexOf('teacherId');
         var teacherUserJobCol = teacherUserHeaders.indexOf('jobNumber');
-        var teacherUserStatusCol = teacherUserHeaders.indexOf('status');
+        teacherUserStatusCol = teacherUserHeaders.indexOf('status');
         if ([teacherUserSchoolCol, teacherUserRoleCol, teacherUserStatusCol].some(function(index) { return index < 0; })) {
-          return { success: false, error: 'تعذر التحقق من حساب المعلم المرتبط؛ بنية ورقة الحسابات غير مكتملة. لم يتم تغيير حالة المعلم.' };
+          return { success: false, error: 'تعذر التحقق من حساب المعلم المرتبط؛ بنية ورقة الحسابات غير مكتملة. لم يتم تغيير أي سجل.' };
         }
         for (var tui = 1; tui < teacherUserData.length; tui++) {
           var teacherUserSchool = String(teacherUserData[tui][teacherUserSchoolCol] || 'sch_alsadara_01');
           var teacherUserRole = normalizeAtharRole_(teacherUserData[tui][teacherUserRoleCol]);
           var teacherUserById = teacherUserIdCol >= 0 && String(teacherUserData[tui][teacherUserIdCol] || '') === String(teacher.id);
           var teacherUserByJob = teacherUserJobCol >= 0 && String(teacher.jobNumber || '') !== '' && String(teacherUserData[tui][teacherUserJobCol] || '') === String(teacher.jobNumber);
-          if (teacherUserSchool !== String(schoolId) || teacherUserRole !== 'teacher' || (!teacherUserById && !teacherUserByJob)) continue;
-          if (String(teacherUserData[tui][teacherUserStatusCol] || '') !== 'inactive') {
-            teacherUsersSheet.getRange(tui + 1, teacherUserStatusCol + 1).setValue('inactive');
-            disabledLinkedTeacherAccounts++;
-          }
+          if (teacherUserSchool === String(schoolId) && teacherUserRole === 'teacher' && (teacherUserById || teacherUserByJob) && String(teacherUserData[tui][teacherUserStatusCol] || '') !== 'inactive') linkedTeacherUserRows.push(tui + 1);
         }
       }
     }
@@ -1406,6 +1404,13 @@ function dispatchApiAction_(action, payload, session) {
     teacher.actorRole = session.role;
     var saveTeacherResult = saveTeacher_(teacher);
     if (!saveTeacherResult.success) return saveTeacherResult;
+    var disabledLinkedTeacherAccounts = 0;
+    if (teacherUsersSheet && teacherUserStatusCol >= 0) {
+      linkedTeacherUserRows.forEach(function(rowNumber) {
+        teacherUsersSheet.getRange(rowNumber, teacherUserStatusCol + 1).setValue('inactive');
+        disabledLinkedTeacherAccounts++;
+      });
+    }
     if (disabledLinkedTeacherAccounts) logAuditAction(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledLinkedTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + teacher.id, session.role);
     return { success: true, id: teacher.id, status: teacher.status, disabledAccounts: disabledLinkedTeacherAccounts };
   }
