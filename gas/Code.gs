@@ -2891,22 +2891,26 @@ function saveInternalNote_(payload, session, schoolId) {
   if (!ownerMigration.success) return ownerMigration;
   var text = String(payload.noteText || '').trim();
   if (!text) return { success: false, error: 'نص الملاحظة مطلوب.' };
-  var teacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
+  var matchingNoteTeachers = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
     return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
-  })[0];
-  if (!teacher) return { success: false, error: 'المعلم المحدد غير موجود في المدرسة.' };
+  });
+  if (matchingNoteTeachers.length !== 1) return { success: false, error: matchingNoteTeachers.length > 1 ? 'معرّف المعلم مكرر داخل المدرسة؛ أوقفنا حفظ الملاحظة احترازيًا.' : 'المعلم المحدد غير موجود في المدرسة.' };
+  var teacher = matchingNoteTeachers[0];
   var now = new Date().toISOString();
   var sheet = getDatabaseSpreadsheet_().getSheetByName('InternalNotes');
   var noteId = String(payload.id || Utilities.getUuid());
-  var existing = rowsAsObjects_(sheet).filter(function(n) { return String(n.id) === noteId && String(n.schoolId) === String(schoolId); })[0];
+  var matchingNotes = rowsAsObjects_(sheet).filter(function(n) { return String(n.id) === noteId; });
+  if (matchingNotes.length > 1) return { success: false, error: 'معرّف الملاحظة مكرر؛ أوقفنا التعديل قبل تسجيل التاريخ أو تغيير البيانات.' };
+  var existing = matchingNotes.length === 1 ? matchingNotes[0] : null;
+  if (existing && String(existing.schoolId) !== String(schoolId)) return { success: false, error: 'الملاحظة لا تتبع المدرسة.' };
   if (payload.id && !existing) return { success: false, error: 'الملاحظة غير موجودة أو لا تتبع المدرسة.' };
   var canManageAllNotes = ['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0;
   if (existing && !canManageAllNotes && String(existing.createdById || '') !== String(session.id || '')) {
     return { success: false, error: 'يمكنك تعديل الملاحظات التي أنشأتها بحسابك فقط. الملاحظات القديمة التي لا تحمل هوية منشئ موثقة متاحة للإدارة للتعديل.' };
   }
   if (payload.visitId) {
-    var linkedVisit = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId) && String(v.teacherId) === String(teacher.id); })[0];
-    if (!linkedVisit) return { success: false, error: 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+    var matchingLinkedVisits = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId); });
+    if (matchingLinkedVisits.length !== 1 || String(matchingLinkedVisits[0].teacherId) !== String(teacher.id)) return { success: false, error: matchingLinkedVisits.length > 1 ? 'رقم التقرير المرتبط مكرر؛ أوقفنا الحفظ احترازيًا.' : 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
   }
   if (existing) {
     getDatabaseSpreadsheet_().getSheetByName('InternalNoteHistory').appendRow([
@@ -2929,18 +2933,22 @@ function saveInternalNote_(payload, session, schoolId) {
 }
 
 function saveAdministrativeFollowUp_(payload, session, schoolId) {
-  var teacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
+  var matchingFollowUpTeachers = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
     return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
-  })[0];
-  if (!teacher) return { success: false, error: 'المعلم المحدد غير موجود في المدرسة.' };
+  });
+  if (matchingFollowUpTeachers.length !== 1) return { success: false, error: matchingFollowUpTeachers.length > 1 ? 'معرّف المعلم مكرر داخل المدرسة؛ أوقفنا حفظ المتابعة احترازيًا.' : 'المعلم المحدد غير موجود في المدرسة.' };
+  var teacher = matchingFollowUpTeachers[0];
   if (payload.visitId) {
-    var linkedVisit = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId) && String(v.teacherId) === String(teacher.id); })[0];
-    if (!linkedVisit) return { success: false, error: 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+    var matchingLinkedVisits = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId); });
+    if (matchingLinkedVisits.length !== 1 || String(matchingLinkedVisits[0].teacherId) !== String(teacher.id)) return { success: false, error: matchingLinkedVisits.length > 1 ? 'رقم التقرير المرتبط مكرر؛ أوقفنا الحفظ احترازيًا.' : 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
   }
   var now = new Date().toISOString();
   var id = String(payload.id || Utilities.getUuid());
   var sheet = getDatabaseSpreadsheet_().getSheetByName('AdministrativeFollowUps');
-  var existing = rowsAsObjects_(sheet).filter(function(x) { return String(x.id) === id && String(x.schoolId) === String(schoolId); })[0];
+  var matchingFollowUps = rowsAsObjects_(sheet).filter(function(x) { return String(x.id) === id; });
+  if (matchingFollowUps.length > 1) return { success: false, error: 'معرّف سجل المتابعة مكرر؛ أوقفنا التعديل احترازيًا.' };
+  var existing = matchingFollowUps.length === 1 ? matchingFollowUps[0] : null;
+  if (existing && String(existing.schoolId) !== String(schoolId)) return { success: false, error: 'سجل المتابعة لا يتبع المدرسة.' };
   if (payload.id && !existing) return { success: false, error: 'سجل المتابعة غير موجود أو لا يتبع المدرسة.' };
   var item = {
     id: id, schoolId: schoolId, teacherId: teacher.id, teacherName: teacher.fullName,
