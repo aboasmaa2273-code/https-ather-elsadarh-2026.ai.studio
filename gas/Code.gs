@@ -3551,17 +3551,23 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
   var visitId = String(payload.id || '');
   if (!visitId) return { success: false, error: 'رقم تقرير الزيارة مطلوب.' };
   var ss = getDatabaseSpreadsheet_();
-  var visit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+  var matchingVisits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
     return String(v.id) === visitId && String(v.schoolId) === String(schoolId);
-  })[0];
-  if (!visit) return { success: false, error: 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
+  });
+  if (matchingVisits.length !== 1) {
+    return { success: false, error: matchingVisits.length ? 'تعذر الإرسال: يوجد أكثر من سجل للزيارة بالمعرّف نفسه. يرجى مراجعة البيانات.' : 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
+  }
+  var visit = matchingVisits[0];
   if (session.role === 'evaluator' && String(visit.evaluatorId || '') !== String(session.id)) return { success: false, error: 'يمكنك إرسال تقارير الزيارات التي أجريتها فقط.' };
   if (String(visit.status || '') !== 'approved') return { success: false, error: 'لا يمكن إرسال التقرير قبل اعتماده من الإدارة.' };
 
-  var teacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+  var matchingTeachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
     return String(t.id) === String(visit.teacherId) && String(t.schoolId) === String(schoolId);
-  })[0];
-  if (!teacher) return { success: false, error: 'تعذر العثور على بيانات المعلم المرتبط بالتقرير.' };
+  });
+  if (matchingTeachers.length !== 1) {
+    return { success: false, error: matchingTeachers.length ? 'تعذر الإرسال: يوجد أكثر من سجل للمعلم المرتبط بالتقرير. يرجى مراجعة بيانات المعلمين.' : 'تعذر العثور على بيانات المعلم المرتبط بالتقرير.' };
+  }
+  var teacher = matchingTeachers[0];
   var recipient = String(teacher.email || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) {
     return { success: false, error: 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم. حدّث بيانات المعلم أولاً.' };
