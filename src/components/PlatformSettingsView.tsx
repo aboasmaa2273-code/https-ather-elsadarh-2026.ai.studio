@@ -207,6 +207,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
   // Save Platform Identity
   const handleSavePlatform = async () => {
+    if (!canEdit) return;
     const updated: PlatformSettings = {
       platformName,
       platformTitle,
@@ -571,6 +572,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={platformName}
                   onChange={(e) => setPlatformName(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-[#172C40]"
                 />
               </div>
@@ -581,6 +583,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={platformTitle}
                   onChange={(e) => setPlatformTitle(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -591,6 +594,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={slogan}
                   onChange={(e) => setSlogan(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-['Tajawal']"
                 />
               </div>
@@ -601,6 +605,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold"
                 />
               </div>
@@ -611,6 +616,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={schoolStage}
                   onChange={(e) => setSchoolStage(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -621,6 +627,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={principalName}
                   onChange={(e) => setPrincipalName(e.target.value)}
+                disabled={!canEdit}
                   placeholder={isEn ? 'School Principal Full Name' : 'اسم مدير المدرسة'}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold"
                 />
@@ -632,6 +639,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   rows={2}
                   value={welcomeMessage}
                   onChange={(e) => setWelcomeMessage(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -642,6 +650,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
+                disabled={!canEdit}
                   placeholder="https://..."
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]"
                 />
@@ -653,6 +662,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="email"
                   value={contactEmail}
                   onChange={(e) => setContactEmail(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono"
                 />
               </div>
@@ -663,6 +673,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
+                disabled={!canEdit}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono"
                 />
               </div>
