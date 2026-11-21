@@ -186,6 +186,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
         {canEdit && (
           <button
             onClick={handleSave}
+            disabled={!canEdit || isSaving}
             className="px-6 py-2.5 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-2 cursor-pointer shadow-sm"
           >
             <Check className="w-4 h-4 text-[#C6A66A]" />
@@ -280,7 +281,8 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
                 {canEdit && (
                   <button 
                     type="button"
-                    onClick={() => handleRemoveGrade(grade)} 
+                    onClick={() => handleRemoveGrade(grade)}
+                    disabled={isSaving} 
                     className="p-1 rounded-md bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white transition-colors cursor-pointer border border-rose-200"
                     title={isEn ? `Delete ${grade}` : `حذف ${grade}`}
                   >
@@ -324,7 +326,8 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
                 {canEdit && (
                   <button 
                     type="button"
-                    onClick={() => handleRemoveSubject(sub)} 
+                    onClick={() => handleRemoveSubject(sub)}
+                    disabled={isSaving} 
                     className="p-1 rounded-md bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white transition-colors cursor-pointer border border-rose-200"
                     title={isEn ? `Delete ${sub}` : `حذف ${sub}`}
                   >
