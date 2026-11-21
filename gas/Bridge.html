@@ -11,14 +11,15 @@
       (function () {
         'use strict';
 
-        // The frontend can run on a preview or production HTTPS host.
-        // The parent-window identity is checked for every request below.
+        // Accept messages only from the known, approved frontend origins.
+        // Do not use a wildcard HTTPS policy: login responses contain session tokens.
+        var ALLOWED_PARENT_ORIGINS = [
+          'https://ather-elsadarh-2026.ai.studio',
+          'https://aboasmaa2273-code.github.io'
+        ];
         function isTrustedParent(event) {
           return event.source === window.top &&
-            typeof event.origin === 'string' &&
-            event.origin.indexOf('https://') === 0 &&
-            event.origin !== 'https://script.google.com' &&
-            event.origin !== 'https://script.googleusercontent.com';
+            ALLOWED_PARENT_ORIGINS.indexOf(event.origin) >= 0;
         }
         var REQUEST_CHANNEL = 'ATHAR_GAS_REQUEST';
         var RESPONSE_CHANNEL = 'ATHAR_GAS_BRIDGE';
@@ -58,8 +59,10 @@
             .dispatchBridgeRequest(message.request);
         });
 
-        // The frontend verifies that READY came from its own iframe tree.
-        sendToParent({ channel: READY_CHANNEL }, '*');
+        // Notify only the explicitly approved frontend origins.
+        ALLOWED_PARENT_ORIGINS.forEach(function (origin) {
+          sendToParent({ channel: READY_CHANNEL }, origin);
+        });
       })();
     </script>
   </body>
