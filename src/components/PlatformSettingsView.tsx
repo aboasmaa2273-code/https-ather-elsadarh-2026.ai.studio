@@ -203,20 +203,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     }
   };
 
-  // Clear Audit Log History
-  const handleClearAuditLogs = async () => {
-    if (!confirm(isEn ? 'Are you sure you want to permanently clear the audit log history?' : 'هل أنت متأكد من رغبتك في مسح كافة سجلات العمليات والأمان نهائياً؟')) {
-      return;
-    }
-    try {
-      await atharRemoteAction('deleteAuditLogs', { ids: [] });
-      setLocalAuditLogs([]);
-      showFeedback('success', isEn ? 'Central audit log cleared successfully.' : 'تم مسح سجل العمليات المركزي.');
-      await onRefreshSettings();
-    } catch (error) {
-      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to clear logs.' : 'تعذر مسح السجل.'));
-    }
-  };
+
 
   // Save Platform Identity
   const handleSavePlatform = async () => {
@@ -344,7 +331,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   };
 
   const handleDeleteVisitor = async (id: string) => {
-    if (!confirm(t.visitorsManagement.deleteConfirm)) return;
+    if (!confirm(isEn ? 'Deactivate this visitor account? Historical records will be retained.' : 'هل تريد تعطيل هذا المقيم؟ ستبقى جميع سجلاته السابقة محفوظة.')) return;
     const visitor = visitorsList.find(v => v.id === id);
     try {
       if (visitor?.username) {
@@ -356,7 +343,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       }
       await atharRemoteAction('deleteVisitor', { id });
       await refreshCentralUsers();
-      showFeedback('success', isEn ? 'Visitor removed and linked account disabled.' : 'تم حذف سجل الزائر وتعطيل حسابه المرتبط.');
+      showFeedback('success', isEn ? 'Visitor deactivated. Historical records were retained.' : 'تم تعطيل المقيم مع الاحتفاظ بسجلاته السابقة.');
       onRefreshSettings();
     } catch (error) {
       showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to delete visitor.' : 'تعذر حذف الزائر.'));
@@ -801,14 +788,18 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
                           <span>{isEn ? 'Edit' : 'تعديل البيانات'}</span>
                         </button>
-                        <button
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold ${vis.status === 'inactive' ? 'bg-slate-200 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                         {vis.status === 'inactive' ? (isEn ? 'Inactive' : 'معطّل') : (isEn ? 'Active' : 'نشط')}
+                       </span>
+                       <button
                           type="button"
                           onClick={() => handleDeleteVisitor(vis.id)}
-                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer border border-rose-200"
-                          title={isEn ? 'Delete Evaluator' : 'حذف المقيم أو الزائر'}
+                          disabled={vis.status === 'inactive'}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={isEn ? 'Deactivate Evaluator' : 'تعطيل المقيم مع الاحتفاظ بسجلاته'}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>{isEn ? 'Delete' : 'حذف'}</span>
+                          <span>{isEn ? 'Deactivate' : 'تعطيل'}</span>
                         </button>
                       </div>
                     )}
@@ -1077,19 +1068,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Action Buttons: Clear Audit Log */}
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={handleClearAuditLogs}
-                  disabled={localAuditLogs.length === 0}
-                  className="px-3.5 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-rose-200 shadow-2xs self-start sm:self-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={isEn ? 'Clear Entire Audit Log' : 'مسح كامل سجل العمليات'}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{isEn ? 'Clear Audit Log' : 'مسح السجل'}</span>
-                </button>
-              )}
+              <span className="text-xs text-slate-500">{isEn ? 'Audit history is retained for accountability.' : 'يُحتفَظ بسجل العمليات للمراجعة وحفظ الحقوق.'}</span>
             </div>
 
             {/* Filter and Sorting Controls Toolbar */}
