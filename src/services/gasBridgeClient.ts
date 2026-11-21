@@ -39,6 +39,8 @@ class AtharGasBridgeClient {
   private endpoint = '';
   private bridgeWindow: Window | null = null;
   private bridgeOrigin = '';
+  private messageListener: ((event: MessageEvent) => void) | null = null;
+  private rejectLoading: ((reason: Error) => void) | null = null;
 
   private isGoogleBridgeOrigin(origin: string): boolean {
     try {
@@ -107,6 +109,8 @@ class AtharGasBridgeClient {
       frame.style.border = '0';
       const timer = window.setTimeout(() => {
         this.loading = null;
+        this.rejectLoading = null;
+        if (this.messageListener === onMessage) this.messageListener = null;
         frame.remove();
         window.removeEventListener('message', onMessage);
         reject(new Error('تعذر فتح جسر Google Apps Script. تحقق من رابط النشر وإتاحته.'));
@@ -127,6 +131,7 @@ class AtharGasBridgeClient {
           window.clearTimeout(timer);
           this.ready = true;
           this.loading = null;
+          this.rejectLoading = null;
           resolve();
           return;
         }
@@ -139,10 +144,14 @@ class AtharGasBridgeClient {
           pending.resolve(event.data.result as BridgeResponse);
         }
       };
+      this.messageListener = onMessage;
+      this.rejectLoading = reject;
       window.addEventListener('message', onMessage);
       frame.addEventListener('error', () => {
         window.clearTimeout(timer);
         window.removeEventListener('message', onMessage);
+        if (this.messageListener === onMessage) this.messageListener = null;
+        this.rejectLoading = null;
         this.loading = null;
         reject(new Error('فشل تحميل جسر Google Apps Script.'));
       }, { once: true });
@@ -171,13 +180,28 @@ class AtharGasBridgeClient {
 
       const message = { channel: CHANNEL_REQUEST, id, request };
       // Send only to the exact Google-hosted frame that completed the handshake.
-      target.postMessage(message, this.bridgeOrigin);
+      try {
+        target.postMessage(message, this.bridgeOrigin);
+      } catch {
+        window.clearTimeout(timeout);
+        this.pending.delete(id);
+        reject(new Error('تعذر إرسال الطلب إلى جسر Google Apps Script.'));
+      }
     });
   }
 
   dispose(): void {
     this.ready = false;
     this.loading = null;
+    if (this.messageListener) {
+      window.removeEventListener('message', this.messageListener);
+      this.messageListener = null;
+    }
+    if (this.rejectLoading) {
+      const reject = this.rejectLoading;
+      this.rejectLoading = null;
+      reject(new Error('تم تغيير اتصال قاعدة البيانات قبل اكتمال الجاهزية.'));
+    }
     this.bridgeWindow = null;
     this.bridgeOrigin = '';
     this.frame?.remove();
