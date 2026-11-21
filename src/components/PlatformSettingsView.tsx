@@ -502,31 +502,35 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           </button>
         )}
 
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('data')}
-          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'data'
-              ? 'bg-[#172C40] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Database className="w-4 h-4 text-[#C6A66A]" />
-          <span>{t.settings.tabData}</span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('data')}
+            className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'data'
+                ? 'bg-[#172C40] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Database className="w-4 h-4 text-[#C6A66A]" />
+            <span>{t.settings.tabData}</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('audit')}
-          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'audit'
-              ? 'bg-[#172C40] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <History className="w-4 h-4 text-[#C6A66A]" />
-          <span>{t.settings.tabAudit}</span>
-        </button>
+        {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole) && (
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('audit')}
+            className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'audit'
+                ? 'bg-[#172C40] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <History className="w-4 h-4 text-[#C6A66A]" />
+            <span>{t.settings.tabAudit}</span>
+          </button>
+        )}
       </div>
 
       {/* ============================================================== */}
@@ -931,7 +935,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       {/* ============================================================== */}
       {/* SUB-TAB 3: Demo Data & Records Management (حذف البيانات)       */}
       {/* ============================================================== */}
-      {activeSubTab === 'data' && (
+      {canEdit && activeSubTab === 'data' && (
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-6">
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-base font-bold text-[#172C40] font-['Tajawal'] flex items-center gap-2">
@@ -1061,7 +1065,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       {/* ============================================================== */}
       {/* SUB-TAB 4: Security & Audit Logs (سجل العمليات والأمان)         */}
       {/* ============================================================== */}
-      {activeSubTab === 'audit' && (() => {
+      {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole) && activeSubTab === 'audit' && (() => {
         const uniqueAuditActions = Array.from(new Set(localAuditLogs.map(l => l.action))).filter(Boolean);
         const uniqueAuditUsers = Array.from(new Set(localAuditLogs.map(l => l.userName))).filter(Boolean);
 
