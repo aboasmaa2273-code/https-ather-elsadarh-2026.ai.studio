@@ -1,5 +1,5 @@
 import React, { useState } from 'react';
-import { AcademicSettings, User } from '../types';
+import { AcademicSettings, User, normalizeUserRole } from '../types';
 import { saveAcademicSettingsCentral } from '../services/centralDataService';
 import { 
   Settings, 
@@ -47,7 +47,8 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
 
   const t = translations[language];
   const isEn = language === 'en';
-  const canEdit = currentUser?.role === 'platform_admin' || currentUser?.role === 'school_admin';
+  const currentRole = normalizeUserRole(currentUser?.role);
+  const canEdit = currentRole === 'platform_admin' || currentRole === 'school_admin';
 
   const persistSettings = async (updated: AcademicSettings) => {
     setSaveError('');
@@ -62,6 +63,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   };
 
   const handleAddGrade = () => {
+    if (!canEdit) return;
     const trimmed = newGrade.trim();
     if (trimmed && !grades.includes(trimmed)) {
       const updatedGrades = [...grades, trimmed];
@@ -82,6 +84,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   };
 
   const handleRemoveGrade = (gradeToRemove: string) => {
+    if (!canEdit) return;
     if (!confirm(isEn ? `Are you sure you want to delete grade "${gradeToRemove}"?` : `هل أنت متأكد من حذف "${gradeToRemove}" من قائمة الصفوف الدراسية؟`)) {
       return;
     }
@@ -101,6 +104,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   };
 
   const handleAddSubject = () => {
+    if (!canEdit) return;
     const trimmed = newSubject.trim();
     if (trimmed && !subjects.includes(trimmed)) {
       const updatedSubjects = [...subjects, trimmed];
@@ -121,6 +125,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   };
 
   const handleRemoveSubject = (subjectToRemove: string) => {
+    if (!canEdit) return;
     if (!confirm(isEn ? `Are you sure you want to delete subject "${subjectToRemove}"?` : `هل أنت متأكد من حذف "${subjectToRemove}" من قائمة المواد الدراسية؟`)) {
       return;
     }
@@ -140,6 +145,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   };
 
   const handleSave = () => {
+    if (!canEdit) return;
     setSaveSuccess(false);
     setSaveError('');
 
@@ -215,6 +221,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
                 max={15}
                 value={sectionsCount}
                 onChange={(e) => setSectionsCount(parseInt(e.target.value) || 1)}
+                disabled={!canEdit}
                 className="w-28 px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-center"
               />
               <span className="text-slate-500 text-[11px]">{isEn ? 'sections per grade' : 'شعب لكل صف دراسي'}</span>
@@ -246,10 +253,12 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
               placeholder={isEn ? 'Add new grade...' : 'إضافة صف جديد...'}
               value={newGrade}
               onChange={(e) => setNewGrade(e.target.value)}
+              disabled={!canEdit}
               className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg"
             />
             <button
               onClick={handleAddGrade}
+              disabled={!canEdit}
               className="px-3 py-1.5 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer"
             >
               {isEn ? 'Add' : 'إضافة'}
@@ -288,10 +297,12 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
               placeholder={isEn ? 'Add new subject...' : 'إضافة مادة دراسية جديدة...'}
               value={newSubject}
               onChange={(e) => setNewSubject(e.target.value)}
+              disabled={!canEdit}
               className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg"
             />
             <button
               onClick={handleAddSubject}
+              disabled={!canEdit}
               className="px-3 py-1.5 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer"
             >
               {isEn ? 'Add' : 'إضافة'}
@@ -329,6 +340,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
             <select
               value={currentYear}
               onChange={(e) => setCurrentYear(e.target.value)}
+              disabled={!canEdit}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold cursor-pointer"
             >
               {academicYears.map(y => (
@@ -342,6 +354,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
             <select
               value={currentTerm}
               onChange={(e) => setCurrentTerm(e.target.value)}
+              disabled={!canEdit}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold cursor-pointer"
             >
               {terms.map(tm => (
