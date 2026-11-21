@@ -1947,7 +1947,7 @@ function saveUserAccount_(payload, session) {
     var linkedTeacherRecords = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(item) {
       return String(item.schoolId) === String(schoolId) &&
         ((obj.teacherId && String(item.id) === obj.teacherId) ||
-         (!obj.teacherId && obj.jobNumber && String(item.jobNumber || '') === obj.jobNumber));
+         (obj.jobNumber && String(item.jobNumber || '') === obj.jobNumber));
     });
     if (linkedTeacherRecords.some(function(item) { return String(item.status || 'active') !== 'active'; })) {
       return { success: false, error: 'لا يمكن تفعيل حساب الدخول؛ سجل المعلم المرتبط غير نشط. فعّل سجل المعلم أولاً.' };
@@ -2015,7 +2015,7 @@ function setUserStatus_(payload, session) {
       var matchingTeacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(item) {
         return String(item.schoolId) === targetSchool &&
           ((linkedTeacherId && String(item.id) === linkedTeacherId) ||
-           (!linkedTeacherId && linkedTeacherJob && String(item.jobNumber || '') === linkedTeacherJob));
+           (linkedTeacherJob && String(item.jobNumber || '') === linkedTeacherJob));
       })[0];
       if (matchingTeacher && String(matchingTeacher.status || 'active') !== 'active') {
         return { success: false, error: 'لا يمكن تفعيل حساب الدخول؛ سجل المعلم المرتبط غير نشط. فعّل سجل المعلم أولاً.' };
