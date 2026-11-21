@@ -199,7 +199,18 @@
     var data = atharState.bootstrap || {};
     var teachers = (data.teachers || []).filter(function(t){ return String(t.status || 'active') !== 'inactive'; });
     var indicators = (data.indicators || []).filter(function(i){ return i.isActive !== false && String(i.isActive).toLowerCase() !== 'false'; });
-    var evaluationDomains = data.evaluationDomains || [];
+    var evaluationDomains = (data.evaluationDomains && data.evaluationDomains.length) ? data.evaluationDomains : [
+      {id:'achievement',name:'التحصيل'},
+      {id:'progress',name:'التقدم'},
+      {id:'learning_skills',name:'مهارات التعلم'},
+      {id:'psd_innovation',name:'التنمية الشخصية والاجتماعية والابتكار (PSD & Innovation)'},
+      {id:'teaching',name:'التدريس'},
+      {id:'assessment',name:'التقييم'},
+      {id:'curriculum',name:'المنهاج'},
+      {id:'pcgs',name:'PCGS (الحماية والرعاية والتوجيه والدعم)'},
+      {id:'leadership',name:'القيادة والإدارة'},
+      {id:'other',name:'أخرى'}
+    ];
     var academicSettings = {};
     (data.settings || []).forEach(function(row){
       if (String(row.key || '') !== 'academicSettings') return;
