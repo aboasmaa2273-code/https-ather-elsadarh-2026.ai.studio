@@ -2538,11 +2538,6 @@ function saveUserAccount_(payload, session) {
   var sheet = ss.getSheetByName('Users');
   if (!sheet || sheet.getLastRow() < 1 || sheet.getLastColumn() < 1) return { success: false, error: 'ورقة الحسابات غير موجودة أو لا تحتوي على عناوين.' };
 
-  if (String(payload.password || '')) {
-    var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
-    if (!passwordColumnSetup.success) return passwordColumnSetup;
-  }
-
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { success: false, error: 'توجد عملية أخرى لإدارة الحسابات؛ انتظر قليلًا ثم أعد المحاولة.' };
   var existingSnapshot = null;
@@ -2551,6 +2546,13 @@ function saveUserAccount_(payload, session) {
   var intendedNewAccountId = '';
   var originalLastRow = sheet.getLastRow();
   try {
+    // Serialize schema changes with account reads/writes to prevent concurrent
+    // requests from adding the same password columns or shifting column indexes.
+    if (String(payload.password || '')) {
+      var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
+      if (!passwordColumnSetup.success) return passwordColumnSetup;
+    }
+
     // Read and validate under the same lock as the write to prevent duplicate usernames.
     var data = sheet.getDataRange().getValues();
     var headers = data[0].map(function(value) { return String(value).trim(); });
