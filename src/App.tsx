@@ -120,17 +120,25 @@ export default function App() {
   // Administrative views are guarded here as well as in the navigation.
   const canAccessAdminTools = ['platform_admin', 'school_admin'].includes(normalizeUserRole(currentUser.role) || '');
 
-  const handleTabChange = (tab: string) => {
-    if ((tab === 'settings' || tab === 'gas-hub') && !canAccessAdminTools) {
-      setActiveTab('dashboard');
-      return;
-    }
-    if (tab === 'new-visit' && currentUser.role === 'teacher') {
-      setActiveTab('dashboard');
-      return;
-    }
-    setActiveTab(tab);
+  const isCurrentTeacherRecord = (record: { teacherJobNumber?: string; jobNumber?: string; teacherName?: string; fullName?: string }) => {
+    if (currentUser.role !== 'teacher') return true;
+    const recordJobNumber = record.teacherJobNumber || record.jobNumber || '';
+    if (currentUser.jobNumber) return recordJobNumber === currentUser.jobNumber;
+    const recordName = record.teacherName || record.fullName || '';
+    return Boolean(currentUser.name && recordName === currentUser.name);
   };
+  const visibleTeachers = currentUser.role === 'teacher'
+    ? teachers.filter(teacher => isCurrentTeacherRecord(teacher))
+    : teachers;
+  const visibleVisits = currentUser.role === 'teacher'
+    ? visits.filter(visit => isCurrentTeacherRecord(visit))
+    : visits;
+  const visiblePlans = currentUser.role === 'teacher'
+    ? plans.filter(plan => isCurrentTeacherRecord(plan))
+    : plans;
+  const visibleArchivedPlans = currentUser.role === 'teacher'
+    ? archivedPlans.filter(plan => isCurrentTeacherRecord(plan))
+    : archivedPlans;
 
   // Navigation router
   const handleNavigate = (tab: string, param?: any) => {
@@ -184,9 +192,9 @@ export default function App() {
         {isLoggedIn && activeTab === 'dashboard' && (
           <Dashboard
             currentUser={currentUser}
-            visits={visits}
-            teachers={teachers}
-            plans={plans}
+            visits={visibleVisits}
+            teachers={visibleTeachers}
+            plans={visiblePlans}
             onNavigate={handleNavigate}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
             language={language}
@@ -207,7 +215,7 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'teachers' && (
           <TeachersList
-            teachers={teachers}
+            teachers={visibleTeachers}
             currentUser={currentUser}
             onRefreshTeachers={refreshAllData}
             onOpenTeacherReport={(teacher) => {
@@ -220,7 +228,7 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'visits' && (
           <VisitsList
-            visits={visits}
+            visits={visibleVisits}
             currentUser={currentUser}
             onOpenReport={(v) => setSelectedVisitForReport(v)}
             onEditVisit={(v) => {
@@ -260,9 +268,9 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'plans' && (
           <ImprovementPlansList
-            plans={plans}
-            archivedPlans={archivedPlans}
-            teachers={teachers}
+            plans={visiblePlans}
+            archivedPlans={visibleArchivedPlans}
+            teachers={visibleTeachers}
             currentUser={currentUser}
             onRefreshPlans={refreshAllData}
             language={language}
@@ -271,9 +279,9 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'reports' && (
           <ReportsView
-            visits={currentUser.role === 'teacher' ? visits.filter(v => v.teacherJobNumber === currentUser.jobNumber || v.teacherName === currentUser.name) : visits}
-            teachers={currentUser.role === 'teacher' ? teachers.filter(t => t.jobNumber === currentUser.jobNumber || t.fullName === currentUser.name) : teachers}
-            plans={currentUser.role === 'teacher' ? plans.filter(p => p.teacherJobNumber === currentUser.jobNumber || p.teacherName === currentUser.name) : plans}
+            visits={visibleVisits}
+            teachers={visibleTeachers}
+            plans={visiblePlans}
             platformSettings={platformSettings}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
             onOpenTeacherReport={(t) => {
@@ -296,8 +304,8 @@ export default function App() {
         {isLoggedIn && activeTab === 'teacher-report' && selectedTeacherForReport && (
           <TeacherReportView
             teacher={selectedTeacherForReport}
-            visits={visits}
-            plans={plans}
+            visits={visibleVisits}
+            plans={visiblePlans}
             platformSettings={platformSettings}
             onBack={() => setActiveTab('teachers')}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
