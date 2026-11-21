@@ -933,7 +933,8 @@ export class AtharStorageService {
     }
     // Teacher: only view their own visits
     if (user.role === 'teacher') {
-      return visit.teacherJobNumber === user.jobNumber || visit.teacherName === user.name;
+      return !!user.jobNumber &&
+        String(visit.teacherJobNumber || '').trim() === String(user.jobNumber).trim();
     }
     return false;
   }
