@@ -1942,6 +1942,18 @@ function saveUserAccount_(payload, session) {
     teacherId: String(payload.teacherId !== undefined ? payload.teacherId : (existing.teacherId || ''))
   };
 
+  // An inactive teacher must not regain login access through the account editor.
+  if (role === 'teacher' && obj.status === 'active') {
+    var linkedTeacherRecords = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(item) {
+      return String(item.schoolId) === String(schoolId) &&
+        ((obj.teacherId && String(item.id) === obj.teacherId) ||
+         (!obj.teacherId && obj.jobNumber && String(item.jobNumber || '') === obj.jobNumber));
+    });
+    if (linkedTeacherRecords.some(function(item) { return String(item.status || 'active') !== 'active'; })) {
+      return { success: false, error: 'لا يمكن تفعيل حساب الدخول؛ سجل المعلم المرتبط غير نشط. فعّل سجل المعلم أولاً.' };
+    }
+  }
+
   // Preserve every existing column not explicitly edited, especially password hashes,
   // legacy identity fields and any future metadata columns.
   var row = existingRow || headers.map(function() { return ''; });
