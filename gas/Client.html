@@ -100,7 +100,10 @@
           showLogin(response && response.error ? response.error : 'تعذر تحميل بيانات الحساب.');
           return;
         }
-        atharState.bootstrap = response.data || {};
+        atharState.bootstrap = response.data || response;
+        atharState.teachers = atharState.bootstrap.teachers || [];
+        atharState.visits = atharState.bootstrap.visits || [];
+        atharState.plans = atharState.bootstrap.plans || [];
         document.getElementById('user-display').textContent =
           (atharState.user.name || 'مستخدم') + ' — ' + (atharState.user.roleTitle || atharState.user.role);
         var nav = document.querySelector('.athar-nav');
@@ -141,36 +144,87 @@
   function renderTab(tabId) {
     var viewport = document.getElementById('tab-viewport');
     if (!viewport) return;
-
-    if (tabId === 'dashboard') {
-      viewport.innerHTML = 
-        '<div class="stat-grid">' +
-          '<div class="stat-card"><div class="stat-title">إجمالي الزيارات الصفية</div><div class="stat-value">24</div></div>' +
-          '<div class="stat-card"><div class="stat-title">الزيارات المكتملة</div><div class="stat-value">21</div></div>' +
-          '<div class="stat-card"><div class="stat-title">المعلمون الذين تمت زيارتهم</div><div class="stat-value">18</div></div>' +
-          '<div class="stat-card"><div class="stat-title">خطط التطوير المفتوحة</div><div class="stat-value">5</div></div>' +
-        '</div>' +
-        '<div class="table-box" style="padding: 1.5rem;">' +
-          '<h3 style="margin-bottom: 1rem; color: #172C40;">أحدث الزيارات الصفية المعتمدة</h3>' +
-          '<table>' +
-            '<thead><tr><th>رقم الزيارة</th><th>المعلم</th><th>المادة</th><th>الصف</th><th>نوع الزيارة</th><th>نسبة الإنجاز</th><th>الحالة</th></tr></thead>' +
-            '<tbody>' +
-              '<tr><td>VST-2024-001</td><td>راشد بن سلطان الكعبي</td><td>اللغة العربية</td><td>الصف الثامن (2)</td><td>زيارة كاملة</td><td>95.5%</td><td>معتمدة</td></tr>' +
-              '<tr><td>VST-2024-002</td><td>أحمد محمد الكعبي</td><td>الرياضيات</td><td>الصف السابع (3)</td><td>زيارة سريعة</td><td>91.7%</td><td>مكتملة</td></tr>' +
-            '</tbody>' +
-          '</table>' +
-        '</div>';
-    } else if (tabId === 'database-init') {
-      viewport.innerHTML = 
-        '<div class="table-box" style="padding: 2rem; max-width: 800px; margin: 0 auto;">' +
-          '<h2 style="color: #172C40; margin-bottom: 0.75rem;">تهيئة قاعدة بيانات Google Sheets (18 ورقة عمل)</h2>' +
-          '<p style="color: #64748B; margin-bottom: 1.5rem;">تقوم هذه الدالة بإنشاء وتنسيق كافة أوراق العمل الـ 18 المطلوبة وتعبئة الـ 22 مؤشراً صفياً المعتمدة تلقائياً.</p>' +
-          '<button class="btn-gold" onclick="executeDatabaseInit()">بدء التهيئة الفورية الآن</button>' +
-          '<div id="init-feedback" style="margin-top: 1.5rem; display: none;"></div>' +
-        '</div>';
-    } else {
-      viewport.innerHTML = '<div class="table-box" style="padding: 2rem; text-align: center;"><p>عرض قسم: ' + tabId + '</p></div>';
+    var data = atharState.bootstrap || {};
+    var teachers = data.teachers || [];
+    var visits = data.visits || [];
+    var plans = data.plans || [];
+    var esc = escapeHtml;
+    function empty(msg) { return '<div class="table-box" style="padding:1.5rem;text-align:center;color:#64748B;">' + esc(msg) + '</div>'; }
+    function table(headers, rows) {
+      return '<div class="table-box" style="padding:1rem;overflow-x:auto;"><table><thead><tr>' +
+        headers.map(function(h){return '<th>'+esc(h)+'</th>';}).join('') +
+        '</tr></thead><tbody>' + (rows.length ? rows.map(function(row){return '<tr>'+row.map(function(v){return '<td>'+esc(v === undefined || v === null || v === '' ? '—' : v)+'</td>';}).join('')+'</tr>';}).join('') :
+        '<tr><td colspan="'+headers.length+'" style="text-align:center;padding:1.5rem;color:#64748B;">لا توجد سجلات حتى الآن.</td></tr>') +
+        '</tbody></table></div>';
     }
+    if (tabId === 'dashboard') {
+      var completed = visits.filter(function(v){return ['approved','completed'].indexOf(String(v.status||'').toLowerCase())>=0;}).length;
+      var activePlans = plans.filter(function(p){return ['completed','closed'].indexOf(String(p.status||'').toLowerCase())<0;}).length;
+      var uniqueTeachers = {};
+      visits.forEach(function(v){if(v.teacherId) uniqueTeachers[String(v.teacherId)]=true;});
+      var recent = visits.slice().sort(function(a,b){return String(b.date||'').localeCompare(String(a.date||''));}).slice(0,8);
+      viewport.innerHTML =
+        '<div class="stat-grid">' +
+        '<div class="stat-card"><div class="stat-title">إجمالي الزيارات</div><div class="stat-value">'+visits.length+'</div></div>' +
+        '<div class="stat-card"><div class="stat-title">الزيارات المكتملة أو المعتمدة</div><div class="stat-value">'+completed+'</div></div>' +
+        '<div class="stat-card"><div class="stat-title">المعلمون الذين تمت زيارتهم</div><div class="stat-value">'+Object.keys(uniqueTeachers).length+'</div></div>' +
+        '<div class="stat-card"><div class="stat-title">خطط التطوير المفتوحة</div><div class="stat-value">'+activePlans+'</div></div></div>' +
+        '<h3 style="margin:1.5rem 0 .8rem;color:#172C40;">أحدث الزيارات المسجلة</h3>' +
+        table(['المعلم','المادة','الصف','الشعبة','تاريخ الزيارة','الحالة'],recent.map(function(v){return [v.teacherName,v.subject,v.grade,v.section,v.date,v.status];}));
+    } else if (tabId === 'teachers') {
+      viewport.innerHTML = '<h2 style="margin-bottom:1rem;color:#172C40;">إدارة المعلمين</h2>' +
+        table(['اسم المعلم','الرقم الوظيفي','التخصص','الحالة'],teachers.map(function(t){return [t.fullName,t.jobNumber,t.specialization,t.status];}));
+    } else if (tabId === 'visits') {
+      viewport.innerHTML = '<h2 style="margin-bottom:1rem;color:#172C40;">سجل الزيارات الصفية</h2>' +
+        table(['رقم الزيارة','المعلم','المادة','الصف','الشعبة','التاريخ','نوع الزيارة','الحالة'],visits.map(function(v){return [v.id,v.teacherName,v.subject,v.grade,v.section,v.date,v.visitType,v.status];}));
+    } else if (tabId === 'plans') {
+      viewport.innerHTML = '<h2 style="margin-bottom:1rem;color:#172C40;">خطط التطوير المهني</h2>' +
+        table(['المعلم','الهدف التطويري','الإجراء','المسؤول','تاريخ الاستحقاق','الحالة'],plans.map(function(p){return [p.teacherName,p.goal||p.developmentalGoal,p.procedure||p.actionProcedure,p.responsible||p.responsiblePerson,p.dueDate,p.status];}));
+    } else if (tabId === 'account') {
+      var user = atharState.user || {};
+      viewport.innerHTML = '<section class="login-card"><h2>إعدادات حسابي</h2><p style="color:#64748B;margin:.4rem 0 1rem;">يمكنك تحديث اسم العرض واسم المستخدم وكلمة المرور. اترك كلمة المرور فارغة إذا لم ترغب في تغييرها.</p>' +
+        '<form id="athar-account-form"><label for="account-name">الاسم</label><input id="account-name" required value="'+esc(user.name||'')+'" style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<label for="account-username">اسم المستخدم</label><input id="account-username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]{3,40}" value="'+esc(user.username||'')+'" style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<label for="account-password">كلمة المرور الجديدة (10 أحرف على الأقل)</label><input id="account-password" type="password" minlength="10" autocomplete="new-password" placeholder="اتركها فارغة للإبقاء على الحالية" style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<button class="btn-primary" type="submit" id="account-save">حفظ التغييرات</button><p id="account-feedback" aria-live="polite" style="margin-top:1rem;"></p></form></section>';
+      document.getElementById('athar-account-form').addEventListener('submit', saveAtharAccount);
+    } else if (tabId === 'new-visit') {
+      viewport.innerHTML = '<div class="table-box" style="padding:2rem;"><h2 style="color:#172C40;">تسجيل زيارة صفية جديدة</h2><p style="margin-top:.7rem;color:#64748B;">واجهة إدخال الزيارة وحفظ مؤشراتها لم تُستكمل بعد في نسخة الاختبار. لم نضع نموذجًا شكليًا قد يوهمك بأن البيانات تُحفظ.</p></div>';
+    } else {
+      viewport.innerHTML = empty('القسم غير متاح.');
+    }
+  }
+
+  function saveAtharAccount(event) {
+    event.preventDefault();
+    var button = document.getElementById('account-save');
+    var feedback = document.getElementById('account-feedback');
+    var password = document.getElementById('account-password').value;
+    button.disabled = true;
+    feedback.textContent = 'جارٍ حفظ بيانات الحساب...';
+    google.script.run.withSuccessHandler(function(result) {
+      button.disabled = false;
+      if (!result || !result.success) {
+        feedback.style.color = '#B91C1C';
+        feedback.textContent = result && result.error ? result.error : 'تعذر تحديث الحساب.';
+        return;
+      }
+      atharState.user = result.user;
+      document.getElementById('user-display').textContent = (result.user.name || 'مستخدم') + ' — ' + (result.user.roleTitle || result.user.role);
+      document.getElementById('account-password').value = '';
+      document.getElementById('account-username').value = result.user.username || '';
+      feedback.style.color = '#047857';
+      feedback.textContent = 'تم تحديث بيانات الحساب بنجاح.';
+    }).withFailureHandler(function() {
+      button.disabled = false;
+      feedback.style.color = '#B91C1C';
+      feedback.textContent = 'تعذر الاتصال بالخادم. لم نؤكد حفظ التغييرات.';
+    }).dispatchBridgeRequest({action:'updateUserCredentials',token:atharSessionToken,payload:{
+      id:atharState.user.id,
+      name:document.getElementById('account-name').value.trim(),
+      username:document.getElementById('account-username').value.trim(),
+      password:password
+    }});
   }
 
   function executeDatabaseInit() {
