@@ -120,6 +120,18 @@ export default function App() {
   // Administrative views are guarded here as well as in the navigation.
   const canAccessAdminTools = ['platform_admin', 'school_admin'].includes(normalizeUserRole(currentUser.role) || '');
 
+  const handleTabChange = (tab: string) => {
+    if ((tab === 'settings' || tab === 'gas-hub') && !canAccessAdminTools) {
+      setActiveTab('dashboard');
+      return;
+    }
+    if (tab === 'new-visit' && currentUser.role === 'teacher') {
+      setActiveTab('dashboard');
+      return;
+    }
+    setActiveTab(tab);
+  };
+
   // Navigation router
   const handleNavigate = (tab: string, param?: any) => {
     if ((tab === 'settings' || tab === 'gas-hub') && !canAccessAdminTools) {
@@ -147,7 +159,7 @@ export default function App() {
         currentUser={currentUser}
         onUserChange={handleUserChange}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleTabChange}
         platformSettings={platformSettings}
         isLoggedIn={isLoggedIn}
         onLoginClick={() => setIsLoginModalOpen(true)}
@@ -224,17 +236,21 @@ export default function App() {
           />
         )}
 
-        {isLoggedIn && activeTab === 'new-visit' && (
+        {isLoggedIn && currentUser.role !== 'teacher' && activeTab === 'new-visit' && (
           <VisitForm
             currentUser={currentUser}
             teachers={teachers}
             academicSettings={academicSettings}
             registeredVisitors={registeredVisitors}
             editingVisit={editingVisit}
-            onSaveSuccess={(saved) => {
-              refreshAllData();
-              setSelectedVisitForReport(saved);
-              setActiveTab('visits');
+            onSaveSuccess={async (saved) => {
+              try {
+                await refreshAllData();
+                setSelectedVisitForReport(saved);
+                setActiveTab('visits');
+              } catch (error) {
+                alert(error instanceof Error ? `تم حفظ الزيارة، لكن تعذر تحديث البيانات المعروضة: ${error.message}` : 'تم حفظ الزيارة، لكن تعذر تحديث البيانات المعروضة. أعد تحميل الصفحة.');
+              }
             }}
             onCancel={() => setActiveTab('visits')}
             onRefreshData={refreshAllData}
@@ -255,7 +271,7 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'reports' && (
           <ReportsView
-            visits={visits}
+            visits={currentUser.role === 'teacher' ? visits.filter(v => v.teacherJobNumber === currentUser.jobNumber || v.teacherName === currentUser.name) : visits}
             teachers={teachers}
             plans={plans}
             platformSettings={platformSettings}
