@@ -517,7 +517,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           </button>
         )}
 
-        {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole) && (
+        {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole || '') && (
           <button
             type="button"
             onClick={() => setActiveSubTab('audit')}
@@ -1065,7 +1065,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       {/* ============================================================== */}
       {/* SUB-TAB 4: Security & Audit Logs (سجل العمليات والأمان)         */}
       {/* ============================================================== */}
-      {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole) && activeSubTab === 'audit' && (() => {
+      {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole || '') && activeSubTab === 'audit' && (() => {
         const uniqueAuditActions = Array.from(new Set(localAuditLogs.map(l => l.action))).filter(Boolean);
         const uniqueAuditUsers = Array.from(new Set(localAuditLogs.map(l => l.userName))).filter(Boolean);
 
