@@ -347,9 +347,12 @@ export class AtharStorageService {
     const target = teachers.find(t => t.id === teacherId);
     if (!target) return { success: false, error: 'المعلم غير موجود.' };
 
-    const filtered = teachers.filter(t => t.id !== teacherId);
-    setStored(STORAGE_KEYS.TEACHERS, filtered);
-    this.logAction(currentUser, 'حذف معلم', `تم حذف المعلم: ${target.fullName} (${target.jobNumber})`);
+    // Preserve teacher history and references: deletion is a deactivation.
+    const index = teachers.findIndex(t => t.id === teacherId);
+    if (index < 0) return { success: false, error: 'المعلم غير موجود.' };
+    teachers[index] = { ...teachers[index], status: 'inactive' };
+    setStored(STORAGE_KEYS.TEACHERS, teachers);
+    this.logAction(currentUser, 'تعطيل معلم', `تم تعطيل المعلم مع الحفاظ على سجلاته: ${target.fullName} (${target.jobNumber})`);
     return { success: true };
   }
 
@@ -790,15 +793,13 @@ export class AtharStorageService {
     const target = visitors.find(v => v.id === visitorId);
     if (!target) return { success: false, error: 'الزائر غير موجود.' };
 
-    const filtered = visitors.filter(v => v.id !== visitorId);
-    setStored(STORAGE_KEYS.REGISTERED_VISITORS, filtered);
+    // Preserve evaluator history and account references by deactivating, not deleting.
+    const index = visitors.findIndex(v => v.id === visitorId);
+    if (index < 0) return { success: false, error: 'الزائر غير موجود.' };
+    visitors[index] = { ...visitors[index], status: 'inactive' };
+    setStored(STORAGE_KEYS.REGISTERED_VISITORS, visitors);
 
-    // Also remove from custom users if existed
-    const customUsers = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
-    const filteredUsers = customUsers.filter(u => u.name !== target.name && (!target.username || u.username !== target.username));
-    setStored(STORAGE_KEYS.CUSTOM_USERS, filteredUsers);
-
-    this.logAction(currentUser, 'حذف زائر', `تم حذف الزائر: ${target.name} من الدليل المعتمد.`);
+    this.logAction(currentUser, 'تعطيل زائر', `تم تعطيل الزائر مع الحفاظ على سجلّه: ${target.name}.`);
     return { success: true };
   }
 
