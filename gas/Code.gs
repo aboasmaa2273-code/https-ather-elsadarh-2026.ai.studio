@@ -1860,10 +1860,15 @@ function dispatchApiAction_(action, payload, session) {
     } else {
       payload.status = String(payload.status || '') === 'draft' ? 'draft' : 'completed';
     }
-    var teacherForVisit = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+    var matchingTeachersForVisit = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
       return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
-    })[0];
-    if (!teacherForVisit) return { success: false, error: 'المعلم المحدد غير موجود ضمن المدرسة.' };
+    });
+    if (matchingTeachersForVisit.length !== 1) {
+      return { success: false, error: matchingTeachersForVisit.length > 1
+        ? 'معرّف المعلم مكرر داخل المدرسة؛ أوقفنا حفظ الزيارة احترازيًا دون تعديل أي سجل.'
+        : 'المعلم المحدد غير موجود ضمن المدرسة.' };
+    }
+    var teacherForVisit = matchingTeachersForVisit[0];
     payload.schoolId = schoolId;
     payload.actorName = session.name;
     payload.actorId = session.id;
