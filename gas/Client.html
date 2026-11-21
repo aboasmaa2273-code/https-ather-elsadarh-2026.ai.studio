@@ -246,7 +246,7 @@
       return '<div class="visit-domain" data-domain-id="'+escapeHtml(domain.id)+'" data-domain-name="'+escapeHtml(domain.name || '')+'" style="padding:.7rem 0;border-bottom:1px solid #E2E8F0;">' +
         '<label style="display:block;font-weight:600;margin-bottom:.4rem;">'+escapeHtml(domain.name || '')+'</label>' +
         '<select class="domain-rating" style="width:100%;padding:.65rem;border:1px solid #CBD5E1;border-radius:6px;">' +
-        '<option value="very_weak">ضعيف جدًا</option><option value="weak">ضعيف</option><option value="acceptable">مقبول</option><option value="good">جيد</option><option value="very_good">جيد جدًا</option><option value="outstanding">متميز</option></select></div>';
+        '<option value="outstanding">متميز</option><option value="very_good">جيد جدًا</option><option value="good" selected>جيد</option><option value="acceptable">مقبول</option><option value="weak">ضعيف</option><option value="very_weak">ضعيف جدًا</option></select></div>';
     }).join('');
     viewport.innerHTML = '<section class="login-card" style="max-width:100%;"><h2 style="color:#172C40;">تسجيل زيارة صفية جديدة</h2>' +
       '<p style="color:#64748B;margin:.5rem 0 1rem;">أدخل بيانات المشاهدة، ثم قيّم المؤشرات التي تمت ملاحظتها. يمكنك ترك المؤشر على «لم يُشاهد» عند عدم توفر دليل عليه.</p>' +
