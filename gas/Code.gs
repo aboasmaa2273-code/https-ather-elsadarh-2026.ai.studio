@@ -2350,6 +2350,7 @@ function setUserStatus_(payload, session) {
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][idCol]) !== id) continue;
       var row = data[i].slice();
+      targetSnapshot = row.slice();
       targetRowNumber = i + 1;
       var targetSchool = String(row[schoolCol] || 'sch_alsadara_01');
       if (targetSchool !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') {
@@ -2369,7 +2370,6 @@ function setUserStatus_(payload, session) {
         if (teacherIdCol >= 0) row[teacherIdCol] = String(teacherResolution.teacher.id || '');
       }
 
-      targetSnapshot = row.slice();
       var updatedRow = row.slice();
       updatedRow[statusCol] = next;
       writeStarted = true;
