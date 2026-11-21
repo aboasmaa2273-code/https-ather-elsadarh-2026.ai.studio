@@ -505,10 +505,33 @@ function saveClassroomVisit_(visitData) {
     }
 
     if (existingRowIndex > 0) {
-      if (String(data[existingRowIndex - 1][1]) !== String(visitData.schoolId || 'sch_alsadara_01')) {
+      var liveExistingVisit = data[existingRowIndex - 1];
+      var liveVisitSchoolId = String(liveExistingVisit[1] || '');
+      var liveVisitHeaders = data[0].map(String);
+      var liveVisitStatusCol = liveVisitHeaders.indexOf('status');
+      var liveVisitEvaluatorCol = liveVisitHeaders.indexOf('evaluatorId');
+      if (liveVisitSchoolId !== String(visitData.schoolId || 'sch_alsadara_01')) {
         throw new Error('لا يمكن تعديل زيارة لا تتبع المدرسة المرتبطة بحسابك.');
       }
-      visitRow[25] = data[existingRowIndex - 1][25]; // keep original createdAt
+      if (liveVisitStatusCol < 0) throw new Error('عمود حالة الزيارة غير موجود؛ أوقف الحفظ دون تغيير السجل.');
+      var liveVisitStatus = String(liveExistingVisit[liveVisitStatusCol] || '');
+      var actorRoleForSave = String(visitData.actorRole || '');
+      if (liveVisitStatus === 'archived') throw new Error('لا يمكن تعديل تقرير مؤرشف. استعد التقرير من الأرشيف أولاً.');
+      if (actorRoleForSave === 'evaluator' && liveVisitEvaluatorCol >= 0 &&
+          String(liveExistingVisit[liveVisitEvaluatorCol] || '') !== String(visitData.actorId || '')) {
+        throw new Error('لا يمكنك تعديل زيارة سجّلها مقيم آخر.');
+      }
+      if (liveVisitStatus === 'approved' && actorRoleForSave === 'evaluator') {
+        throw new Error('لا يمكن للمقيم تعديل تقرير معتمد من الإدارة.');
+      }
+      // Derive protected status from the live row under this save lock, not a stale client payload.
+      if (liveVisitStatus === 'approved' &&
+          ['platform_admin', 'school_admin', 'vice_principal'].indexOf(actorRoleForSave) >= 0) {
+        visitRow[17] = 'approved';
+      } else if (liveVisitStatus !== 'approved') {
+        visitRow[17] = String(visitData.status || '') === 'draft' ? 'draft' : 'completed';
+      }
+      visitRow[25] = liveExistingVisit[25]; // keep original createdAt
       if (visitData.recordHistory === true) {
         recordVisitSnapshot_(ss, visitId, data[existingRowIndex - 1], data[0].map(String), String(visitData.schoolId || 'sch_alsadara_01'), visitData.actorName || visitData.evaluatorName, visitData.actorRole || visitData.evaluatorRole, 'تعديل التقرير');
       }
@@ -1487,6 +1510,7 @@ function dispatchApiAction_(action, payload, session) {
     if (!teacherForVisit) return { success: false, error: 'المعلم المحدد غير موجود ضمن المدرسة.' };
     payload.schoolId = schoolId;
     payload.actorName = session.name;
+    payload.actorId = session.id;
     payload.actorRole = session.role;
     if (existingVisitForEdit && ['platform_admin', 'school_admin', 'vice_principal'].indexOf(session.role) >= 0) {
       payload.evaluatorId = existingVisitForEdit.evaluatorId;
