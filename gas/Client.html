@@ -251,8 +251,8 @@
       '<div style="margin-top:1rem;"><label for="visit-goal">هدف الزيارة / محور التركيز</label><textarea id="visit-goal" rows="2" maxlength="1000" style="width:100%;padding:.7rem;" placeholder="اكتب الهدف، خصوصًا في الزيارة السريعة المستهدفة"></textarea></div>' +
       '<div style="margin-top:1rem;"><label for="visit-status">حالة التقرير</label><select id="visit-status" style="padding:.7rem;"><option value="draft">مسودة</option><option value="completed">مكتمل</option></select></div>' +
       '<h3 style="margin:1.3rem 0 .6rem;color:#172C40;">بيانات الطلبة والحضور</h3><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">' +
-      '<div><label for="visit-total-students">إجمالي عدد الطلبة</label><input id="visit-total-students" type="number" min="0" max="200" step="1" required style="width:100%;padding:.7rem;"></div>' +
-      '<div><label for="visit-attended-students">عدد الحاضرين</label><input id="visit-attended-students" type="number" min="0" max="200" step="1" required style="width:100%;padding:.7rem;"></div>' +
+      '<div><label for="visit-total-students">إجمالي عدد الطلبة</label><input id="visit-total-students" type="number" min="1" step="1" required style="width:100%;padding:.7rem;"></div>' +
+      '<div><label for="visit-attended-students">عدد الحاضرين</label><input id="visit-attended-students" type="number" min="0" step="1" required style="width:100%;padding:.7rem;"></div>' +
       '<div><label for="visit-absent-students">عدد الغائبين</label><input id="visit-absent-students" type="number" min="0" max="200" step="1" readonly style="width:100%;padding:.7rem;background:#F8FAFC;"></div>' +
       '<div><label for="visit-student-gender">نوع الطلبة</label><select id="visit-student-gender" required style="width:100%;padding:.7rem;"><option value="boys">ذكور</option><option value="girls">إناث</option><option value="mixed">مختلط</option></select></div></div>' +
       '<h3 style="margin:1.3rem 0 .6rem;color:#172C40;">بيانات الزائرين</h3><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">' +
@@ -270,6 +270,12 @@
       other.style.display = this.value === 'أخرى' ? 'block' : 'none';
       other.required = this.value === 'أخرى';
     });
+    document.getElementById('visit-type').addEventListener('change', function(){
+      var goal = document.getElementById('visit-goal');
+      goal.required = this.value === 'quick';
+      goal.placeholder = this.value === 'quick' ? 'اكتب الهدف المحدد للزيارة السريعة (إلزامي)' : 'اكتب الهدف أو محور التركيز (اختياري)';
+    });
+    document.getElementById('visit-type').dispatchEvent(new Event('change'));
     document.getElementById('visit-teacher').addEventListener('change', function(){
       var selected = teachers.find(function(t){return String(t.id) === this.value;}, this);
       document.getElementById('visit-teacher-meta').textContent = selected ? 'الرقم الوظيفي: ' + (selected.jobNumber || '—') + ' | التخصص: ' + (selected.specialization || '—') : '';
@@ -330,9 +336,10 @@
       practicalRecommendations: document.getElementById('visit-recommendations').value.trim(),
       domains: []
     };
-    if (!visitData.grade || !visitData.section || !visitData.subject || !visitData.date || !visitData.time) {
-      feedback.textContent = 'أكمل الصف والشعبة والمادة والتاريخ والوقت قبل الحفظ.'; return;
+    if (!visitData.grade || !visitData.section || !visitData.subject || !visitData.date || !visitData.time || !visitData.academicYear || !visitData.term) {
+      feedback.textContent = 'أكمل الصف والشعبة والمادة والتاريخ والوقت والعام الأكاديمي والفصل الدراسي قبل الحفظ.'; return;
     }
+    if (visitData.visitType === 'quick' && !visitData.visitGoal) { feedback.textContent = 'اكتب هدف الزيارة السريعة قبل الحفظ.'; return; }
     if (!Number.isInteger(visitData.totalStudents) || !Number.isInteger(visitData.attendedStudents) ||
         visitData.totalStudents < 0 || visitData.attendedStudents < 0 ||
         visitData.attendedStudents > visitData.totalStudents) {
