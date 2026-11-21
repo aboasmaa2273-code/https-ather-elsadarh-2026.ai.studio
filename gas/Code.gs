@@ -1374,10 +1374,40 @@ function dispatchApiAction_(action, payload, session) {
     var teacher = teacherRows.filter(function(t) { return String(t.id) === String(payload.id) && String(t.schoolId) === String(schoolId); })[0];
     if (!teacher) return { success: false, error: 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
     teacher.status = payload.status === 'active' ? 'active' : 'inactive';
+    // Disabling a teacher also disables linked teacher logins. Reactivation is deliberate.
+    var disabledLinkedTeacherAccounts = 0;
+    if (teacher.status === 'inactive') {
+      var teacherUsersSheet = ss.getSheetByName('Users');
+      if (teacherUsersSheet && teacherUsersSheet.getLastRow() > 1) {
+        var teacherUserData = teacherUsersSheet.getDataRange().getValues();
+        var teacherUserHeaders = teacherUserData[0].map(String);
+        var teacherUserSchoolCol = teacherUserHeaders.indexOf('schoolId');
+        var teacherUserRoleCol = teacherUserHeaders.indexOf('role');
+        var teacherUserIdCol = teacherUserHeaders.indexOf('teacherId');
+        var teacherUserJobCol = teacherUserHeaders.indexOf('jobNumber');
+        var teacherUserStatusCol = teacherUserHeaders.indexOf('status');
+        if ([teacherUserSchoolCol, teacherUserRoleCol, teacherUserStatusCol].some(function(index) { return index < 0; })) {
+          return { success: false, error: 'تعذر التحقق من حساب المعلم المرتبط؛ بنية ورقة الحسابات غير مكتملة. لم يتم تغيير حالة المعلم.' };
+        }
+        for (var tui = 1; tui < teacherUserData.length; tui++) {
+          var teacherUserSchool = String(teacherUserData[tui][teacherUserSchoolCol] || 'sch_alsadara_01');
+          var teacherUserRole = normalizeAtharRole_(teacherUserData[tui][teacherUserRoleCol]);
+          var teacherUserById = teacherUserIdCol >= 0 && String(teacherUserData[tui][teacherUserIdCol] || '') === String(teacher.id);
+          var teacherUserByJob = teacherUserJobCol >= 0 && String(teacher.jobNumber || '') !== '' && String(teacherUserData[tui][teacherUserJobCol] || '') === String(teacher.jobNumber);
+          if (teacherUserSchool !== String(schoolId) || teacherUserRole !== 'teacher' || (!teacherUserById && !teacherUserByJob)) continue;
+          if (String(teacherUserData[tui][teacherUserStatusCol] || '') !== 'inactive') {
+            teacherUsersSheet.getRange(tui + 1, teacherUserStatusCol + 1).setValue('inactive');
+            disabledLinkedTeacherAccounts++;
+          }
+        }
+      }
+    }
     teacher.actorName = session.name;
     teacher.actorRole = session.role;
     var saveTeacherResult = saveTeacher_(teacher);
-    return saveTeacherResult.success ? { success: true, id: teacher.id, status: teacher.status } : saveTeacherResult;
+    if (!saveTeacherResult.success) return saveTeacherResult;
+    if (disabledLinkedTeacherAccounts) logAuditAction(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledLinkedTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + teacher.id, session.role);
+    return { success: true, id: teacher.id, status: teacher.status, disabledAccounts: disabledLinkedTeacherAccounts };
   }
   if (action === 'saveVisit') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تسجيل الزيارة.' };
@@ -1443,6 +1473,7 @@ function dispatchApiAction_(action, payload, session) {
     for (var vi = 1; vi < visitRows.length; vi++) {
       if (String(visitRows[vi][0]) === String(payload.id) && String(visitRows[vi][1]) === String(schoolId)) {
         if (visitStatusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
+        if (String(visitRows[vi][visitStatusCol] || '') === 'archived') return { success: false, error: 'لا يمكن اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
         visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
         logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
         return { success: true, id: payload.id, status: 'approved' };
@@ -1609,7 +1640,9 @@ function dispatchApiAction_(action, payload, session) {
     var selectedPlan = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(p) {
       return String(p.id) === String(payload.planId) && String(p.schoolId) === String(schoolId);
     })[0];
-    if (session.role === 'evaluator' && (!selectedPlan || String(selectedPlan.evaluatorId || '') !== String(session.id))) {
+    if (!selectedPlan) return { success: false, error: 'خطة التطوير غير موجودة في المدرسة.' };
+    if (String(selectedPlan.archiveStatus || '') === 'archived') return { success: false, error: 'لا يمكن تسجيل متابعة لخطة مؤرشفة. استعد الخطة أولاً من الأرشيف.' };
+    if (session.role === 'evaluator' && String(selectedPlan.evaluatorId || '') !== String(session.id)) {
       return { success: false, error: 'يمكنك متابعة خطط التطوير التي أنشأتها فقط.' };
     }
     var followSheet = ss.getSheetByName('PlanFollowUps');
@@ -2220,6 +2253,7 @@ function unapproveVisit_(visitId, session, schoolId) {
   var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
   for (var i = 1; i < data.length; i++) {
     if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+    if (String(data[i][statusCol] || '') === 'archived') return { success: false, error: 'لا يمكن إلغاء اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
     recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'إلغاء اعتماد التقرير');
     sheet.getRange(i + 1, statusCol + 1).setValue('completed');
     if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
