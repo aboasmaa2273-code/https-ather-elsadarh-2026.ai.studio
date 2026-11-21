@@ -97,6 +97,10 @@ export default function App() {
     const normalizedRole = normalizeUserRole(newUser.role);
     const safeUser = normalizedRole ? { ...newUser, role: normalizedRole } : newUser;
     setCurrentUser(safeUser);
+    // Never carry a previously selected teacher/visit across account changes.
+    setSelectedVisitForReport(null);
+    setSelectedTeacherForReport(null);
+    setEditingVisit(null);
     // If switched to teacher, make sure they aren't on admin-only tabs
     if (safeUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
       setActiveTab('dashboard');
@@ -108,6 +112,9 @@ export default function App() {
     clearAtharRemoteSession();
     setIsLoggedIn(false);
     setCurrentUser(DEFAULT_USERS[0]);
+    setSelectedVisitForReport(null);
+    setSelectedTeacherForReport(null);
+    setEditingVisit(null);
     setTeachers([]);
     setVisits([]);
     setPlans([]);
