@@ -431,8 +431,11 @@ export class AtharStorageService {
 
   // Visits Management
   static getVisits(schoolId = 'sch_alsadara_01'): ClassroomVisit[] {
+    const currentUser = this.getCurrentUser();
     return getStored<ClassroomVisit[]>(STORAGE_KEYS.VISITS, DEFAULT_VISITS)
-      .filter(v => !schoolId || v.schoolId === schoolId);
+      .filter(v => (!schoolId || v.schoolId === schoolId) &&
+        (currentUser.role !== 'teacher' ||
+          (!!currentUser.jobNumber && String(v.teacherJobNumber || '').trim() === String(currentUser.jobNumber).trim())));
   }
 
   static getVisitById(id: string): ClassroomVisit | undefined {
@@ -585,8 +588,11 @@ export class AtharStorageService {
 
   // Improvement Plans Management
   static getPlans(schoolId = 'sch_alsadara_01'): ImprovementPlan[] {
+    const currentUser = this.getCurrentUser();
     return getStored<ImprovementPlan[]>(STORAGE_KEYS.PLANS, DEFAULT_PLANS)
-      .filter(p => !schoolId || p.schoolId === schoolId);
+      .filter(p => (!schoolId || p.schoolId === schoolId) &&
+        (currentUser.role !== 'teacher' ||
+          (!!currentUser.jobNumber && String(p.teacherJobNumber || '').trim() === String(currentUser.jobNumber).trim())));
   }
 
   static savePlan(plan: Omit<ImprovementPlan, 'id' | 'createdAt'> & { id?: string }): { success: boolean; plan?: ImprovementPlan; error?: string } {
