@@ -2816,11 +2816,6 @@ function updateUserCredentials_(payload, session) {
   var ss = getDatabaseSpreadsheet_();
   var sheet = ss.getSheetByName('Users');
   if (!sheet || sheet.getLastRow() < 2) return { success: false, error: 'لم يتم العثور على سجل الحساب.' };
-  if (String(payload.password || '')) {
-    var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
-    if (!passwordColumnSetup.success) return passwordColumnSetup;
-  }
-
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { success: false, error: 'توجد عملية أخرى لتحديث الحسابات؛ انتظر قليلًا ثم أعد المحاولة.' };
   var accountSnapshot = null;
@@ -2828,6 +2823,14 @@ function updateUserCredentials_(payload, session) {
   var accountWriteStarted = false;
   var directoryWriteStarted = false;
   try {
+    // Serialize password-column migration with account reads and writes, just
+    // as in saveUserAccount_, so concurrent credential updates cannot race
+    // while extending the Users sheet schema.
+    if (String(payload.password || '')) {
+      var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
+      if (!passwordColumnSetup.success) return passwordColumnSetup;
+    }
+
     // Re-read all account data only after acquiring the lock. This makes the
     // duplicate-username check and the subsequent write one serialized operation.
     var data = sheet.getDataRange().getValues();
