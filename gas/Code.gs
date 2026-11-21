@@ -431,8 +431,9 @@ function ensureVisitExtendedColumns_(sheet) {
 function saveClassroomVisit_(visitData) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { success: false, error: 'هناك عملية حفظ أخرى قيد التنفيذ. حاول مرة أخرى.' };
-  // Snapshot used only to recover an existing visit if a later write fails.
+  // Snapshots used to recover an existing visit or clean up newly staged details.
   var visitSaveRollback = null;
+  var newVisitRollback = null;
   
   try {
     var ss = getDatabaseSpreadsheet_();
@@ -553,6 +554,7 @@ function saveClassroomVisit_(visitData) {
       var seenDetailIds = {};
       for (var dr = 1; dr < detailValues.length; dr++) {
         if (String(detailValues[dr][detailVisitIdCol] || '') !== String(visitId)) continue;
+        existingDetailRowCount++;
         var detailId = String(detailValues[dr][detailIdCol] || '');
         if (!detailId) continue;
         if (seenDetailIds[detailId]) {
@@ -563,6 +565,7 @@ function saveClassroomVisit_(visitData) {
     }
 
     // التحقق هل الزيارة موجودة للتعديل
+    var existingDetailRowCount = 0;
     var data = visitsSheet.getDataRange().getValues();
     var matchingVisitRows = [];
     for (var r = 1; r < data.length; r++) {
@@ -572,6 +575,24 @@ function saveClassroomVisit_(visitData) {
       throw new Error('رقم الزيارة مكرر في سجل الزيارات؛ أوقفنا الحفظ احترازيًا دون تعديل أي سجل.');
     }
     var existingRowIndex = matchingVisitRows.length === 1 ? matchingVisitRows[0] : -1;
+
+    // A new parent must never adopt orphaned detail rows left by an earlier failed attempt.
+    if (existingRowIndex < 0 && existingDetailRowCount > 0) {
+      throw new Error('توجد تفاصيل سابقة تحمل رقم هذا التقرير دون سجل رئيسي؛ أوقفنا الحفظ لحماية البيانات ويستلزم الأمر مراجعة إدارية.');
+    }
+    if (existingRowIndex < 0) {
+      newVisitRollback = {
+        visitId: String(visitId),
+        childSheets: detailSheetsToCheck.filter(function(item) { return !!item.sheet; }).map(function(item) {
+          var headers = item.sheet.getRange(1, 1, 1, item.sheet.getLastColumn()).getValues()[0].map(String);
+          return {
+            sheet: item.sheet,
+            visitIdColumn: headers.indexOf('visitId'),
+            width: item.sheet.getLastColumn()
+          };
+        })
+      };
+    }
 
     // Capture the complete live parent row and all existing child rows before the first
     // mutation. This allows best-effort recovery if replacing an existing visit fails.
@@ -642,12 +663,9 @@ function saveClassroomVisit_(visitData) {
         recordVisitSnapshot_(ss, visitId, data[existingRowIndex - 1], data[0].map(String), String(visitData.schoolId || 'sch_alsadara_01'), visitData.actorName || visitData.evaluatorName, visitData.actorRole || visitData.evaluatorRole, 'تعديل التقرير');
       }
       visitsSheet.getRange(existingRowIndex, 1, 1, visitRow.length).setValues([visitRow]);
-    } else {
-      visitsSheet.appendRow(visitRow);
     }
 
     // Preserve visit details that were previously present only in browser storage.
-    var savedVisitRow = existingRowIndex > 0 ? existingRowIndex : visitsSheet.getLastRow();
     var extendedValues = {
       totalStudents: visitData.totalStudents === undefined ? '' : visitData.totalStudents,
       attendedStudents: visitData.attendedStudents === undefined ? '' : visitData.attendedStudents,
@@ -656,10 +674,12 @@ function saveClassroomVisit_(visitData) {
       visitorRole: visitData.visitorRole || '',
       visitors: JSON.stringify(visitData.visitors || [])
     };
-    Object.keys(extendedValues).forEach(function(header) {
-      var column = extendedColumns.headers.indexOf(header);
-      if (column >= 0) visitsSheet.getRange(savedVisitRow, column + 1).setValue(extendedValues[header]);
-    });
+    if (existingRowIndex > 0) {
+      Object.keys(extendedValues).forEach(function(header) {
+        var column = extendedColumns.headers.indexOf(header);
+        if (column >= 0) visitsSheet.getRange(existingRowIndex, column + 1).setValue(extendedValues[header]);
+      });
+    }
 
     // عند تعديل زيارة موجودة، احذف تفاصيل مؤشرّاتها السابقة أولاً حتى لا تتكرر.
     if (existingRowIndex > 0 && indSheet.getLastRow() > 1) {
@@ -690,6 +710,18 @@ function saveClassroomVisit_(visitData) {
       domainsSheet.getRange(domainsSheet.getLastRow() + 1, 1, domainRows.length, 5).setValues(domainRows);
     }
 
+    // For a new visit, write the parent only after all detail rows are saved.
+    // Include extended fields in the same append so no later write can leave a partial parent.
+    if (existingRowIndex < 0) {
+      var completeNewVisitRow = visitRow.slice();
+      while (completeNewVisitRow.length < extendedColumns.headers.length) completeNewVisitRow.push('');
+      Object.keys(extendedValues).forEach(function(header) {
+        var column = extendedColumns.headers.indexOf(header);
+        if (column >= 0) completeNewVisitRow[column] = extendedValues[header];
+      });
+      visitsSheet.appendRow(completeNewVisitRow);
+    }
+
     // تسجيل العملية في AuditLog
     logAuditAction_(visitData.schoolId || 'sch_alsadara_01', visitData.actorName || visitData.evaluatorName, 'حفظ زيارة صفية', 'حفظ زيارة للمعلم: ' + visitData.teacherName + ' بنسبة إنجاز ' + achPct + '%', visitData.actorRole || visitData.evaluatorRole);
 
@@ -701,6 +733,40 @@ function saveClassroomVisit_(visitData) {
     };
   } catch (err) {
     var rollbackErrors = [];
+    if (newVisitRollback) {
+      // New details were confirmed absent before this attempt. Remove only these
+      // newly staged rows, and only if no parent row was committed.
+      try {
+        var currentVisitRows = visitsSheet.getDataRange().getValues();
+        var committedParentCount = 0;
+        for (var vp = 1; vp < currentVisitRows.length; vp++) {
+          if (String(currentVisitRows[vp][0] || '') === newVisitRollback.visitId) committedParentCount++;
+        }
+        if (committedParentCount === 0) {
+          newVisitRollback.childSheets.forEach(function(snapshot) {
+            var currentLastRow = snapshot.sheet.getLastRow();
+            if (currentLastRow < 2) return;
+            var rowsNow = snapshot.sheet.getRange(2, 1, currentLastRow - 1, snapshot.sheet.getLastColumn()).getValues();
+            for (var nr = rowsNow.length - 1; nr >= 0; nr--) {
+              if (String(rowsNow[nr][snapshot.visitIdColumn] || '') === newVisitRollback.visitId) {
+                snapshot.sheet.deleteRow(nr + 2);
+              }
+            }
+          });
+        } else {
+          rollbackErrors.push('تعذر الجزم بنتيجة إضافة السجل الرئيسي؛ تُركت بيانات الإنشاء كما هي للمراجعة ولم تُحذف.');
+        }
+      } catch (newVisitCleanupError) {
+        rollbackErrors.push('تعذر تنظيف تفاصيل التقرير الجديد بعد فشل الإنشاء: ' + String(newVisitCleanupError));
+      }
+      logAuditAction_(
+        visitData.schoolId || 'sch_alsadara_01',
+        visitData.actorName || visitData.evaluatorName,
+        'تعثر إنشاء تقرير زيارة',
+        'تعثر إنشاء التقرير ' + newVisitRollback.visitId + '. أخطاء التنظيف: ' + rollbackErrors.length,
+        visitData.actorRole || visitData.evaluatorRole
+      );
+    }
     if (visitSaveRollback) {
       // Restore the original parent row first, then replace current child rows
       // with the exact pre-save snapshots. VisitHistory is intentionally retained.
@@ -752,7 +818,9 @@ function saveClassroomVisit_(visitData) {
         ? 'تعذر إكمال حفظ الزيارة، ولم تنجح استعادة جميع البيانات السابقة. يرجى مراجعة التقرير قبل إعادة المحاولة. التفاصيل: ' + err.toString()
         : (visitSaveRollback
             ? 'تعذر إكمال حفظ الزيارة؛ أُعيدت بيانات التقرير وتفاصيله السابقة بقدر الإمكان. ' + err.toString()
-            : 'تعذر إكمال حفظ الزيارة. إذا كان هذا تقريرًا جديدًا وظهرت بياناته في القائمة، فيرجى مراجعته قبل إعادة المحاولة. ' + err.toString()),
+            : (newVisitRollback
+                ? 'تعذر إنشاء تقرير الزيارة؛ نُظفت التفاصيل الجديدة التي لم يرتبط بها سجل رئيسي، أو تُركت للمراجعة إذا تعذر التحقق من نتيجة الإضافة. ' + err.toString()
+                : 'تعذر إكمال حفظ الزيارة. ' + err.toString())),
       rollbackIncomplete: rollbackErrors.length > 0
     };
   } finally {
