@@ -1061,11 +1061,15 @@ function validateSession_(token) {
     // immediately instead of leaving an otherwise valid signed token usable.
     var liveUsersSheet = getDatabaseSpreadsheet_().getSheetByName('Users');
     var liveUsers = rowsAsObjects_(liveUsersSheet);
-    var liveAccount = liveUsers.filter(function(account) {
+    var matchingLiveAccounts = liveUsers.filter(function(account) {
       return String(account.id || '') === String(user.id) &&
         String(account.schoolId || 'sch_alsadara_01') === String(user.schoolId);
-    })[0];
-    if (!liveAccount || normalizeAtharStatus_(liveAccount.status) !== 'active') return null;
+    });
+    // Fail closed if duplicate account IDs exist in the same school. Selecting
+    // the first matching row could authenticate an ambiguous or stale identity.
+    if (matchingLiveAccounts.length !== 1) return null;
+    var liveAccount = matchingLiveAccounts[0];
+    if (normalizeAtharStatus_(liveAccount.status) !== 'active') return null;
     if (normalizeAtharRole_(liveAccount.role) !== user.role) return null;
     // A teacher session is bound to the current employee identity, not merely the
     // account ID. Re-linking an account or deactivating its teacher record invalidates
