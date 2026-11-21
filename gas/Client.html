@@ -276,8 +276,8 @@
       visitGoal: document.getElementById('visit-goal').value.trim(),
       status: document.getElementById('visit-status').value,
       indicators: indicators,
-      strengths: document.getElementById('visit-strengths').value.split(/\\r?\\n/).map(function(x){return x.trim();}).filter(Boolean),
-      improvementAreas: document.getElementById('visit-improvements').value.split(/\\r?\\n/).map(function(x){return x.trim();}).filter(Boolean),
+      strengths: document.getElementById('visit-strengths').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
+      improvementAreas: document.getElementById('visit-improvements').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
       practicalRecommendations: document.getElementById('visit-recommendations').value.trim(),
       domains: []
     };
