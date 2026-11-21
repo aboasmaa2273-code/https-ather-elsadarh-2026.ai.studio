@@ -272,8 +272,8 @@ export default function App() {
         {isLoggedIn && activeTab === 'reports' && (
           <ReportsView
             visits={currentUser.role === 'teacher' ? visits.filter(v => v.teacherJobNumber === currentUser.jobNumber || v.teacherName === currentUser.name) : visits}
-            teachers={teachers}
-            plans={plans}
+            teachers={currentUser.role === 'teacher' ? teachers.filter(t => t.jobNumber === currentUser.jobNumber || t.fullName === currentUser.name) : teachers}
+            plans={currentUser.role === 'teacher' ? plans.filter(p => p.teacherJobNumber === currentUser.jobNumber || p.teacherName === currentUser.name) : plans}
             platformSettings={platformSettings}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
             onOpenTeacherReport={(t) => {
