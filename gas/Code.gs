@@ -2109,114 +2109,152 @@ function saveUserAccount_(payload, session) {
     var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
     if (!passwordColumnSetup.success) return passwordColumnSetup;
   }
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(function(value) { return String(value).trim(); });
-  var idCol = headers.indexOf('id');
-  var schoolCol = headers.indexOf('schoolId');
-  var usernameCol = headers.indexOf('username');
-  if (idCol < 0 || schoolCol < 0 || usernameCol < 0) return { success: false, error: 'بنية ورقة الحسابات غير مكتملة؛ لم يتم حفظ أي تغيير.' };
 
-  var requestedId = String(payload.id || '').trim();
-  var rowIndex = -1;
-  if (requestedId) {
-    for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol] || '') === requestedId) { rowIndex = i + 1; break; }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { success: false, error: 'توجد عملية أخرى لإدارة الحسابات؛ انتظر قليلًا ثم أعد المحاولة.' };
+  var existingSnapshot = null;
+  var existingWriteStarted = false;
+  var newAccountRow = -1;
+  try {
+    // Read and validate under the same lock as the write to prevent duplicate usernames.
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0].map(function(value) { return String(value).trim(); });
+    var idCol = headers.indexOf('id');
+    var schoolCol = headers.indexOf('schoolId');
+    var usernameCol = headers.indexOf('username');
+    if (idCol < 0 || schoolCol < 0 || usernameCol < 0) return { success: false, error: 'بنية ورقة الحسابات غير مكتملة؛ لم يتم حفظ أي تغيير.' };
+
+    var requestedId = String(payload.id || '').trim();
+    var rowIndex = -1;
+    if (requestedId) {
+      for (var i = 1; i < data.length; i++) {
+        if (String(data[i][idCol] || '') === requestedId) { rowIndex = i + 1; break; }
+      }
+      if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود؛ لم يتم حفظ أي تغيير.' };
     }
-    if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود؛ لم يتم حفظ أي تغيير.' };
-  }
 
-  var existingRow = rowIndex > 0 ? data[rowIndex - 1].slice() : null;
-  var existing = {};
-  if (existingRow) headers.forEach(function(header, index) { existing[header] = existingRow[index]; });
-  var existingSchoolId = existingRow ? String(existing.schoolId || 'sch_alsadara_01') : '';
-  if (existingRow && existingSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') {
-    return { success: false, error: 'لا يمكن تعديل حساب تابع لمدرسة أخرى.' };
-  }
-  // Protected administrator accounts are managed through the dedicated account
-  // credentials/status flows, never through the evaluator-directory save endpoint.
-  if (existingRow) {
-    var protectedTargetRole = normalizeAtharRole_(existing.role);
-    if (['platform_admin', 'school_admin'].indexOf(protectedTargetRole) >= 0) {
-      return { success: false, error: 'لا يمكن تعديل حساب مسؤول المنصة أو مسؤول المدرسة من خلال دليل المقيمين.' };
+    var existingRow = rowIndex > 0 ? data[rowIndex - 1].slice() : null;
+    var existing = {};
+    if (existingRow) headers.forEach(function(header, index) { existing[header] = existingRow[index]; });
+    var existingSchoolId = existingRow ? String(existing.schoolId || 'sch_alsadara_01') : '';
+    if (existingRow && existingSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') {
+      return { success: false, error: 'لا يمكن تعديل حساب تابع لمدرسة أخرى.' };
     }
+    if (existingRow) {
+      var protectedTargetRole = normalizeAtharRole_(existing.role);
+      if (['platform_admin', 'school_admin'].indexOf(protectedTargetRole) >= 0) {
+        return { success: false, error: 'لا يمكن تعديل حساب مسؤول المنصة أو مسؤول المدرسة من خلال دليل المقيمين.' };
+      }
+    }
+
+    var username = String(payload.username || '').trim().toLowerCase();
+    var name = String(payload.name || '').trim();
+    var role = normalizeAtharRole_(payload.role || (existing.role || 'evaluator'));
+    var allowedRoles = session.role === 'platform_admin'
+      ? ['school_admin', 'vice_principal', 'evaluator', 'teacher']
+      : ['vice_principal', 'evaluator', 'teacher'];
+    if (!name || !username) return { success: false, error: 'الاسم واسم المستخدم مطلوبان.' };
+    if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) return { success: false, error: 'اسم المستخدم يجب أن يتكون من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا أو . _ -' };
+    if (allowedRoles.indexOf(role) < 0) return { success: false, error: 'الدور المطلوب غير مسموح لهذا الحساب الإداري.' };
+    if (data.slice(1).some(function(accountRow) {
+      return String(accountRow[idCol] || '') !== String(requestedId || '') &&
+        String(accountRow[usernameCol] || '').trim().toLowerCase() === username;
+    })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
+
+    var password = String(payload.password || '');
+    if (!existingRow && password.length < 10) return { success: false, error: 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.' };
+    if (password && password.length < 10) return { success: false, error: 'كلمة المرور يجب ألا تقل عن 10 أحرف.' };
+    var saltCol = headers.indexOf('passwordSalt');
+    var hashCol = headers.indexOf('passwordHash');
+    if (password && (saltCol < 0 || hashCol < 0)) {
+      return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة؛ لم يتم حفظ أي تغيير.' };
+    }
+
+    var id = requestedId || Utilities.getUuid();
+    var schoolId = existingRow ? existingSchoolId : String(session.schoolId || payload.schoolId || 'sch_alsadara_01');
+    var obj = {
+      id: id,
+      schoolId: schoolId,
+      name: name,
+      email: String(payload.email !== undefined ? payload.email : (existing.email || '')),
+      role: role,
+      jobNumber: String(payload.jobNumber !== undefined ? payload.jobNumber : (existing.jobNumber || '')),
+      specialization: String(payload.specialization !== undefined ? payload.specialization : (existing.specialization || '')),
+      status: normalizeAtharStatus_(payload.status !== undefined ? payload.status : (existing.status || 'active')),
+      createdAt: existingRow ? (existing.createdAt || new Date().toISOString()) : new Date().toISOString(),
+      username: username,
+      teacherId: String(payload.teacherId !== undefined ? payload.teacherId : (existing.teacherId || ''))
+    };
+
+    if (role === 'teacher' && obj.status === 'active') {
+      var teacherResolutionForSave = resolveActiveTeacherAccount_(ss, schoolId, obj.teacherId, obj.jobNumber);
+      if (!teacherResolutionForSave.success) return { success: false, error: teacherResolutionForSave.error };
+      obj.teacherId = String(teacherResolutionForSave.teacher.id || '');
+    }
+
+    // Preserve all legacy and future columns. Include the new password hash in
+    // this same row write so identity and credential changes cannot split apart.
+    var row = existingRow || headers.map(function() { return ''; });
+    Object.keys(obj).forEach(function(key) {
+      var column = headers.indexOf(key);
+      if (column >= 0) row[column] = obj[key];
+    });
+    if (payload.roleTitle !== undefined && headers.indexOf('roleTitle') >= 0) row[headers.indexOf('roleTitle')] = String(payload.roleTitle || '');
+    if (payload.department !== undefined && headers.indexOf('department') >= 0) row[headers.indexOf('department')] = String(payload.department || '');
+    if (password) {
+      var newSalt = Utilities.getUuid() + Utilities.getUuid();
+      row[saltCol] = newSalt;
+      row[hashCol] = passwordHash_(password, newSalt);
+    }
+
+    if (rowIndex > 0) {
+      existingSnapshot = { row: rowIndex, before: existingRow.slice() };
+      existingWriteStarted = true;
+      sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
+    } else {
+      sheet.appendRow(row);
+      newAccountRow = sheet.getLastRow();
+    }
+
+    invalidatePublicEvaluatorCache_();
+    logAuditAction(schoolId, session.name, existingRow ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')', session.role);
+    return { success: true, user: {
+      id: id, schoolId: schoolId, name: name, username: username, email: obj.email,
+      role: role, jobNumber: obj.jobNumber, specialization: obj.specialization,
+      status: obj.status, teacherId: obj.teacherId
+    } };
+  } catch (saveAccountError) {
+    var rollbackErrors = [];
+    if (existingWriteStarted && existingSnapshot) {
+      try {
+        sheet.getRange(existingSnapshot.row, 1, 1, existingSnapshot.before.length).setValues([existingSnapshot.before]);
+      } catch (accountRollbackError) {
+        rollbackErrors.push(String(accountRollbackError));
+      }
+    }
+    // Never physically delete an account row. If a new row was appended but
+    // the operation still failed, leave it retained and inactive.
+    if (newAccountRow > 0) {
+      try {
+        var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
+        var currentStatusCol = currentHeaders.indexOf('status');
+        if (currentStatusCol >= 0) sheet.getRange(newAccountRow, currentStatusCol + 1).setValue('inactive');
+        else rollbackErrors.push('تعذر تحديد عمود حالة الحساب الجديد.');
+      } catch (newAccountRollbackError) {
+        rollbackErrors.push(String(newAccountRollbackError));
+      }
+    }
+    invalidatePublicEvaluatorCache_();
+    return {
+      success: false,
+      error: rollbackErrors.length
+        ? 'تعذر حفظ الحساب، وفشلت استعادة بعض القيم تلقائيًا. راجع سجل الحسابات قبل إعادة المحاولة.'
+        : 'تعذر حفظ الحساب؛ أُعيدت بيانات الحساب السابق أو عُطّل السجل الجديد احترازيًا.',
+      rollbackIncomplete: rollbackErrors.length > 0
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (releaseError) {}
   }
-
-  var username = String(payload.username || '').trim().toLowerCase();
-  var name = String(payload.name || '').trim();
-  var role = normalizeAtharRole_(payload.role || (existing.role || 'evaluator'));
-  var allowedRoles = session.role === 'platform_admin'
-    ? ['school_admin', 'vice_principal', 'evaluator', 'teacher']
-    : ['vice_principal', 'evaluator', 'teacher'];
-  if (!name || !username) return { success: false, error: 'الاسم واسم المستخدم مطلوبان.' };
-  if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) return { success: false, error: 'اسم المستخدم يجب أن يتكون من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا أو . _ -' };
-  if (allowedRoles.indexOf(role) < 0) return { success: false, error: 'الدور المطلوب غير مسموح لهذا الحساب الإداري.' };
-  if (data.slice(1).some(function(row, index) {
-    return String(row[idCol] || '') !== String(requestedId || '') &&
-      String(row[usernameCol] || '').trim().toLowerCase() === username;
-  })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
-
-  var password = String(payload.password || '');
-  if (!existingRow && password.length < 10) return { success: false, error: 'كلمة المرور الأولية يجب ألا تقل عن 10 أحرف.' };
-  if (password && password.length < 10) return { success: false, error: 'كلمة المرور يجب ألا تقل عن 10 أحرف.' };
-  var saltCol = headers.indexOf('passwordSalt');
-  var hashCol = headers.indexOf('passwordHash');
-  if (password && (saltCol < 0 || hashCol < 0)) {
-    return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة؛ لم يتم حفظ أي تغيير.' };
-  }
-
-  var id = requestedId || Utilities.getUuid();
-  var schoolId = existingRow ? existingSchoolId : String(session.schoolId || payload.schoolId || 'sch_alsadara_01');
-  var obj = {
-    id: id,
-    schoolId: schoolId,
-    name: name,
-    email: String(payload.email !== undefined ? payload.email : (existing.email || '')),
-    role: role,
-    jobNumber: String(payload.jobNumber !== undefined ? payload.jobNumber : (existing.jobNumber || '')),
-    specialization: String(payload.specialization !== undefined ? payload.specialization : (existing.specialization || '')),
-    status: normalizeAtharStatus_(payload.status !== undefined ? payload.status : (existing.status || 'active')),
-    createdAt: existingRow ? (existing.createdAt || new Date().toISOString()) : new Date().toISOString(),
-    username: username,
-    teacherId: String(payload.teacherId !== undefined ? payload.teacherId : (existing.teacherId || ''))
-  };
-
-  // Active teacher accounts must resolve to exactly one active teacher record.
-  if (role === 'teacher' && obj.status === 'active') {
-    var teacherResolutionForSave = resolveActiveTeacherAccount_(ss, schoolId, obj.teacherId, obj.jobNumber);
-    if (!teacherResolutionForSave.success) return { success: false, error: teacherResolutionForSave.error };
-    obj.teacherId = String(teacherResolutionForSave.teacher.id || '');
-  }
-
-  // Preserve every existing column not explicitly edited, especially password hashes,
-  // legacy identity fields and any future metadata columns.
-  var row = existingRow || headers.map(function() { return ''; });
-  Object.keys(obj).forEach(function(key) {
-    var column = headers.indexOf(key);
-    if (column >= 0) row[column] = obj[key];
-  });
-  if (payload.roleTitle !== undefined && headers.indexOf('roleTitle') >= 0) row[headers.indexOf('roleTitle')] = String(payload.roleTitle || '');
-  if (payload.department !== undefined && headers.indexOf('department') >= 0) row[headers.indexOf('department')] = String(payload.department || '');
-
-  if (rowIndex > 0) {
-    sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
-  } else {
-    sheet.appendRow(row);
-    rowIndex = sheet.getLastRow();
-  }
-
-  if (password) {
-    var salt = Utilities.getUuid() + Utilities.getUuid();
-    sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
-    sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
-  }
-
-  invalidatePublicEvaluatorCache_();
-  logAuditAction(schoolId, session.name, existingRow ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')', session.role);
-  return { success: true, user: {
-    id: id, schoolId: schoolId, name: name, username: username, email: obj.email,
-    role: role, jobNumber: obj.jobNumber, specialization: obj.specialization,
-    status: obj.status, teacherId: obj.teacherId
-  } };
 }
 
 function setUserStatus_(payload, session) {
