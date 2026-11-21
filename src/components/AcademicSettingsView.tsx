@@ -1,4 +1,4 @@
-import React, { useState } from 'react';
+import React, { useRef, useState } from 'react';
 import { AcademicSettings, User, normalizeUserRole } from '../types';
 import { saveAcademicSettingsCentral } from '../services/centralDataService';
 import { 
@@ -44,6 +44,8 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
 
   const [saveSuccess, setSaveSuccess] = useState(false);
   const [saveError, setSaveError] = useState('');
+  const [isSaving, setIsSaving] = useState(false);
+  const isSavingRef = useRef(false);
 
   const t = translations[language];
   const isEn = language === 'en';
@@ -51,6 +53,9 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
   const canEdit = currentRole === 'platform_admin' || currentRole === 'school_admin';
 
   const persistSettings = async (updated: AcademicSettings) => {
+    if (!canEdit || isSavingRef.current) return;
+    isSavingRef.current = true;
+    setIsSaving(true);
     setSaveError('');
     try {
       await saveAcademicSettingsCentral(updated);
@@ -59,11 +64,14 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
       setTimeout(() => setSaveSuccess(false), 2500);
     } catch (error) {
       setSaveError(error instanceof Error ? error.message : (isEn ? 'Error occurred while saving settings.' : 'حدث خطأ أثناء حفظ الإعدادات.'));
+    } finally {
+      isSavingRef.current = false;
+      setIsSaving(false);
     }
   };
 
   const handleAddGrade = () => {
-    if (!canEdit) return;
+    if (!canEdit || isSavingRef.current) return;
     const trimmed = newGrade.trim();
     if (trimmed && !grades.includes(trimmed)) {
       const updatedGrades = [...grades, trimmed];
@@ -221,7 +229,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
                 max={15}
                 value={sectionsCount}
                 onChange={(e) => setSectionsCount(parseInt(e.target.value) || 1)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSaving}
                 className="w-28 px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold text-center"
               />
               <span className="text-slate-500 text-[11px]">{isEn ? 'sections per grade' : 'شعب لكل صف دراسي'}</span>
@@ -253,12 +261,12 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
               placeholder={isEn ? 'Add new grade...' : 'إضافة صف جديد...'}
               value={newGrade}
               onChange={(e) => setNewGrade(e.target.value)}
-              disabled={!canEdit}
+              disabled={!canEdit || isSaving}
               className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg"
             />
             <button
               onClick={handleAddGrade}
-              disabled={!canEdit}
+              disabled={!canEdit || isSaving}
               className="px-3 py-1.5 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer"
             >
               {isEn ? 'Add' : 'إضافة'}
@@ -297,12 +305,12 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
               placeholder={isEn ? 'Add new subject...' : 'إضافة مادة دراسية جديدة...'}
               value={newSubject}
               onChange={(e) => setNewSubject(e.target.value)}
-              disabled={!canEdit}
+              disabled={!canEdit || isSaving}
               className="flex-1 px-3 py-1.5 border border-slate-300 rounded-lg"
             />
             <button
               onClick={handleAddSubject}
-              disabled={!canEdit}
+              disabled={!canEdit || isSaving}
               className="px-3 py-1.5 bg-[#172C40] text-white rounded-lg font-bold hover:bg-[#101F2D] cursor-pointer"
             >
               {isEn ? 'Add' : 'إضافة'}
@@ -340,7 +348,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
             <select
               value={currentYear}
               onChange={(e) => setCurrentYear(e.target.value)}
-              disabled={!canEdit}
+              disabled={!canEdit || isSaving}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono font-bold cursor-pointer"
             >
               {academicYears.map(y => (
@@ -354,7 +362,7 @@ export const AcademicSettingsView: React.FC<AcademicSettingsViewProps> = ({
             <select
               value={currentTerm}
               onChange={(e) => setCurrentTerm(e.target.value)}
-              disabled={!canEdit}
+              disabled={!canEdit || isSaving}
               className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold cursor-pointer"
             >
               {terms.map(tm => (
