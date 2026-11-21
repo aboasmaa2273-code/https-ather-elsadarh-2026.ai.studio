@@ -2180,10 +2180,16 @@ function saveUserAccount_(payload, session) {
     var requestedId = String(payload.id || '').trim();
     var rowIndex = -1;
     if (requestedId) {
+      var matchingAccountRows = [];
       for (var i = 1; i < data.length; i++) {
-        if (String(data[i][idCol] || '') === requestedId) { rowIndex = i + 1; break; }
+        if (String(data[i][idCol] || '') === requestedId) matchingAccountRows.push(i + 1);
       }
-      if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود؛ لم يتم حفظ أي تغيير.' };
+      if (matchingAccountRows.length !== 1) {
+        return { success: false, error: matchingAccountRows.length
+          ? 'معرّف الحساب مكرر؛ أوقفنا التعديل احترازيًا دون تغيير البيانات.'
+          : 'الحساب المطلوب غير موجود؛ لم يتم حفظ أي تغيير.' };
+      }
+      rowIndex = matchingAccountRows[0];
     }
 
     var existingRow = rowIndex > 0 ? data[rowIndex - 1].slice() : null;
@@ -2355,6 +2361,16 @@ function setUserStatus_(payload, session) {
       return { success: false, error: 'بنية ورقة الحسابات غير مكتملة؛ لم يتم تغيير أي بيانات.' };
     }
 
+    var matchingStatusRows = [];
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) === id) matchingStatusRows.push(i + 1);
+    }
+    if (matchingStatusRows.length !== 1) {
+      return { success: false, error: matchingStatusRows.length
+        ? 'معرّف الحساب مكرر؛ لم نغيّر حالة أي سجل.'
+        : 'الحساب غير موجود.' };
+    }
+
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][idCol]) !== id) continue;
       var row = data[i].slice();
@@ -2444,15 +2460,19 @@ function updateUserCredentials_(payload, session) {
       return { success: false, error: 'بنية ورقة الحسابات غير مكتملة.' };
     }
 
-    var rowIndex = -1;
+    var matchingTargetRows = [];
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][idCol]) !== targetId) continue;
       var rowSchoolId = String(data[i][schoolCol] || 'sch_alsadara_01');
       if (rowSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') continue;
-      rowIndex = i + 1;
-      break;
+      matchingTargetRows.push(i + 1);
     }
-    if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود أو لا تملك صلاحية تعديله.' };
+    if (matchingTargetRows.length !== 1) {
+      return { success: false, error: matchingTargetRows.length
+        ? 'معرّف الحساب مكرر؛ أوقفنا التحديث احترازيًا دون تغيير البيانات.'
+        : 'الحساب المطلوب غير موجود أو لا تملك صلاحية تعديله.' };
+    }
+    var rowIndex = matchingTargetRows[0];
 
     var row = data[rowIndex - 1].slice();
     var previousUsername = String(row[usernameCol] || '').trim().toLowerCase();
