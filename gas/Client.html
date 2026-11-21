@@ -16,17 +16,41 @@
     document.getElementById('loading-spinner').style.display = 'none';
     var nav = document.querySelector('.athar-nav');
     if (nav) nav.style.display = 'none';
-    showLogin();
+    showPublicHome();
   });
+
+
+  function showPublicHome() {
+    var viewport = document.getElementById('tab-viewport');
+    if (!viewport) return;
+    var nav = document.querySelector('.athar-nav');
+    if (nav) nav.style.display = 'none';
+    document.getElementById('user-display').textContent = 'زائر';
+    viewport.innerHTML =
+      '<div class="public-home"><section class="hero-panel">' +
+      '<div><div class="hero-kickers"><span class="hero-kicker">دولة الإمارات العربية المتحدة · وزارة التربية والتعليم</span><span class="hero-kicker">العام الأكاديمي 2026–2027</span></div>' +
+      '<h1 class="hero-title">أهلاً ومرحباً بكم في منصة <span>«أَثَر»</span></h1><p class="hero-subtitle">منظومة التميز والتطوير التعليمي</p>' +
+      '<p class="hero-school">مدرسة الصدارة بنين - الحلقة الثانية</p>' +
+      '<div class="hero-message"><strong>✦ نَرْصُدُ الأَدَاءَ... وَنَصْنَعُ الأَثَرَ</strong><p>منظومة مهنية لمشاهدة الممارسات الصفية، ورصد مؤشرات الأداء، وتوثيق الزيارات، ومتابعة خطط التطوير المهني.</p></div>' +
+      '<div class="hero-actions"><button class="hero-login" id="home-login">تسجيل الدخول للبدء ←</button><button class="hero-secondary" id="home-about">التعرّف إلى المنظومة</button></div></div>' +
+      '<div class="hero-image-wrap"><img class="hero-image" src="https://raw.githubusercontent.com/aboasmaa2273-code/https-ather-elsadarh-2026.ai.studio/main/src/assets/images/athar_hero_command_center.jfif" alt="وحدة المشاهدة والتقييم الصفي المباشر" onerror="this.style.display=\'none\';this.parentNode.style.background=\'#172C40\';">' +
+      '<div class="hero-image-caption"><strong>وحدة المشاهدة والتقييم الصفي المباشر</strong><span>رصد الممارسات الصفية وقياس نسب الإنجاز للمؤشرات وتوثيق خطط التطوير المهني.</span></div></div></section>' +
+      '<section class="home-features"><article class="home-feature"><b>المشاهدة والتقييم الصفي</b><p>توثيق الزيارات الكاملة والزيارات السريعة وفق مؤشرات الأداء المعتمدة.</p></article>' +
+      '<article class="home-feature"><b>متابعة الأداء والتقدم</b><p>لوحات متابعة وتقارير تساعد على قراءة النتائج وتحديد فرص التحسين.</p></article>' +
+      '<article class="home-feature"><b>خطط التطوير المهني</b><p>تحويل الملاحظات الصفية إلى إجراءات تطوير واضحة قابلة للمتابعة.</p></article></section></div>';
+    document.getElementById('home-login').addEventListener('click', function(){ showLogin(); });
+    document.getElementById('home-about').addEventListener('click', function(){ document.querySelector('.home-features').scrollIntoView({behavior:'smooth'}); });
+  }
 
   function showLogin(message) {
     var viewport = document.getElementById('tab-viewport');
     if (!viewport) return;
     viewport.innerHTML =
-      '<section class="table-box" style="max-width:480px;margin:2rem auto;padding:2rem;">' +
+      '<section class="login-card">' +
         '<h2 style="margin-bottom:.5rem;color:#172C40;">تسجيل الدخول إلى أَثَر</h2>' +
         '<p style="margin-bottom:1.25rem;color:#64748B;">أدخل اسم المستخدم وكلمة المرور المعتمدين.</p>' +
         (message ? '<p role="alert" style="color:#B91C1C;margin-bottom:1rem;">'+escapeHtml(message)+'</p>' : '') +
+        '<button type="button" id="back-to-home" class="hero-secondary" style="margin-bottom:1rem;color:#172C40;border-color:#CBD5E1;background:#F8FAFC;">العودة إلى الصفحة الرئيسية</button>' +
         '<form id="athar-login-form">' +
           '<label for="athar-username">اسم المستخدم</label>' +
           '<input id="athar-username" name="username" autocomplete="username" required style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
@@ -37,6 +61,7 @@
         '</form>' +
       '</section>';
     document.getElementById('athar-login-form').addEventListener('submit', submitAtharLogin);
+    document.getElementById('back-to-home').addEventListener('click', showPublicHome);
   }
 
   function submitAtharLogin(event) {
@@ -102,7 +127,7 @@
     var nav = document.querySelector('.athar-nav');
     if (nav) nav.style.display = 'none';
     document.getElementById('user-display').textContent = 'لم يتم تسجيل الدخول';
-    showLogin('تم تسجيل الخروج.');
+    showPublicHome();
   }
 
   function switchGasTab(tabId) {
