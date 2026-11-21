@@ -1971,7 +1971,7 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'archiveVisit') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'أرشفة التقارير مقتصرة على الإدارة المخولة.' };
-    return archiveVisit_(payload.id, session, schoolId);
+    return archiveVisits_([payload.id], session, schoolId);
   }
   if (action === 'unapproveVisit') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'إلغاء اعتماد التقارير مقتصر على الإدارة المخولة.' };
@@ -1979,7 +1979,7 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'restoreVisit') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'استعادة التقارير المؤرشفة مقتصرة على الإدارة المخولة.' };
-    return restoreVisit_(payload.id, session, schoolId);
+    return restoreVisits_([payload.id], session, schoolId);
   }
   if (action === 'archiveVisits') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'أرشفة التقارير مقتصرة على الإدارة المخولة.' };
