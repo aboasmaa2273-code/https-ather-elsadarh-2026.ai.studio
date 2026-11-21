@@ -1944,18 +1944,28 @@ function dispatchApiAction_(action, payload, session) {
   if (action === 'logWhatsAppOpen') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية تسجيل مراسلة المعلم.' };
     var waVisitId = String(payload.id || '').trim();
-    var waVisit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+    var matchingWaVisits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
       return String(v.id) === waVisitId && String(v.schoolId) === String(schoolId);
-    })[0];
-    if (!waVisit) return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+    });
+    if (matchingWaVisits.length !== 1) {
+      return { success: false, error: matchingWaVisits.length > 1
+        ? 'رقم الزيارة مكرر؛ أوقفنا تسجيل المراسلة احترازيًا.'
+        : 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+    }
+    var waVisit = matchingWaVisits[0];
     if (String(waVisit.status || '') === 'archived') return { success: false, error: 'لا يمكن مراسلة المعلم بشأن تقرير مؤرشف.' };
     if (session.role === 'evaluator' && String(waVisit.evaluatorId || '') !== String(session.id)) {
       return { success: false, error: 'يمكنك مراسلة المعلم بشأن الزيارات التي أجريتها فقط.' };
     }
-    var waTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+    var matchingWaTeachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
       return String(t.id) === String(waVisit.teacherId) && String(t.schoolId) === String(schoolId);
-    })[0];
-    if (!waTeacher) return { success: false, error: 'المعلم المرتبط بالزيارة غير موجود.' };
+    });
+    if (matchingWaTeachers.length !== 1) {
+      return { success: false, error: matchingWaTeachers.length > 1
+        ? 'معرّف المعلم المرتبط بالزيارة مكرر؛ أوقفنا تسجيل المراسلة احترازيًا.'
+        : 'المعلم المرتبط بالزيارة غير موجود.' };
+    }
+    var waTeacher = matchingWaTeachers[0];
     var waType = String(payload.messageType || 'رسالة').substring(0, 40);
     logAuditAction(schoolId, session.name, 'فتح واتساب للمعلم', 'تم فتح محادثة واتساب للمعلم ' + String(waTeacher.fullName || waVisit.teacherName || '') + ' بشأن الزيارة ' + waVisitId + ' (' + waType + '). لا يؤكد هذا السجل إرسال الرسالة.', session.role);
     return { success: true, status: 'opened', message: 'تم تسجيل فتح محادثة واتساب فقط؛ لا يمكن للمنصة التحقق من إرسال الرسالة.' };
@@ -1968,15 +1978,25 @@ function dispatchApiAction_(action, payload, session) {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
     var ownershipMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
     if (!ownershipMigration.success) return ownershipMigration;
-    var planTeacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+    var matchingPlanTeachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
       return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
-    })[0];
-    if (!planTeacher) return { success: false, error: 'المعلم المحدد غير موجود ضمن المدرسة.' };
+    });
+    if (matchingPlanTeachers.length !== 1) {
+      return { success: false, error: matchingPlanTeachers.length > 1
+        ? 'معرّف المعلم مكرر داخل المدرسة؛ أوقفنا حفظ خطة التطوير احترازيًا.'
+        : 'المعلم المحدد غير موجود ضمن المدرسة.' };
+    }
+    var planTeacher = matchingPlanTeachers[0];
     var requestedPlanId = String(payload.id || '').trim();
-    var existingPlan = requestedPlanId ? rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(p) {
+    var matchingPlans = requestedPlanId ? rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(p) {
       return String(p.id) === requestedPlanId && String(p.schoolId) === String(schoolId);
-    })[0] : null;
-    if (requestedPlanId && !existingPlan) return { success: false, error: 'خطة التطوير غير موجودة أو لا تتبع المدرسة.' };
+    }) : [];
+    if (requestedPlanId && matchingPlans.length !== 1) {
+      return { success: false, error: matchingPlans.length > 1
+        ? 'معرّف خطة التطوير مكرر؛ أوقفنا التعديل احترازيًا دون تغيير أي سجل.'
+        : 'خطة التطوير غير موجودة أو لا تتبع المدرسة.' };
+    }
+    var existingPlan = matchingPlans.length === 1 ? matchingPlans[0] : null;
     if (existingPlan && String(existingPlan.archiveStatus || '') === 'archived') return { success: false, error: 'لا يمكن تعديل خطة مؤرشفة. استعدها أولاً من الأرشيف.' };
     if (session.role === 'evaluator' && existingPlan && String(existingPlan.evaluatorId || '') !== String(session.id)) {
       return { success: false, error: 'يمكنك تعديل خطط التطوير التي أنشأتها فقط.' };
@@ -3537,18 +3557,28 @@ function sendTeacherVisitNotes_(payload, session, schoolId) {
   var notes = String(payload.notes || '').trim().substring(0, 5000);
   if (!visitId || !notes) return { success: false, error: 'اختر الزيارة واكتب الملاحظات المراد إرسالها.' };
   var ss = getDatabaseSpreadsheet_();
-  var visit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+  var matchingVisits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
     return String(v.id) === visitId && String(v.schoolId) === String(schoolId);
-  })[0];
-  if (!visit) return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+  });
+  if (matchingVisits.length !== 1) {
+    return { success: false, error: matchingVisits.length > 1
+      ? 'رقم الزيارة مكرر؛ أوقفنا إرسال الملاحظات احترازيًا دون إرسال أي رسالة.'
+      : 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+  }
+  var visit = matchingVisits[0];
   if (String(visit.status || '') === 'archived') return { success: false, error: 'لا يمكن مراسلة المعلم بشأن تقرير مؤرشف.' };
   if (session.role === 'evaluator' && String(visit.evaluatorId || '') !== String(session.id)) {
     return { success: false, error: 'يمكنك إرسال ملاحظات الزيارات التي أجريتها فقط.' };
   }
-  var teacher = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
+  var matchingTeachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
     return String(t.id) === String(visit.teacherId) && String(t.schoolId) === String(schoolId);
-  })[0];
-  if (!teacher) return { success: false, error: 'تعذر العثور على بيانات المعلم المرتبط بالزيارة.' };
+  });
+  if (matchingTeachers.length !== 1) {
+    return { success: false, error: matchingTeachers.length > 1
+      ? 'معرّف المعلم المرتبط بالزيارة مكرر؛ أوقفنا إرسال الملاحظات لحماية خصوصية البريد.'
+      : 'تعذر العثور على بيانات المعلم المرتبط بالزيارة.' };
+  }
+  var teacher = matchingTeachers[0];
   var recipient = String(teacher.email || '').trim();
   if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(recipient)) return { success: false, error: 'لا يوجد بريد إلكتروني صحيح مسجل لهذا المعلم.' };
   if (MailApp.getRemainingDailyQuota() < 1) return { success: false, error: 'تم بلوغ الحد اليومي المتاح لإرسال البريد. حاول لاحقًا.' };
