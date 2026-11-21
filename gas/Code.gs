@@ -494,6 +494,25 @@ function saveClassroomVisit_(visitData) {
       timestamp
     ];
 
+    // Validate child-sheet availability and required columns before writing the parent visit.
+    if (!Array.isArray(indicators)) throw new Error('بيانات مؤشرات الزيارة غير صالحة؛ أوقفنا الحفظ دون تعديل.');
+    var requestedDomains = visitData.domains === undefined || visitData.domains === null ? [] : visitData.domains;
+    if (!Array.isArray(requestedDomains)) throw new Error('بيانات مجالات الزيارة غير صالحة؛ أوقفنا الحفظ دون تعديل.');
+    var domainsSheet = ss.getSheetByName('VisitDomains');
+    if (requestedDomains.length && !domainsSheet) {
+      throw new Error('ورقة مجالات الزيارة غير موجودة؛ أوقفنا الحفظ حتى لا يُحفظ التقرير دون تقييم المجالات.');
+    }
+    var indicatorHeaders = indSheet.getRange(1, 1, 1, indSheet.getLastColumn()).getValues()[0].map(String);
+    if (['id', 'visitId', 'indicatorId', 'indicatorText', 'group', 'rating', 'notes', 'timestamp'].some(function(name) {
+      return indicatorHeaders.indexOf(name) < 0;
+    })) throw new Error('أعمدة تفاصيل المؤشرات غير مكتملة؛ أوقفنا الحفظ دون تعديل.');
+    if (domainsSheet) {
+      var domainHeaders = domainsSheet.getRange(1, 1, 1, domainsSheet.getLastColumn()).getValues()[0].map(String);
+      if (['id', 'visitId', 'domainId', 'domainName', 'rating'].some(function(name) {
+        return domainHeaders.indexOf(name) < 0;
+      })) throw new Error('أعمدة تقييم المجالات غير مكتملة؛ أوقفنا الحفظ دون تعديل.');
+    }
+
     // Preflight detail-row identity before changing the parent visit or replacing child rows.
     // Ambiguous child IDs make a safe update impossible, so fail closed.
     var detailSheetsToCheck = [
@@ -602,7 +621,6 @@ function saveClassroomVisit_(visitData) {
     }
 
     // حفظ تقييمات المجالات العشرة المرتبطة بالزيارة.
-    var domainsSheet = ss.getSheetByName('VisitDomains');
     if (domainsSheet && existingRowIndex > 0 && domainsSheet.getLastRow() > 1) {
       var oldDomainRows = domainsSheet.getDataRange().getValues();
       for (var di = oldDomainRows.length - 1; di >= 1; di--) if (String(oldDomainRows[di][1]) === String(visitId)) domainsSheet.deleteRow(di + 1);
