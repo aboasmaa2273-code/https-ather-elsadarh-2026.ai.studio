@@ -860,6 +860,7 @@ function apiLogin_(payload) {
     return String(accountRow[usernameCol] || '').trim().toLowerCase() === identifier;
   });
   if (matchingLoginRows.length > 1) {
+    recordFailedLoginAttempt_(identifier);
     return { success: false, error: 'اسم المستخدم مرتبط بأكثر من حساب؛ أوقفنا تسجيل الدخول احترازيًا. راجع مسؤول النظام.' };
   }
 
@@ -923,6 +924,9 @@ function apiLogin_(payload) {
     logAuditAction(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.', user.role);
     return { success: true, token: token, user: user, expiresIn: 21600 };
   }
+  // Count unknown usernames as failed attempts too, so username enumeration
+  // and password guessing against nonexistent accounts share the same throttle.
+  recordFailedLoginAttempt_(identifier);
   return { success: false, error: 'اسم المستخدم غير مسجل ضمن الحسابات المعتمدة.' };
 }
 
