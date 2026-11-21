@@ -1996,7 +1996,9 @@ function setUserStatus_(payload, session) {
   session.role = normalizeAtharRole_(session.role);
   var id = String(payload.id || '').trim();
   if (!id || id === String(session.id)) return { success: false, error: 'لا يمكن تعطيل الحساب الحالي أو أن المعرّف غير صالح.' };
-  var sheet = getDatabaseSpreadsheet_().getSheetByName('Users');
+  var database = getDatabaseSpreadsheet_();
+  if (!database) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
+  var sheet = database.getSheetByName('Users');
   if (!sheet || sheet.getLastRow() < 2) return { success: false, error: 'ورقة الحسابات غير موجودة.' };
   var data = sheet.getDataRange().getValues(), headers = data[0].map(String);
   var schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status'), idCol = headers.indexOf('id');
@@ -2018,7 +2020,7 @@ function setUserStatus_(payload, session) {
       var userJobNumberCol = headers.indexOf('jobNumber');
       var linkedTeacherId = userTeacherIdCol >= 0 ? String(data[i][userTeacherIdCol] || '') : '';
       var linkedTeacherJob = userJobNumberCol >= 0 ? String(data[i][userJobNumberCol] || '') : '';
-      var matchingTeacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(item) {
+      var matchingTeacher = rowsAsObjects_(database.getSheetByName('Teachers')).filter(function(item) {
         return String(item.schoolId) === targetSchool &&
           ((linkedTeacherId && String(item.id) === linkedTeacherId) ||
            (linkedTeacherJob && String(item.jobNumber || '') === linkedTeacherJob));
