@@ -129,10 +129,9 @@ export default function App() {
 
   const isCurrentTeacherRecord = (record: { teacherJobNumber?: string; jobNumber?: string; teacherName?: string; fullName?: string }) => {
     if (currentUser.role !== 'teacher') return true;
-    const recordJobNumber = record.teacherJobNumber || record.jobNumber || '';
-    if (currentUser.jobNumber) return recordJobNumber === currentUser.jobNumber;
-    const recordName = record.teacherName || record.fullName || '';
-    return Boolean(currentUser.name && recordName === currentUser.name);
+    if (!currentUser.jobNumber) return false;
+    const recordJobNumber = String(record.teacherJobNumber || record.jobNumber || '').trim();
+    return recordJobNumber === String(currentUser.jobNumber).trim();
   };
   const visibleTeachers = currentUser.role === 'teacher'
     ? teachers.filter(teacher => isCurrentTeacherRecord(teacher))
