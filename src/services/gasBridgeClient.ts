@@ -37,6 +37,17 @@ class AtharGasBridgeClient {
   private pending = new Map<string, PendingRequest>();
   private sequence = 0;
   private endpoint = '';
+  private bridgeWindow: Window | null = null;
+  private bridgeOrigin = '';
+
+  private isGoogleBridgeOrigin(origin: string): boolean {
+    try {
+      const hostname = new URL(origin).hostname;
+      return hostname === 'script.google.com' || hostname.endsWith('.googleusercontent.com');
+    } catch {
+      return false;
+    }
+  }
 
   configure(webAppUrl: string): void {
     const normalized = webAppUrl.trim();
@@ -105,9 +116,14 @@ class AtharGasBridgeClient {
         const root = frame.contentWindow;
         if (!root || !event.data) return;
         const frameWindows = this.getFrameWindows(root);
-        if (!frameWindows.some((candidate) => candidate === event.source)) return;
+        if (!event.source || !frameWindows.some((candidate) => candidate === event.source)) return;
+        if (!this.isGoogleBridgeOrigin(event.origin)) return;
 
         if (event.data.channel === CHANNEL_READY) {
+          // Pin the exact Google-hosted Bridge.html frame that announced readiness.
+          // Never send credentials or session tokens to every nested frame.
+          this.bridgeWindow = event.source as Window;
+          this.bridgeOrigin = event.origin;
           window.clearTimeout(timer);
           this.ready = true;
           this.loading = null;
@@ -115,6 +131,7 @@ class AtharGasBridgeClient {
           return;
         }
         if (event.data.channel === CHANNEL_RESPONSE && event.data.id) {
+          if (event.source !== this.bridgeWindow || event.origin !== this.bridgeOrigin) return;
           const pending = this.pending.get(event.data.id);
           if (!pending) return;
           window.clearTimeout(pending.timeout);
@@ -138,8 +155,8 @@ class AtharGasBridgeClient {
 
   async request<T = unknown>(request: BridgeRequest): Promise<BridgeResponse<T>> {
     await this.ensureFrame();
-    const root = this.frame?.contentWindow;
-    if (!root) throw new Error('اتصال قاعدة البيانات غير متاح.');
+    const target = this.bridgeWindow;
+    if (!target || !this.bridgeOrigin) throw new Error('لم يتم التحقق من إطار جسر Google.');
     const id = `athar_${Date.now()}_${++this.sequence}`;
     return new Promise<BridgeResponse<T>>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
@@ -153,22 +170,16 @@ class AtharGasBridgeClient {
       });
 
       const message = { channel: CHANNEL_REQUEST, id, request };
-      // The actual Apps Script HTML runs in a nested sandbox frame, not
-      // necessarily in the outer iframe's contentWindow. Send to the
-      // discovered frame tree; only Bridge.html handles this channel.
-      this.getFrameWindows(root).forEach((target) => {
-        try {
-          target.postMessage(message, '*');
-        } catch {
-          // Continue sending to the remaining discovered frames.
-        }
-      });
+      // Send only to the exact Google-hosted frame that completed the handshake.
+      target.postMessage(message, this.bridgeOrigin);
     });
   }
 
   dispose(): void {
     this.ready = false;
     this.loading = null;
+    this.bridgeWindow = null;
+    this.bridgeOrigin = '';
     this.frame?.remove();
     this.frame = null;
     this.pending.forEach((item) => {
