@@ -2208,6 +2208,7 @@ function dispatchApiAction_(action, payload, session) {
     var followUpLock = LockService.getScriptLock();
     if (!followUpLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تتابع خطة تطوير. حاول مرة أخرى بعد قليل.' };
     var appendedFollowUpRow = 0;
+    var followUpRecordId = '';
     var followUpPlanSnapshot = null;
     var followUpPlanSheet = null;
     var followUpStatusColumn = -1;
@@ -2255,14 +2256,15 @@ function dispatchApiAction_(action, payload, session) {
         date: selectedPlanRow.values[followUpDateColumn]
       };
       appendedFollowUpRow = followSheet.getLastRow() + 1;
+      followUpRecordId = Utilities.getUuid();
       followSheet.appendRow([
-        Utilities.getUuid(), payload.planId, followUpDate, session.name,
+        followUpRecordId, payload.planId, followUpDate, session.name,
         payload.followUpResult || '', payload.followUpNotes || '', followUpStatus, new Date().toISOString()
       ]);
       followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpStatusColumn + 1).setValue(followUpStatus);
       followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpDateColumn + 1).setValue(followUpDate);
       logAuditAction(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId, session.role);
-      return { success: true, id: followSheet.getRange(appendedFollowUpRow, 1).getValue() };
+      return { success: true, id: followUpRecordId };
     } catch (followUpError) {
       var followUpRollbackErrors = [];
       if (followUpPlanSnapshot && followUpPlanSheet) {
@@ -2271,11 +2273,21 @@ function dispatchApiAction_(action, payload, session) {
         try { followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpDateColumn + 1).setValue(followUpPlanSnapshot.date); }
         catch (dateRollbackError) { followUpRollbackErrors.push(String(dateRollbackError)); }
       }
-      if (appendedFollowUpRow > 0) {
+      if (followUpRecordId) {
         try {
           var rollbackFollowSheet = ss.getSheetByName('PlanFollowUps');
-          if (rollbackFollowSheet && rollbackFollowSheet.getLastRow() >= appendedFollowUpRow) {
-            rollbackFollowSheet.deleteRow(appendedFollowUpRow);
+          if (!rollbackFollowSheet) throw new Error('ورقة متابعة الخطط غير موجودة أثناء التراجع.');
+          var rollbackFollowValues = rollbackFollowSheet.getDataRange().getValues();
+          var rollbackFollowRows = [];
+          for (var rollbackIndex = 1; rollbackIndex < rollbackFollowValues.length; rollbackIndex++) {
+            if (String(rollbackFollowValues[rollbackIndex][0]) === followUpRecordId) rollbackFollowRows.push(rollbackIndex + 1);
+          }
+          if (rollbackFollowRows.length === 1) {
+            rollbackFollowSheet.deleteRow(rollbackFollowRows[0]);
+          } else if (rollbackFollowRows.length > 1) {
+            followUpRollbackErrors.push('معرّف سجل المتابعة الجزئي مكرر؛ لم نحذف أي صف لتجنب المساس بسجل آخر.');
+          } else if (appendedFollowUpRow > 0 && rollbackFollowSheet.getLastRow() >= appendedFollowUpRow) {
+            // No matching UUID means no verified partial record exists; leave all rows untouched.
           }
         } catch (followUpRowRollbackError) { followUpRollbackErrors.push(String(followUpRowRollbackError)); }
       }
