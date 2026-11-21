@@ -570,20 +570,14 @@ export class AtharStorageService {
     return { success: true };
   }
 
-  static deleteVisit(visitId: string): { success: boolean; error?: string } {
-    const currentUser = this.getCurrentUser();
-    if (!this.canDeleteVisit(currentUser)) {
-      return { success: false, error: 'حذف الزيارات مقتصر فقط على إدارة المدرسة والمشرفين المخولين.' };
-    }
-
-    const visits = this.getVisits();
-    const target = visits.find(v => v.id === visitId);
-    if (!target) return { success: false, error: 'الزيارة غير موجودة.' };
-
-    const filtered = visits.filter(v => v.id !== visitId);
-    setStored(STORAGE_KEYS.VISITS, filtered);
-    this.logAction(currentUser, 'حذف زيارة صفية', `تم حذف الزيارة (${visitId}) للمعلم: ${target.teacherName}`);
-    return { success: true };
+  static deleteVisit(_visitId: string): { success: boolean; error?: string } {
+    // Historical visit records must never be physically deleted from local fallback storage.
+    // Use the central archive/restore workflow instead; this method remains as a
+    // compatibility guard for older callers that still invoke deleteVisit.
+    return {
+      success: false,
+      error: 'الحذف النهائي للتقارير غير متاح حفاظًا على السجل التاريخي. استخدم إجراء الأرشفة والاستعادة.'
+    };
   }
 
   // Improvement Plans Management
