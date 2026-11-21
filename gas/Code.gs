@@ -1507,6 +1507,16 @@ function dispatchApiAction_(action, payload, session) {
     var archivedPlans = allPlanRows.filter(function(x) { return String(x.archiveStatus || 'active') === 'archived'; });
     var indicators = rowsAsObjects_(ss.getSheetByName('IndicatorLibrary'));
     var settings = rowsAsObjects_(ss.getSheetByName('Settings'));
+    // Do not silently select an arbitrary value when a singleton setting key
+    // has been duplicated. Saving already rejects duplicates; bootstrap must
+    // enforce the same invariant before exposing potentially inconsistent config.
+    var singletonSettingKeys = ['platformSettings', 'academicSettings'];
+    var duplicateSettingKeys = singletonSettingKeys.filter(function(key) {
+      return settings.filter(function(row) { return String(row.key || '') === key; }).length > 1;
+    });
+    if (duplicateSettingKeys.length) {
+      return { success: false, error: 'توجد مفاتيح إعدادات مكررة (' + duplicateSettingKeys.join(', ') + ')؛ أوقفنا تحميل الإعدادات احترازيًا. راجع ورقة Settings قبل المتابعة.' };
+    }
     var visitIndicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators'));
     var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains'));
     var followUps = rowsAsObjects_(ss.getSheetByName('PlanFollowUps'));
