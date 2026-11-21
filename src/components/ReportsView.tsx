@@ -69,6 +69,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
     const matchType = filterType === 'ALL' || v.visitType === filterType;
     return inSelectedView && matchTerm && matchSubject && matchType;
   });
+  const selectedVisibleReportIds = selectedReportIds.filter(id => reportRows.some(report => report.id === id));
   const toggleReportSelection = (id: string) => setSelectedReportIds(current =>
     current.includes(id) ? current.filter(item => item !== id) : [...current, id]
   );
@@ -80,20 +81,20 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
       : Array.from(new Set([...current, ...visibleIds])));
   };
   const handleArchiveSelectedReports = async () => {
-    if (!selectedReportIds.length || !onArchiveReports) return;
+    if (!selectedVisibleReportIds.length || !onArchiveReports) return;
     if (!confirm(isEn ? 'Archive the selected reports? They can be restored later.' : 'هل تريد أرشفة التقارير المحددة؟ يمكن استعادتها لاحقًا.')) return;
     try {
-      await onArchiveReports(selectedReportIds);
+      await onArchiveReports(selectedVisibleReportIds);
       setSelectedReportIds([]);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'تعذر أرشفة التقارير المحددة.');
     }
   };
   const handleRestoreSelectedReports = async () => {
-    if (!selectedReportIds.length || !onRestoreReports) return;
+    if (!selectedVisibleReportIds.length || !onRestoreReports) return;
     if (!confirm(isEn ? 'Restore the selected reports?' : 'هل تريد استعادة التقارير المحددة؟')) return;
     try {
-      await onRestoreReports(selectedReportIds);
+      await onRestoreReports(selectedVisibleReportIds);
       setSelectedReportIds([]);
     } catch (error) {
       alert(error instanceof Error ? error.message : 'تعذر استعادة التقارير المحددة.');
@@ -215,7 +216,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <span className="font-bold text-slate-700">{isEn ? 'Term Filter:' : 'تصفية حسب الفصل:'}</span>
           <select
             value={filterTerm}
-            onChange={(e) => setFilterTerm(e.target.value)}
+            onChange={(e) => { setFilterTerm(e.target.value); setSelectedReportIds([]); }}
             className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold cursor-pointer"
           >
             <option value="ALL">{t.visits.filterAllTerms}</option>
@@ -229,7 +230,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <span className="font-bold text-slate-700">{t.visits.subject}:</span>
           <select
             value={filterSubject}
-            onChange={(e) => setFilterSubject(e.target.value)}
+            onChange={(e) => { setFilterSubject(e.target.value); setSelectedReportIds([]); }}
             className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold cursor-pointer"
           >
             <option value="ALL">{isEn ? 'All Subjects' : 'جميع المواد'}</option>
@@ -241,7 +242,7 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
           <span className="font-bold text-slate-700">{isEn ? 'Visit Type:' : 'نوع الزيارة:'}</span>
           <select
             value={filterType}
-            onChange={(e) => setFilterType(e.target.value)}
+            onChange={(e) => { setFilterType(e.target.value); setSelectedReportIds([]); }}
             className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 font-semibold cursor-pointer"
           >
             <option value="ALL">{t.visits.filterAllTypes}</option>
@@ -410,12 +411,12 @@ export const ReportsView: React.FC<ReportsViewProps> = ({
               {isEn ? 'Select all visible' : 'تحديد كل التقارير الظاهرة'}
             </button>
             {reportView === 'active' ? (
-              <button type="button" onClick={handleArchiveSelectedReports} disabled={!selectedReportIds.length} className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
-                <Trash2 className="w-3.5 h-3.5" /> {isEn ? 'Archive selected' : `أرشفة المحدد (${selectedReportIds.length})`}
+              <button type="button" onClick={handleArchiveSelectedReports} disabled={!selectedVisibleReportIds.length} className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
+                <Trash2 className="w-3.5 h-3.5" /> {isEn ? 'Archive selected' : `أرشفة المحدد (${selectedVisibleReportIds.length})`}
               </button>
             ) : (
-              <button type="button" onClick={handleRestoreSelectedReports} disabled={!selectedReportIds.length} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
-                <RotateCcw className="w-3.5 h-3.5" /> {isEn ? 'Restore selected' : `استعادة المحدد (${selectedReportIds.length})`}
+              <button type="button" onClick={handleRestoreSelectedReports} disabled={!selectedVisibleReportIds.length} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
+                <RotateCcw className="w-3.5 h-3.5" /> {isEn ? 'Restore selected' : `استعادة المحدد (${selectedVisibleReportIds.length})`}
               </button>
             )}
           </div>
