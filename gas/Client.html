@@ -11,41 +11,105 @@
     plans: []
   };
 
+  var atharSessionToken = '';
   document.addEventListener('DOMContentLoaded', function() {
-    loadInitialData();
+    document.getElementById('loading-spinner').style.display = 'none';
+    var nav = document.querySelector('.athar-nav');
+    if (nav) nav.style.display = 'none';
+    showLogin();
   });
 
-  function loadInitialData() {
-    if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run
-        .withSuccessHandler(function(response) {
-          document.getElementById('loading-spinner').style.display = 'none';
-          if (response && response.success) {
-            atharState.user = response.currentUser;
-            document.getElementById('user-display').textContent = response.currentUser.name + ' (' + response.currentUser.role + ')';
-            renderTab(atharState.currentTab);
-          } else {
-            showError('تعذر جلب البيانات الأولية: ' + (response.error || 'خطأ غير معروف'));
-          }
-        })
-        .withFailureHandler(function(error) {
-          document.getElementById('loading-spinner').style.display = 'none';
-          showError('فشل الاتصال بخادم Google Apps Script: ' + error.message);
-        })
-        .getBootstrapData();
-    } else {
-      // البيئة المستقلة للاختبار
-      document.getElementById('loading-spinner').style.display = 'none';
-      document.getElementById('user-display').textContent = 'بيئة المعاينة (وضع المحاكاة)';
-      renderTab(atharState.currentTab);
-    }
+  function showLogin(message) {
+    var viewport = document.getElementById('tab-viewport');
+    if (!viewport) return;
+    viewport.innerHTML =
+      '<section class="table-box" style="max-width:480px;margin:2rem auto;padding:2rem;">' +
+        '<h2 style="margin-bottom:.5rem;color:#172C40;">تسجيل الدخول إلى أَثَر</h2>' +
+        '<p style="margin-bottom:1.25rem;color:#64748B;">أدخل اسم المستخدم وكلمة المرور المعتمدين.</p>' +
+        (message ? '<p role="alert" style="color:#B91C1C;margin-bottom:1rem;">'+escapeHtml(message)+'</p>' : '') +
+        '<form id="athar-login-form">' +
+          '<label for="athar-username">اسم المستخدم</label>' +
+          '<input id="athar-username" name="username" autocomplete="username" required style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+          '<label for="athar-password">كلمة المرور</label>' +
+          '<input id="athar-password" name="password" type="password" autocomplete="current-password" required style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+          '<button class="btn-primary" id="athar-login-button" type="submit">دخول</button>' +
+          '<p id="athar-login-status" aria-live="polite" style="margin-top:1rem;color:#64748B;"></p>' +
+        '</form>' +
+      '</section>';
+    document.getElementById('athar-login-form').addEventListener('submit', submitAtharLogin);
+  }
+
+  function submitAtharLogin(event) {
+    event.preventDefault();
+    var button = document.getElementById('athar-login-button');
+    var status = document.getElementById('athar-login-status');
+    var username = document.getElementById('athar-username').value.trim();
+    var password = document.getElementById('athar-password').value;
+    button.disabled = true;
+    status.textContent = 'جارٍ التحقق من بيانات الدخول...';
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || !result.success || !result.token) {
+          button.disabled = false;
+          status.textContent = '';
+          showLogin(result && result.error ? result.error : 'تعذر تسجيل الدخول.');
+          return;
+        }
+        atharSessionToken = result.token;
+        atharState.user = result.user;
+        loadAuthenticatedData();
+      })
+      .withFailureHandler(function() {
+        button.disabled = false;
+        status.textContent = 'تعذر الاتصال بالخادم. حاول مرة أخرى.';
+      })
+      .dispatchBridgeRequest({action:'login', payload:{username:username,password:password}});
+  }
+
+  function loadAuthenticatedData() {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        if (!response || !response.success) {
+          atharSessionToken = '';
+          atharState.user = null;
+          showLogin(response && response.error ? response.error : 'تعذر تحميل بيانات الحساب.');
+          return;
+        }
+        atharState.bootstrap = response.data || {};
+        document.getElementById('user-display').textContent =
+          (atharState.user.name || 'مستخدم') + ' — ' + (atharState.user.roleTitle || atharState.user.role);
+        var nav = document.querySelector('.athar-nav');
+        if (nav) nav.style.display = 'flex';
+        renderTab(atharState.currentTab);
+      })
+      .withFailureHandler(function() {
+        atharSessionToken = '';
+        atharState.user = null;
+        showLogin('تعذر تحميل بيانات المنصة بعد تسجيل الدخول.');
+      })
+      .dispatchBridgeRequest({action:'bootstrap', token:atharSessionToken, payload:{}});
+  }
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function(ch) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+
+  function logoutAthar() {
+    atharSessionToken = '';
+    atharState.user = null;
+    var nav = document.querySelector('.athar-nav');
+    if (nav) nav.style.display = 'none';
+    document.getElementById('user-display').textContent = 'لم يتم تسجيل الدخول';
+    showLogin('تم تسجيل الخروج.');
   }
 
   function switchGasTab(tabId) {
     atharState.currentTab = tabId;
     var buttons = document.querySelectorAll('.nav-btn');
     buttons.forEach(function(btn) { btn.classList.remove('active'); });
-    event.target.classList.add('active');
+    buttons.forEach(function(btn) { if (btn.getAttribute('onclick') && btn.getAttribute('onclick').indexOf("'" + tabId + "'") >= 0) btn.classList.add('active'); });
     renderTab(tabId);
   }
 

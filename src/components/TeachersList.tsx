@@ -36,7 +36,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterSpecialization, setFilterSpecialization] = useState('ALL');
-  const [filterStatus, setFilterStatus] = useState('ALL');
+  const [filterStatus, setFilterStatus] = useState('active');
   
   // Modals state
   const [isImportModalOpen, setIsImportModalOpen] = useState(false);
@@ -60,7 +60,10 @@ export const TeachersList: React.FC<TeachersListProps> = ({
 
   // Filtered teachers list
   const filtered = teachers.filter(tch => {
-    if (isTeacher && tch.jobNumber !== currentUser.jobNumber && tch.fullName !== currentUser.name) {
+    if (isTeacher && (
+      !currentUser.jobNumber ||
+      String(tch.jobNumber || '').trim() !== String(currentUser.jobNumber).trim()
+    )) {
       return false;
     }
 
@@ -305,7 +308,7 @@ export const TeachersList: React.FC<TeachersListProps> = ({
                             {canDeleteTeacher && (
                               <button
                                 onClick={() => handleDeleteTeacher(teacher.id, teacher.fullName)}
-                                title={isEn ? 'Delete Teacher (Authorized only)' : 'حذف المعلم (للمخولين فقط)'}
+                                title={isEn ? 'Deactivate teacher and preserve history' : 'تعطيل سجل المعلم مع الاحتفاظ بالزيارات والتقارير'}
                                 className="p-1 hover:bg-rose-50 rounded text-rose-600 hover:text-rose-800 cursor-pointer"
                               >
                                 <Trash2 className="w-4 h-4" />

@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole, normalizeUserRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { atharRemoteAction, atharRemoteBootstrap } from '../services/gasBridgeClient';
@@ -78,6 +78,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [isSavingPlatform, setIsSavingPlatform] = useState(false);
+  const isSavingPlatformRef = useRef(false);
 
   // Registered Visitors Directory State
   const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>([]);
@@ -167,7 +169,24 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       const response: any = await atharRemoteAction('sessionDiagnostics', {});
       setDiagnosticResult(response.diagnostics || response);
     } catch (error) {
-      setDiagnosticResult({ error: error instanceof Error ? error.message : 'تعذر تنفيذ التشخيص.' });
+      const message = error instanceof Error ? error.message : 'تعذر تنفيذ التشخيص.';
+      // Older published Apps Script deployments may not yet expose sessionDiagnostics.
+      // Fall back to the supported read-only health action without hiding that limitation.
+      if (/غير مدعومة|unsupported|sessionDiagnostics/i.test(message)) {
+        try {
+          const health: any = await atharRemoteAction('health', {});
+          setDiagnosticResult({
+            ...health,
+            warning: isEn
+              ? 'Detailed session diagnostics require updating the published Apps Script deployment. Showing the available read-only database health check instead.'
+              : 'يتطلب فحص تفاصيل الجلسة تحديث نسخة Apps Script المنشورة. نعرض هنا فحص سلامة قاعدة البيانات المتاح للقراءة فقط.'
+          });
+        } catch (healthError) {
+          setDiagnosticResult({ error: healthError instanceof Error ? healthError.message : message });
+        }
+      } else {
+        setDiagnosticResult({ error: message });
+      }
     } finally {
       setIsDiagnosing(false);
     }
@@ -186,23 +205,13 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     }
   };
 
-  // Clear Audit Log History
-  const handleClearAuditLogs = async () => {
-    if (!confirm(isEn ? 'Are you sure you want to permanently clear the audit log history?' : 'هل أنت متأكد من رغبتك في مسح كافة سجلات العمليات والأمان نهائياً؟')) {
-      return;
-    }
-    try {
-      await atharRemoteAction('deleteAuditLogs', { ids: [] });
-      setLocalAuditLogs([]);
-      showFeedback('success', isEn ? 'Central audit log cleared successfully.' : 'تم مسح سجل العمليات المركزي.');
-      await onRefreshSettings();
-    } catch (error) {
-      showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to clear logs.' : 'تعذر مسح السجل.'));
-    }
-  };
+
 
   // Save Platform Identity
   const handleSavePlatform = async () => {
+    if (!canEdit || isSavingPlatformRef.current) return;
+    isSavingPlatformRef.current = true;
+    setIsSavingPlatform(true);
     const updated: PlatformSettings = {
       platformName,
       platformTitle,
@@ -224,6 +233,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       await onRefreshSettings();
     } catch (error) {
       showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Error occurred while saving.' : 'حدث خطأ أثناء الحفظ.'));
+    } finally {
+      isSavingPlatformRef.current = false;
+      setIsSavingPlatform(false);
     }
   };
 
@@ -327,7 +339,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   };
 
   const handleDeleteVisitor = async (id: string) => {
-    if (!confirm(t.visitorsManagement.deleteConfirm)) return;
+    if (!confirm(isEn ? 'Deactivate this visitor account? Historical records will be retained.' : 'هل تريد تعطيل هذا المقيم؟ ستبقى جميع سجلاته السابقة محفوظة.')) return;
     const visitor = visitorsList.find(v => v.id === id);
     try {
       if (visitor?.username) {
@@ -339,7 +351,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       }
       await atharRemoteAction('deleteVisitor', { id });
       await refreshCentralUsers();
-      showFeedback('success', isEn ? 'Visitor removed and linked account disabled.' : 'تم حذف سجل الزائر وتعطيل حسابه المرتبط.');
+      showFeedback('success', isEn ? 'Visitor deactivated. Historical records were retained.' : 'تم تعطيل المقيم مع الاحتفاظ بسجلاته السابقة.');
       onRefreshSettings();
     } catch (error) {
       showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to delete visitor.' : 'تعذر حذف الزائر.'));
@@ -396,6 +408,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={handleSavePlatform}
+              disabled={!canEdit || isSavingPlatform}
                   className="px-5 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-2 cursor-pointer shadow-sm"
                 >
                   <Check className="w-4 h-4 text-[#C6A66A]" />
@@ -468,50 +481,56 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            void refreshCentralUsers().catch((error) => showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث الحسابات.'));
-            setActiveSubTab('users');
-          }}
-          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'users'
-              ? 'bg-[#172C40] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <KeyRound className="w-4 h-4 text-[#C6A66A]" />
-          <span>{isEn ? 'Evaluators & Login Accounts' : 'حسابات المقيّمين وبيانات الدخول'}</span>
-          <span className="bg-white/20 text-current text-[10px] px-1.5 py-0.2 rounded-full font-mono">
-            {allUsersList.length}
-          </span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => {
+              void refreshCentralUsers().catch((error) => showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث الحسابات.'));
+              setActiveSubTab('users');
+            }}
+            className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'users'
+                ? 'bg-[#172C40] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <KeyRound className="w-4 h-4 text-[#C6A66A]" />
+            <span>{isEn ? 'Evaluators & Login Accounts' : 'حسابات المقيّمين وبيانات الدخول'}</span>
+            <span className="bg-white/20 text-current text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+              {allUsersList.length}
+            </span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('data')}
-          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'data'
-              ? 'bg-[#172C40] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <Database className="w-4 h-4 text-[#C6A66A]" />
-          <span>{t.settings.tabData}</span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('data')}
+            className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'data'
+                ? 'bg-[#172C40] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <Database className="w-4 h-4 text-[#C6A66A]" />
+            <span>{t.settings.tabData}</span>
+          </button>
+        )}
 
-        <button
-          type="button"
-          onClick={() => setActiveSubTab('audit')}
-          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'audit'
-              ? 'bg-[#172C40] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <History className="w-4 h-4 text-[#C6A66A]" />
-          <span>{t.settings.tabAudit}</span>
-        </button>
+        {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole || '') && (
+          <button
+            type="button"
+            onClick={() => setActiveSubTab('audit')}
+            className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'audit'
+                ? 'bg-[#172C40] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <History className="w-4 h-4 text-[#C6A66A]" />
+            <span>{t.settings.tabAudit}</span>
+          </button>
+        )}
       </div>
 
       {/* ============================================================== */}
@@ -567,6 +586,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={platformName}
                   onChange={(e) => setPlatformName(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-[#172C40]"
                 />
               </div>
@@ -577,6 +597,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={platformTitle}
                   onChange={(e) => setPlatformTitle(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -587,6 +608,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={slogan}
                   onChange={(e) => setSlogan(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-['Tajawal']"
                 />
               </div>
@@ -597,6 +619,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold"
                 />
               </div>
@@ -607,6 +630,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={schoolStage}
                   onChange={(e) => setSchoolStage(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -617,6 +641,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={principalName}
                   onChange={(e) => setPrincipalName(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   placeholder={isEn ? 'School Principal Full Name' : 'اسم مدير المدرسة'}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold"
                 />
@@ -628,6 +653,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   rows={2}
                   value={welcomeMessage}
                   onChange={(e) => setWelcomeMessage(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -638,6 +664,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   placeholder="https://..."
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]"
                 />
@@ -649,6 +676,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="email"
                   value={contactEmail}
                   onChange={(e) => setContactEmail(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono"
                 />
               </div>
@@ -659,6 +687,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono"
                 />
               </div>
@@ -752,9 +781,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           <KeyRound className="w-3 h-3 text-[#C6A66A]" />
                           <span>@{vis.username}</span>
                         </span>
-                        <span className="text-[9px] text-slate-500 font-mono" dir="ltr">
-                          pass: {vis.password || '123'}
-                        </span>
+                        <span className="text-[9px] text-slate-500 font-mono">{isEn ? 'Password is never displayed' : 'كلمة المرور لا تُعرض لأسباب أمنية'}</span>
                       </div>
                     )}
                   </div>
@@ -786,14 +813,18 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                           <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
                           <span>{isEn ? 'Edit' : 'تعديل البيانات'}</span>
                         </button>
-                        <button
+                        <span className={`px-2 py-1 rounded text-[10px] font-bold ${vis.status === 'inactive' ? 'bg-slate-200 text-slate-600' : 'bg-emerald-50 text-emerald-700'}`}>
+                         {vis.status === 'inactive' ? (isEn ? 'Inactive' : 'معطّل') : (isEn ? 'Active' : 'نشط')}
+                       </span>
+                       <button
                           type="button"
                           onClick={() => handleDeleteVisitor(vis.id)}
-                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer border border-rose-200"
-                          title={isEn ? 'Delete Evaluator' : 'حذف المقيم أو الزائر'}
+                          disabled={vis.status === 'inactive'}
+                          className="px-2.5 py-1.5 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg transition-all flex items-center gap-1 text-[11px] font-bold cursor-pointer border border-rose-200 disabled:opacity-40 disabled:cursor-not-allowed"
+                          title={isEn ? 'Deactivate Evaluator' : 'تعطيل المقيم مع الاحتفاظ بسجلاته'}
                         >
                           <Trash2 className="w-3.5 h-3.5" />
-                          <span>{isEn ? 'Delete' : 'حذف'}</span>
+                          <span>{isEn ? 'Deactivate' : 'تعطيل'}</span>
                         </button>
                       </div>
                     )}
@@ -823,18 +854,20 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
               </p>
             </div>
 
-            <button
-              type="button"
-              onClick={() => {
-                handleOpenAddVisitor();
-                setVisitorFormRole('evaluator');
-                setActiveSubTab('visitors');
-              }}
-              className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
-            >
-              <UserPlus className="w-4 h-4 text-[#C6A66A]" />
-              <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
-            </button>
+            {canEdit && (
+              <button
+                type="button"
+                onClick={() => {
+                  handleOpenAddVisitor();
+                  setVisitorFormRole('evaluator');
+                  setActiveSubTab('visitors');
+                }}
+                className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-1.5 cursor-pointer shadow-xs self-start"
+              >
+                <UserPlus className="w-4 h-4 text-[#C6A66A]" />
+                <span>{isEn ? 'Add New Evaluator' : '➕ إضافة مقيّم جديد'}</span>
+              </button>
+            )}
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
@@ -864,30 +897,34 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   </div>
                   <div className="flex items-center justify-between text-slate-600">
                     <span className="text-[10px] text-slate-400 font-sans">{isEn ? 'Password:' : 'كلمة المرور:'}</span>
-                    <span className="font-bold text-slate-700" dir="ltr">{user.password || '123'}</span>
+                    <span className="font-bold text-slate-700">{isEn ? 'Not displayed for security' : 'لا تُعرض لأسباب أمنية'}</span>
                   </div>
                 </div>
 
                 <div className="pt-2 border-t border-slate-200/60 flex items-center justify-between gap-2">
-                  <button
-                    type="button"
-                    onClick={() => setSelectedUserForCredentials(user)}
-                    className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-[#172C40] text-slate-700 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
-                    title={isEn ? 'Edit Credentials & Details' : 'تعديل البيانات واليوزرنيم والباسوورد'}
-                  >
-                    <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
-                    <span>{isEn ? 'Edit Details' : 'تعديل البيانات'}</span>
-                  </button>
+                  {canEdit && (
+                    <>
+                      <button
+                        type="button"
+                        onClick={() => setSelectedUserForCredentials(user)}
+                        className="flex-1 py-1.5 px-2 bg-slate-100 hover:bg-[#172C40] text-slate-700 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1.5 transition-all cursor-pointer border border-slate-200"
+                        title={isEn ? 'Edit Credentials & Details' : 'تعديل البيانات واليوزرنيم والباسوورد'}
+                      >
+                        <Edit3 className="w-3.5 h-3.5 text-[#C6A66A]" />
+                        <span>{isEn ? 'Edit Details' : 'تعديل البيانات'}</span>
+                      </button>
 
-                  <button
-                    type="button"
-                    onClick={() => handleDeleteUser(user.id, user.name)}
-                    className="py-1.5 px-3 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-rose-200"
-                    title={isEn ? 'Delete Evaluator' : 'حذف المقيم'}
-                  >
-                    <Trash2 className="w-3.5 h-3.5" />
-                    <span>{isEn ? 'Delete' : 'حذف'}</span>
-                  </button>
+                      <button
+                        type="button"
+                        onClick={() => handleDeleteUser(user.id, user.name)}
+                        className="py-1.5 px-3 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg font-bold text-xs flex items-center justify-center gap-1 transition-all cursor-pointer border border-rose-200"
+                        title={isEn ? 'Deactivate Evaluator' : 'تعطيل المقيم'}
+                      >
+                        <Trash2 className="w-3.5 h-3.5" />
+                        <span>{isEn ? 'Deactivate' : 'تعطيل'}</span>
+                      </button>
+                    </>
+                  )}
                 </div>
               </div>
             ))}
@@ -898,7 +935,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       {/* ============================================================== */}
       {/* SUB-TAB 3: Demo Data & Records Management (حذف البيانات)       */}
       {/* ============================================================== */}
-      {activeSubTab === 'data' && (
+      {canEdit && activeSubTab === 'data' && (
         <div className="bg-white border border-[#E2E8F0] rounded-xl p-6 shadow-sm space-y-6">
           <div className="border-b border-slate-100 pb-3">
             <h3 className="text-base font-bold text-[#172C40] font-['Tajawal'] flex items-center gap-2">
@@ -1028,7 +1065,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       {/* ============================================================== */}
       {/* SUB-TAB 4: Security & Audit Logs (سجل العمليات والأمان)         */}
       {/* ============================================================== */}
-      {activeSubTab === 'audit' && (() => {
+      {['platform_admin', 'school_admin', 'vice_principal'].includes(currentRole || '') && activeSubTab === 'audit' && (() => {
         const uniqueAuditActions = Array.from(new Set(localAuditLogs.map(l => l.action))).filter(Boolean);
         const uniqueAuditUsers = Array.from(new Set(localAuditLogs.map(l => l.userName))).filter(Boolean);
 
@@ -1062,19 +1099,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 </div>
               </div>
 
-              {/* Action Buttons: Clear Audit Log */}
-              {canEdit && (
-                <button
-                  type="button"
-                  onClick={handleClearAuditLogs}
-                  disabled={localAuditLogs.length === 0}
-                  className="px-3.5 py-2 bg-rose-50 hover:bg-rose-600 text-rose-600 hover:text-white rounded-lg text-xs font-bold transition-all flex items-center gap-1.5 cursor-pointer border border-rose-200 shadow-2xs self-start sm:self-auto disabled:opacity-50 disabled:cursor-not-allowed"
-                  title={isEn ? 'Clear Entire Audit Log' : 'مسح كامل سجل العمليات'}
-                >
-                  <Trash2 className="w-3.5 h-3.5" />
-                  <span>{isEn ? 'Clear Audit Log' : 'مسح السجل'}</span>
-                </button>
-              )}
+              <span className="text-xs text-slate-500">{isEn ? 'Audit history is retained for accountability.' : 'يُحتفَظ بسجل العمليات للمراجعة وحفظ الحقوق.'}</span>
             </div>
 
             {/* Filter and Sorting Controls Toolbar */}

@@ -11,11 +11,16 @@
       (function () {
         'use strict';
 
-        // Accept bridge commands only from the published Athar frontend origin.
+        // Accept messages only from the known, approved frontend origins.
+        // Do not use a wildcard HTTPS policy: login responses contain session tokens.
         var ALLOWED_PARENT_ORIGINS = [
           'https://ather-elsadarh-2026.ai.studio',
           'https://aboasmaa2273-code.github.io'
         ];
+        function isTrustedParent(event) {
+          return event.source === window.top &&
+            ALLOWED_PARENT_ORIGINS.indexOf(event.origin) >= 0;
+        }
         var REQUEST_CHANNEL = 'ATHAR_GAS_REQUEST';
         var RESPONSE_CHANNEL = 'ATHAR_GAS_BRIDGE';
         var READY_CHANNEL = 'ATHAR_GAS_BRIDGE_READY';
@@ -29,7 +34,7 @@
         }
 
         window.addEventListener('message', function (event) {
-          if (event.source !== window.top || ALLOWED_PARENT_ORIGINS.indexOf(event.origin) === -1) return;
+          if (!isTrustedParent(event)) return;
           var message = event.data;
           if (!message || message.channel !== REQUEST_CHANNEL || !message.id || !message.request) return;
 
@@ -54,6 +59,7 @@
             .dispatchBridgeRequest(message.request);
         });
 
+        // Notify only the explicitly approved frontend origins.
         ALLOWED_PARENT_ORIGINS.forEach(function (origin) {
           sendToParent({ channel: READY_CHANNEL }, origin);
         });

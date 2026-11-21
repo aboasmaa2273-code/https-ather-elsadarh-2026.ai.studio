@@ -7,6 +7,7 @@ on:
   push:
     branches:
       - fix/visitor-directory-central-save
+      - feature/ather-safe-improvements-2026-11-20
 
 permissions:
   contents: read
@@ -23,6 +24,8 @@ jobs:
           node-version: 22
       - name: Install dependencies
         run: npm install --no-audit --no-fund
+      - name: Check Google Apps Script syntax
+        run: node --check < gas/Code.gs
       - name: Type-check
         run: npm run lint
       - name: Build production bundle

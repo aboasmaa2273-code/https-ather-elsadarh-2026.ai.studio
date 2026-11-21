@@ -347,9 +347,12 @@ export class AtharStorageService {
     const target = teachers.find(t => t.id === teacherId);
     if (!target) return { success: false, error: 'المعلم غير موجود.' };
 
-    const filtered = teachers.filter(t => t.id !== teacherId);
-    setStored(STORAGE_KEYS.TEACHERS, filtered);
-    this.logAction(currentUser, 'حذف معلم', `تم حذف المعلم: ${target.fullName} (${target.jobNumber})`);
+    // Preserve teacher history and references: deletion is a deactivation.
+    const index = teachers.findIndex(t => t.id === teacherId);
+    if (index < 0) return { success: false, error: 'المعلم غير موجود.' };
+    teachers[index] = { ...teachers[index], status: 'inactive' };
+    setStored(STORAGE_KEYS.TEACHERS, teachers);
+    this.logAction(currentUser, 'تعطيل معلم', `تم تعطيل المعلم مع الحفاظ على سجلاته: ${target.fullName} (${target.jobNumber})`);
     return { success: true };
   }
 
@@ -428,8 +431,11 @@ export class AtharStorageService {
 
   // Visits Management
   static getVisits(schoolId = 'sch_alsadara_01'): ClassroomVisit[] {
+    const currentUser = this.getCurrentUser();
     return getStored<ClassroomVisit[]>(STORAGE_KEYS.VISITS, DEFAULT_VISITS)
-      .filter(v => !schoolId || v.schoolId === schoolId);
+      .filter(v => (!schoolId || v.schoolId === schoolId) &&
+        (currentUser.role !== 'teacher' ||
+          (!!currentUser.jobNumber && String(v.teacherJobNumber || '').trim() === String(currentUser.jobNumber).trim())));
   }
 
   static getVisitById(id: string): ClassroomVisit | undefined {
@@ -564,26 +570,23 @@ export class AtharStorageService {
     return { success: true };
   }
 
-  static deleteVisit(visitId: string): { success: boolean; error?: string } {
-    const currentUser = this.getCurrentUser();
-    if (!this.canDeleteVisit(currentUser)) {
-      return { success: false, error: 'حذف الزيارات مقتصر فقط على إدارة المدرسة والمشرفين المخولين.' };
-    }
-
-    const visits = this.getVisits();
-    const target = visits.find(v => v.id === visitId);
-    if (!target) return { success: false, error: 'الزيارة غير موجودة.' };
-
-    const filtered = visits.filter(v => v.id !== visitId);
-    setStored(STORAGE_KEYS.VISITS, filtered);
-    this.logAction(currentUser, 'حذف زيارة صفية', `تم حذف الزيارة (${visitId}) للمعلم: ${target.teacherName}`);
-    return { success: true };
+  static deleteVisit(_visitId: string): { success: boolean; error?: string } {
+    // Historical visit records must never be physically deleted from local fallback storage.
+    // Use the central archive/restore workflow instead; this method remains as a
+    // compatibility guard for older callers that still invoke deleteVisit.
+    return {
+      success: false,
+      error: 'الحذف النهائي للتقارير غير متاح حفاظًا على السجل التاريخي. استخدم إجراء الأرشفة والاستعادة.'
+    };
   }
 
   // Improvement Plans Management
   static getPlans(schoolId = 'sch_alsadara_01'): ImprovementPlan[] {
+    const currentUser = this.getCurrentUser();
     return getStored<ImprovementPlan[]>(STORAGE_KEYS.PLANS, DEFAULT_PLANS)
-      .filter(p => !schoolId || p.schoolId === schoolId);
+      .filter(p => (!schoolId || p.schoolId === schoolId) &&
+        (currentUser.role !== 'teacher' ||
+          (!!currentUser.jobNumber && String(p.teacherJobNumber || '').trim() === String(currentUser.jobNumber).trim())));
   }
 
   static savePlan(plan: Omit<ImprovementPlan, 'id' | 'createdAt'> & { id?: string }): { success: boolean; plan?: ImprovementPlan; error?: string } {
@@ -773,34 +776,8 @@ export class AtharStorageService {
       this.logAction(currentUser, 'إضافة زائر جديد', `تم تسجيل الزائر: ${visitor.name} بصفة (${this.getVisitorRoleLabel(visitor.role)})`);
     }
 
-    // Synchronize login credentials for the evaluator if username and password provided
-    if (visitor.username && visitor.username.trim()) {
-      const cleanUsername = visitor.username.trim().toLowerCase();
-      const cleanPassword = visitor.password?.trim() || '123';
-      const customUsers = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
-      const userIndex = customUsers.findIndex(u => u.username?.toLowerCase() === cleanUsername || u.name === visitor.name);
-
-      if (userIndex >= 0) {
-        customUsers[userIndex].name = visitor.name;
-        customUsers[userIndex].username = cleanUsername;
-        customUsers[userIndex].password = cleanPassword;
-        customUsers[userIndex].specialization = visitor.roleTitle || visitor.department || 'مقيّم معتمد';
-        setStored(STORAGE_KEYS.CUSTOM_USERS, customUsers);
-      } else {
-        const newEvaluatorUser: User = {
-          id: `user_eval_${Date.now()}_${Math.random().toString(36).substring(2, 5)}`,
-          name: visitor.name,
-          username: cleanUsername,
-          password: cleanPassword,
-          role: 'evaluator',
-          schoolId: 'sch_alsadara_01',
-          email: visitor.email || `${cleanUsername}@alsadara.sch.ae`,
-          specialization: visitor.roleTitle || visitor.department || 'مقيّم معتمد'
-        };
-        customUsers.push(newEvaluatorUser);
-        setStored(STORAGE_KEYS.CUSTOM_USERS, customUsers);
-      }
-    }
+    // Credentials are managed only by the central Users sheet.
+    // Never synthesize a local password or create a local login from directory data.
 
     setStored(STORAGE_KEYS.REGISTERED_VISITORS, visitors);
     return { success: true };
@@ -816,15 +793,13 @@ export class AtharStorageService {
     const target = visitors.find(v => v.id === visitorId);
     if (!target) return { success: false, error: 'الزائر غير موجود.' };
 
-    const filtered = visitors.filter(v => v.id !== visitorId);
-    setStored(STORAGE_KEYS.REGISTERED_VISITORS, filtered);
+    // Preserve evaluator history and account references by deactivating, not deleting.
+    const index = visitors.findIndex(v => v.id === visitorId);
+    if (index < 0) return { success: false, error: 'الزائر غير موجود.' };
+    visitors[index] = { ...visitors[index], status: 'inactive' };
+    setStored(STORAGE_KEYS.REGISTERED_VISITORS, visitors);
 
-    // Also remove from custom users if existed
-    const customUsers = getStored<User[]>(STORAGE_KEYS.CUSTOM_USERS, []);
-    const filteredUsers = customUsers.filter(u => u.name !== target.name && (!target.username || u.username !== target.username));
-    setStored(STORAGE_KEYS.CUSTOM_USERS, filteredUsers);
-
-    this.logAction(currentUser, 'حذف زائر', `تم حذف الزائر: ${target.name} من الدليل المعتمد.`);
+    this.logAction(currentUser, 'تعطيل زائر', `تم تعطيل الزائر مع الحفاظ على سجلّه: ${target.name}.`);
     return { success: true };
   }
 
@@ -952,7 +927,8 @@ export class AtharStorageService {
     }
     // Teacher: only view their own visits
     if (user.role === 'teacher') {
-      return visit.teacherJobNumber === user.jobNumber || visit.teacherName === user.name;
+      return !!user.jobNumber &&
+        String(visit.teacherJobNumber || '').trim() === String(user.jobNumber).trim();
     }
     return false;
   }
