@@ -2818,13 +2818,16 @@ function archiveVisits_(visitIds, session, schoolId) {
     var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status');
     if ([idCol, schoolCol, statusCol].some(function(index) { return index < 0; })) return { success: false, error: 'بنية سجل الزيارات غير مكتملة.' };
     var found = {};
+    var visitIdCounts = {};
     for (var row = 1; row < data.length; row++) {
       var id = String(data[row][idCol] || '');
       if (ids.indexOf(id) < 0) continue;
+      visitIdCounts[id] = (visitIdCounts[id] || 0) + 1;
       if (String(data[row][schoolCol] || '') !== String(schoolId)) return { success: false, error: 'أحد التقارير المحددة لا يتبع المدرسة الحالية. لم يتم تغيير أي سجل.' };
       if (String(data[row][statusCol] || '') === 'archived') return { success: false, error: 'أحد التقارير المحددة مؤرشف بالفعل. لم يتم تغيير أي سجل.' };
       found[id] = true;
     }
+    if (ids.some(function(id) { return (visitIdCounts[id] || 0) > 1; })) return { success: false, error: 'أحد أرقام الزيارات مكرر؛ أوقفنا الأرشفة الجماعية دون تغيير أي سجل.' };
     if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
     var migration = ensureVisitArchiveColumns_(sheet);
     if (!migration.success) return migration;
@@ -2902,13 +2905,16 @@ function restoreVisits_(visitIds, session, schoolId) {
     var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status');
     if ([idCol, schoolCol, statusCol].some(function(index) { return index < 0; })) return { success: false, error: 'بنية سجل الزيارات غير مكتملة.' };
     var found = {};
+    var restoreVisitIdCounts = {};
     for (var row = 1; row < data.length; row++) {
       var id = String(data[row][idCol] || '');
       if (ids.indexOf(id) < 0) continue;
+      restoreVisitIdCounts[id] = (restoreVisitIdCounts[id] || 0) + 1;
       if (String(data[row][schoolCol] || '') !== String(schoolId)) return { success: false, error: 'أحد التقارير المحددة لا يتبع المدرسة الحالية. لم يتم تغيير أي سجل.' };
       if (String(data[row][statusCol] || '') !== 'archived') return { success: false, error: 'أحد التقارير المحددة ليس في الأرشيف. لم يتم تغيير أي سجل.' };
       found[id] = true;
     }
+    if (ids.some(function(id) { return (restoreVisitIdCounts[id] || 0) > 1; })) return { success: false, error: 'أحد أرقام الزيارات مكرر؛ أوقفنا الاستعادة الجماعية دون تغيير أي سجل.' };
     if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
     var migration = ensureVisitArchiveColumns_(sheet);
     if (!migration.success) return migration;
