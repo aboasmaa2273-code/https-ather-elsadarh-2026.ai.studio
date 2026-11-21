@@ -481,24 +481,26 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
           </span>
         </button>
 
-        <button
-          type="button"
-          onClick={() => {
-            void refreshCentralUsers().catch((error) => showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث الحسابات.'));
-            setActiveSubTab('users');
-          }}
-          className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
-            activeSubTab === 'users'
-              ? 'bg-[#172C40] text-white shadow-xs'
-              : 'text-slate-600 hover:bg-slate-100'
-          }`}
-        >
-          <KeyRound className="w-4 h-4 text-[#C6A66A]" />
-          <span>{isEn ? 'Evaluators & Login Accounts' : 'حسابات المقيّمين وبيانات الدخول'}</span>
-          <span className="bg-white/20 text-current text-[10px] px-1.5 py-0.2 rounded-full font-mono">
-            {allUsersList.length}
-          </span>
-        </button>
+        {canEdit && (
+          <button
+            type="button"
+            onClick={() => {
+              void refreshCentralUsers().catch((error) => showFeedback('error', error instanceof Error ? error.message : 'تعذر تحديث الحسابات.'));
+              setActiveSubTab('users');
+            }}
+            className={`py-2 px-4 rounded-lg font-bold text-xs flex items-center gap-2 transition-all cursor-pointer whitespace-nowrap ${
+              activeSubTab === 'users'
+                ? 'bg-[#172C40] text-white shadow-xs'
+                : 'text-slate-600 hover:bg-slate-100'
+            }`}
+          >
+            <KeyRound className="w-4 h-4 text-[#C6A66A]" />
+            <span>{isEn ? 'Evaluators & Login Accounts' : 'حسابات المقيّمين وبيانات الدخول'}</span>
+            <span className="bg-white/20 text-current text-[10px] px-1.5 py-0.2 rounded-full font-mono">
+              {allUsersList.length}
+            </span>
+          </button>
+        )}
 
         <button
           type="button"
