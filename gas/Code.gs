@@ -1564,7 +1564,7 @@ function dispatchApiAction_(action, payload, session) {
     if (!planArchiveMigration.success) return planArchiveMigration;
     var planArchiveOwnership = ensureImprovementPlanOwnershipColumns_(planArchiveSheet);
     if (!planArchiveOwnership.success) return planArchiveOwnership;
-    var requestedPlanIds = Array.isArray(payload.ids) ? payload.ids.map(String).filter(Boolean) : [];
+    var requestedPlanIds = Array.isArray(payload.ids) ? Array.from(new Set(payload.ids.map(function(id) { return String(id || '').trim(); }).filter(Boolean))) : [];
     if (!requestedPlanIds.length) return { success: false, error: 'حدد خطة واحدة على الأقل لأرشفتها. لم يتم تغيير أي سجل.' };
     var planArchiveData = planArchiveSheet.getDataRange().getValues();
     var planArchiveHeaders = planArchiveData[0].map(String);
@@ -1601,7 +1601,7 @@ function dispatchApiAction_(action, payload, session) {
     if (!restorePlanMigration.success) return restorePlanMigration;
     var restorePlanOwnership = ensureImprovementPlanOwnershipColumns_(restorePlanSheet);
     if (!restorePlanOwnership.success) return restorePlanOwnership;
-    var restoreIds = Array.isArray(payload.ids) ? payload.ids.map(String).filter(Boolean) : [];
+    var restoreIds = Array.isArray(payload.ids) ? Array.from(new Set(payload.ids.map(function(id) { return String(id || '').trim(); }).filter(Boolean))) : [];
     if (!restoreIds.length) return { success: false, error: 'حدد خطة واحدة على الأقل لاستعادتها.' };
     var restoreValues = restorePlanSheet.getDataRange().getValues();
     var restoreHeaders = restoreValues[0].map(String);
