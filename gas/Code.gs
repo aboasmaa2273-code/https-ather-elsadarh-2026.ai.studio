@@ -898,13 +898,12 @@ function apiLogin_(payload) {
         user.department = String(directoryUser.department || user.department || '');
       }
     }
-    // Resolve a teacher account to its actual Teachers.id using the employee number.
-    if (role === 'teacher' && !user.teacherId && user.jobNumber) {
-      var teacherRows = rowsAsObjects_(ss.getSheetByName('Teachers'));
-      var matchedTeacher = teacherRows.filter(function(t) {
-        return String(t.schoolId || '') === user.schoolId && String(t.jobNumber || '') === user.jobNumber;
-      })[0];
-      if (matchedTeacher) user.teacherId = String(matchedTeacher.id || '');
+    // A teacher may sign in only when exactly one active school record matches
+    // the account's stable teacher ID (preferred) or employee number.
+    if (role === 'teacher') {
+      var teacherResolution = resolveActiveTeacherAccount_(ss, user.schoolId, user.teacherId, user.jobNumber);
+      if (!teacherResolution.success) return { success: false, error: teacherResolution.error };
+      user.teacherId = String(teacherResolution.teacher.id || '');
     }
     if (!user.roleTitle) user.roleTitle = role === 'platform_admin' ? 'مسؤول المنصة' : role === 'school_admin' ? 'مدير المدرسة' : role === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد';
     var token = createSessionToken_(user);
@@ -932,6 +931,38 @@ function constantTimeEquals_(a, b) {
   var diff = 0;
   for (var i = 0; i < a.length; i++) diff |= a.charCodeAt(i) ^ b.charCodeAt(i);
   return diff === 0;
+}
+
+function resolveActiveTeacherAccount_(database, schoolId, teacherId, jobNumber) {
+  var normalizedSchoolId = String(schoolId || 'sch_alsadara_01');
+  var normalizedTeacherId = String(teacherId || '').trim();
+  var normalizedJobNumber = String(jobNumber || '').trim();
+  if (!normalizedTeacherId && !normalizedJobNumber) {
+    return { success: false, error: 'يجب ربط حساب المعلم بسجل معلم من خلال المعرّف أو الرقم الوظيفي.' };
+  }
+  var teacherSheet = database && database.getSheetByName('Teachers');
+  if (!teacherSheet || teacherSheet.getLastRow() < 2) {
+    return { success: false, error: 'لا يوجد سجل معلم نشط مرتبط بهذا الحساب.' };
+  }
+  var matches = rowsAsObjects_(teacherSheet).filter(function(record) {
+    if (String(record.schoolId || '') !== normalizedSchoolId) return false;
+    return normalizedTeacherId
+      ? String(record.id || '') === normalizedTeacherId
+      : String(record.jobNumber || '').trim() === normalizedJobNumber;
+  });
+  if (matches.length !== 1) {
+    return { success: false, error: matches.length
+      ? 'تعذر التحقق من ارتباط حساب المعلم؛ يوجد أكثر من سجل مطابق.'
+      : 'لا يوجد سجل معلم مطابق لهذا الحساب في المدرسة.' };
+  }
+  var teacher = matches[0];
+  if (normalizeAtharStatus_(teacher.status) !== 'active') {
+    return { success: false, error: 'سجل المعلم المرتبط غير نشط. فعّل سجل المعلم أولاً.' };
+  }
+  if (normalizedJobNumber && String(teacher.jobNumber || '').trim() !== normalizedJobNumber) {
+    return { success: false, error: 'الرقم الوظيفي لا يطابق سجل المعلم المرتبط.' };
+  }
+  return { success: true, teacher: teacher };
 }
 
 function getSessionSigningSecret_() {
@@ -2141,16 +2172,11 @@ function saveUserAccount_(payload, session) {
     teacherId: String(payload.teacherId !== undefined ? payload.teacherId : (existing.teacherId || ''))
   };
 
-  // An inactive teacher must not regain login access through the account editor.
+  // Active teacher accounts must resolve to exactly one active teacher record.
   if (role === 'teacher' && obj.status === 'active') {
-    var linkedTeacherRecords = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(item) {
-      return String(item.schoolId) === String(schoolId) &&
-        ((obj.teacherId && String(item.id) === obj.teacherId) ||
-         (obj.jobNumber && String(item.jobNumber || '') === obj.jobNumber));
-    });
-    if (linkedTeacherRecords.some(function(item) { return String(item.status || 'active') !== 'active'; })) {
-      return { success: false, error: 'لا يمكن تفعيل حساب الدخول؛ سجل المعلم المرتبط غير نشط. فعّل سجل المعلم أولاً.' };
-    }
+    var teacherResolutionForSave = resolveActiveTeacherAccount_(ss, schoolId, obj.teacherId, obj.jobNumber);
+    if (!teacherResolutionForSave.success) return { success: false, error: teacherResolutionForSave.error };
+    obj.teacherId = String(teacherResolutionForSave.teacher.id || '');
   }
 
   // Preserve every existing column not explicitly edited, especially password hashes,
@@ -2213,13 +2239,10 @@ function setUserStatus_(payload, session) {
       var userJobNumberCol = headers.indexOf('jobNumber');
       var linkedTeacherId = userTeacherIdCol >= 0 ? String(data[i][userTeacherIdCol] || '') : '';
       var linkedTeacherJob = userJobNumberCol >= 0 ? String(data[i][userJobNumberCol] || '') : '';
-      var matchingTeacher = rowsAsObjects_(database.getSheetByName('Teachers')).filter(function(item) {
-        return String(item.schoolId) === targetSchool &&
-          ((linkedTeacherId && String(item.id) === linkedTeacherId) ||
-           (linkedTeacherJob && String(item.jobNumber || '') === linkedTeacherJob));
-      })[0];
-      if (matchingTeacher && String(matchingTeacher.status || 'active') !== 'active') {
-        return { success: false, error: 'لا يمكن تفعيل حساب الدخول؛ سجل المعلم المرتبط غير نشط. فعّل سجل المعلم أولاً.' };
+      var teacherResolutionForStatus = resolveActiveTeacherAccount_(database, targetSchool, linkedTeacherId, linkedTeacherJob);
+      if (!teacherResolutionForStatus.success) return { success: false, error: teacherResolutionForStatus.error };
+      if (userTeacherIdCol >= 0 && linkedTeacherId !== String(teacherResolutionForStatus.teacher.id || '')) {
+        sheet.getRange(i + 1, userTeacherIdCol + 1).setValue(String(teacherResolutionForStatus.teacher.id || ''));
       }
     }
     sheet.getRange(i + 1, statusCol + 1).setValue(next);
