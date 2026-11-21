@@ -312,7 +312,7 @@
       absentStudents: Number(document.getElementById('visit-absent-students').value),
       studentGender: document.getElementById('visit-student-gender').value,
       visitorRole: document.getElementById('visit-primary-role').value,
-      visitors: document.getElementById('visit-additional-visitors').value.split(/\r?\n/).map(function(name,index){return name.trim() ? {id:'visit-visitor-' + Date.now() + '-' + index,name:name.trim(),role:document.getElementById('visit-primary-role').value} : null;}).filter(Boolean),
+      visitors: [{id:String((atharState.user || {}).id || 'current-evaluator'),name:String((atharState.user || {}).name || ''),role:document.getElementById('visit-primary-role').value}].concat(document.getElementById('visit-additional-visitors').value.split(/\r?\n/).map(function(name,index){return name.trim() ? {id:'visit-visitor-' + Date.now() + '-' + index,name:name.trim(),role:document.getElementById('visit-primary-role').value} : null;}).filter(Boolean)),
       indicators: indicators,
       strengths: document.getElementById('visit-strengths').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
       improvementAreas: document.getElementById('visit-improvements').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
