@@ -2427,6 +2427,7 @@ function unapproveVisit_(visitId, session, schoolId) {
     var data = sheet.getDataRange().getValues();
     var headers = data[0].map(String);
     var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
+    if (statusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
       if (String(data[i][statusCol] || '') === 'archived') return { success: false, error: 'لا يمكن إلغاء اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
