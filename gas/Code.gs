@@ -2550,12 +2550,11 @@ function updateUserCredentials_(payload, session) {
       return { success: false, error: 'بنية ورقة الحسابات غير مكتملة.' };
     }
 
+    // Account IDs must be globally unique, including across schools. Do not
+    // let a platform administrator or school user update an ambiguous identity.
     var matchingTargetRows = [];
     for (var i = 1; i < data.length; i++) {
-      if (String(data[i][idCol]) !== targetId) continue;
-      var rowSchoolId = String(data[i][schoolCol] || 'sch_alsadara_01');
-      if (rowSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') continue;
-      matchingTargetRows.push(i + 1);
+      if (String(data[i][idCol]) === targetId) matchingTargetRows.push(i + 1);
     }
     if (matchingTargetRows.length !== 1) {
       return { success: false, error: matchingTargetRows.length
@@ -2565,6 +2564,10 @@ function updateUserCredentials_(payload, session) {
     var rowIndex = matchingTargetRows[0];
 
     var row = data[rowIndex - 1].slice();
+    var rowSchoolId = String(row[schoolCol] || 'sch_alsadara_01');
+    if (rowSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') {
+      return { success: false, error: 'الحساب المطلوب غير موجود أو لا تملك صلاحية تعديله.' };
+    }
     var previousUsername = String(row[usernameCol] || '').trim().toLowerCase();
     var targetRole = normalizeAtharRole_(row[roleCol]);
     if (!isSelf && session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
