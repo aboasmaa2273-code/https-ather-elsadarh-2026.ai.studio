@@ -126,6 +126,7 @@ export default function App() {
 
   // Administrative views are guarded here as well as in the navigation.
   const canAccessAdminTools = ['platform_admin', 'school_admin'].includes(normalizeUserRole(currentUser.role) || '');
+  const canAccessSettings = ['platform_admin', 'school_admin', 'vice_principal'].includes(normalizeUserRole(currentUser.role) || '');
 
   const isCurrentTeacherRecord = (record: { teacherJobNumber?: string; jobNumber?: string; teacherName?: string; fullName?: string }) => {
     if (currentUser.role !== 'teacher') return true;
@@ -148,7 +149,7 @@ export default function App() {
 
   // Navigation router
   const handleNavigate = (tab: string, param?: any) => {
-    if ((tab === 'settings' || tab === 'gas-hub') && !canAccessAdminTools) {
+    if ((tab === 'settings' && !canAccessSettings) || (tab === 'gas-hub' && !canAccessAdminTools)) {
       setActiveTab('dashboard');
       return;
     }
@@ -323,7 +324,7 @@ export default function App() {
           <GasIntegrationHub language={language} />
         )}
 
-        {isLoggedIn && canAccessAdminTools && activeTab === 'settings' && (
+        {isLoggedIn && canAccessSettings && activeTab === 'settings' && (
           <div className="space-y-8">
             <PlatformSettingsView
               settings={platformSettings}
