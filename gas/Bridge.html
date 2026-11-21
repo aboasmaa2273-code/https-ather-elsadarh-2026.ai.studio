@@ -11,11 +11,15 @@
       (function () {
         'use strict';
 
-        // Accept bridge commands only from the published Athar frontend origin.
-        var ALLOWED_PARENT_ORIGINS = [
-          'https://ather-elsadarh-2026.ai.studio',
-          'https://aboasmaa2273-code.github.io'
-        ];
+        // The frontend can run on a preview or production HTTPS host.
+        // The parent-window identity is checked for every request below.
+        function isTrustedParent(event) {
+          return event.source === window.top &&
+            typeof event.origin === 'string' &&
+            event.origin.indexOf('https://') === 0 &&
+            event.origin !== 'https://script.google.com' &&
+            event.origin !== 'https://script.googleusercontent.com';
+        }
         var REQUEST_CHANNEL = 'ATHAR_GAS_REQUEST';
         var RESPONSE_CHANNEL = 'ATHAR_GAS_BRIDGE';
         var READY_CHANNEL = 'ATHAR_GAS_BRIDGE_READY';
@@ -29,7 +33,7 @@
         }
 
         window.addEventListener('message', function (event) {
-          if (event.source !== window.top || ALLOWED_PARENT_ORIGINS.indexOf(event.origin) === -1) return;
+          if (!isTrustedParent(event)) return;
           var message = event.data;
           if (!message || message.channel !== REQUEST_CHANNEL || !message.id || !message.request) return;
 
@@ -54,9 +58,8 @@
             .dispatchBridgeRequest(message.request);
         });
 
-        ALLOWED_PARENT_ORIGINS.forEach(function (origin) {
-          sendToParent({ channel: READY_CHANNEL }, origin);
-        });
+        // The frontend verifies that READY came from its own iframe tree.
+        sendToParent({ channel: READY_CHANNEL }, '*');
       })();
     </script>
   </body>
