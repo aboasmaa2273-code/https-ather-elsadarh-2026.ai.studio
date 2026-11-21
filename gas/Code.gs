@@ -1680,10 +1680,23 @@ function dispatchApiAction_(action, payload, session) {
           if (previousVisitStatus === 'archived') return { success: false, error: 'لا يمكن اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
           if (previousVisitStatus !== 'approved') {
             recordVisitSnapshot_(ss, String(payload.id), visitRows[vi], visitHeaders, schoolId, session.name, session.role, 'اعتماد التقرير');
-            visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
             var approvedUpdatedCol = visitHeaders.indexOf('updatedAt');
-            if (approvedUpdatedCol >= 0) visitSheet.getRange(vi + 1, approvedUpdatedCol + 1).setValue(new Date().toISOString());
-            logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+            var previousApprovedStatus = visitRows[vi][visitStatusCol];
+            var previousApprovedUpdatedAt = approvedUpdatedCol >= 0 ? visitRows[vi][approvedUpdatedCol] : undefined;
+            try {
+              visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
+              if (approvedUpdatedCol >= 0) visitSheet.getRange(vi + 1, approvedUpdatedCol + 1).setValue(new Date().toISOString());
+              logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+            } catch (approvalWriteError) {
+              var approvalRollbackFailed = false;
+              try {
+                visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue(previousApprovedStatus);
+                if (approvedUpdatedCol >= 0) visitSheet.getRange(vi + 1, approvedUpdatedCol + 1).setValue(previousApprovedUpdatedAt);
+              } catch (approvalRollbackError) { approvalRollbackFailed = true; }
+              return { success: false, error: approvalRollbackFailed
+                ? 'تعذر اعتماد التقرير وفشلت استعادة حالته السابقة؛ يرجى مراجعة التقرير قبل إعادة المحاولة.'
+                : 'تعذر اعتماد التقرير؛ أُعيدت حالته السابقة.' };
+            }
           }
           return { success: true, id: payload.id, status: 'approved' };
         }
@@ -2763,9 +2776,22 @@ function unapproveVisit_(visitId, session, schoolId) {
       if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
       if (String(data[i][statusCol] || '') === 'archived') return { success: false, error: 'لا يمكن إلغاء اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
       recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'إلغاء اعتماد التقرير');
-      sheet.getRange(i + 1, statusCol + 1).setValue('completed');
-      if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
-      logAuditAction(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
+      var previousUnapprovedStatus = data[i][statusCol];
+      var previousUnapprovedUpdatedAt = updatedCol >= 0 ? data[i][updatedCol] : undefined;
+      try {
+        sheet.getRange(i + 1, statusCol + 1).setValue('completed');
+        if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
+        logAuditAction(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
+      } catch (unapprovalWriteError) {
+        var unapprovalRollbackFailed = false;
+        try {
+          sheet.getRange(i + 1, statusCol + 1).setValue(previousUnapprovedStatus);
+          if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(previousUnapprovedUpdatedAt);
+        } catch (unapprovalRollbackError) { unapprovalRollbackFailed = true; }
+        return { success: false, error: unapprovalRollbackFailed
+          ? 'تعذر إلغاء اعتماد التقرير وفشلت استعادة حالته السابقة؛ يرجى مراجعة التقرير قبل إعادة المحاولة.'
+          : 'تعذر إلغاء اعتماد التقرير؛ أُعيدت حالته السابقة.' };
+      }
       return { success: true, id: visitId, status: 'completed' };
     }
     return { success: false, error: 'التقرير غير موجود في المدرسة.' };
