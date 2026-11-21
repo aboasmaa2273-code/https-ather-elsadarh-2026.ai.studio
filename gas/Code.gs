@@ -41,7 +41,7 @@ function getDatabaseHealth_() {
     // Do not create sheets, initialize data, or modify Script Properties here.
     var properties = PropertiesService.getScriptProperties();
     var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID') ||
-      '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L9b8AwcYLM';
+      '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMriL9b8AwcYLM';
     var ss = SpreadsheetApp.openById(spreadsheetId);
     var usersSheet = !!ss.getSheetByName('Users');
     var teachersSheet = !!ss.getSheetByName('Teachers');
@@ -83,7 +83,7 @@ function getDatabaseSpreadsheet_() {
   var spreadsheetId = properties.getProperty('ATHAR_DATABASE_SPREADSHEET_ID');
   if (!spreadsheetId) {
     // Use the existing school database rather than silently creating a second database.
-    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMri9L9b8AwcYLM';
+    spreadsheetId = '1AbFN87suCPIJL5-mqmAQIEgpvon2pXMriL9b8AwcYLM';
     properties.setProperty('ATHAR_DATABASE_SPREADSHEET_ID', spreadsheetId);
   }
   ATHAR_SPREADSHEET_INSTANCE_ = SpreadsheetApp.openById(spreadsheetId);
