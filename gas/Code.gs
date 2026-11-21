@@ -2007,6 +2007,20 @@ function setUserStatus_(payload, session) {
       return { success: false, error: 'لا يمكن لإدارة المدرسة تعطيل حساب مسؤول المنصة أو حساب إدارة المدرسة.' };
     }
     var next = payload.status === 'active' ? 'active' : 'inactive';
+    if (next === 'active' && targetRole === 'teacher') {
+      var userTeacherIdCol = headers.indexOf('teacherId');
+      var userJobNumberCol = headers.indexOf('jobNumber');
+      var linkedTeacherId = userTeacherIdCol >= 0 ? String(data[i][userTeacherIdCol] || '') : '';
+      var linkedTeacherJob = userJobNumberCol >= 0 ? String(data[i][userJobNumberCol] || '') : '';
+      var matchingTeacher = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(item) {
+        return String(item.schoolId) === targetSchool &&
+          ((linkedTeacherId && String(item.id) === linkedTeacherId) ||
+           (!linkedTeacherId && linkedTeacherJob && String(item.jobNumber || '') === linkedTeacherJob));
+      })[0];
+      if (matchingTeacher && String(matchingTeacher.status || 'active') !== 'active') {
+        return { success: false, error: 'لا يمكن تفعيل حساب الدخول؛ سجل المعلم المرتبط غير نشط. فعّل سجل المعلم أولاً.' };
+      }
+    }
     sheet.getRange(i + 1, statusCol + 1).setValue(next);
     invalidatePublicEvaluatorCache_();
     logAuditAction(targetSchool, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
