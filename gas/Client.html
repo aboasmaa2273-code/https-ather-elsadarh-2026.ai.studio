@@ -344,15 +344,14 @@
       eLearningMaturity: document.getElementById('visit-elearning').value,
       strengths: document.getElementById('visit-strengths').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
       improvementAreas: document.getElementById('visit-improvements').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
-      practicalRecommendations: document.getElementById('visit-recommendations').value.trim(),
-      domains: []
+      practicalRecommendations: document.getElementById('visit-recommendations').value.trim()
     };
     if (!visitData.grade || !visitData.section || !visitData.subject || !visitData.date || !visitData.time || !visitData.academicYear || !visitData.term) {
       feedback.textContent = 'أكمل الصف والشعبة والمادة والتاريخ والوقت والعام الأكاديمي والفصل الدراسي قبل الحفظ.'; return;
     }
     if (visitData.visitType === 'quick' && !visitData.visitGoal) { feedback.textContent = 'اكتب هدف الزيارة السريعة قبل الحفظ.'; return; }
     if (!Number.isInteger(visitData.totalStudents) || !Number.isInteger(visitData.attendedStudents) ||
-        visitData.totalStudents < 0 || visitData.attendedStudents < 0 ||
+        visitData.totalStudents <= 0 || visitData.attendedStudents < 0 ||
         visitData.attendedStudents > visitData.totalStudents) {
       feedback.textContent = 'تحقق من أعداد الطلبة: يجب أن يكون عدد الحاضرين بين صفر وإجمالي الطلبة.'; return;
     }
