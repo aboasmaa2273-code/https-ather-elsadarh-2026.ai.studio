@@ -49,12 +49,16 @@ export const Dashboard: React.FC<DashboardProps> = ({
   const isTeacher = currentUser.role === 'teacher';
 
   // Filter visits for current user if teacher
-  const visibleVisits = isTeacher 
-    ? visits.filter(v => v.teacherJobNumber === currentUser.jobNumber || v.teacherName === currentUser.name)
+  const visibleVisits = isTeacher
+    ? (currentUser.jobNumber
+        ? visits.filter(v => String(v.teacherJobNumber || '').trim() === String(currentUser.jobNumber).trim())
+        : [])
     : visits;
 
   const visiblePlans = isTeacher
-    ? plans.filter(p => p.teacherJobNumber === currentUser.jobNumber || p.teacherName === currentUser.name)
+    ? (currentUser.jobNumber
+        ? plans.filter(p => String(p.teacherJobNumber || '').trim() === String(currentUser.jobNumber).trim())
+        : [])
     : plans;
 
   // Key KPI Calculations
