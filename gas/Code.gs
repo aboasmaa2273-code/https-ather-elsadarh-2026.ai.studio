@@ -871,7 +871,7 @@ function apiLogin_(payload) {
           normalizeAtharStatus_(visitor.status) !== 'inactive';
       })[0];
       if (directoryUser) {
-        user.roleTitle = String(user.specialization || directoryUser.roleTitle || user.roleTitle || '');
+        user.roleTitle = String(directoryUser.roleTitle || user.roleTitle || user.specialization || '');
         user.department = String(directoryUser.department || user.department || '');
       }
     }
@@ -1748,13 +1748,31 @@ function dispatchApiAction_(action, payload, session) {
     return saveVisitor_(payload, session);
   }
   if (action === 'deleteVisitor') {
-    if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف بيانات الزائرين مقتصر على الإدارة.' };
-    var deletedVisitor = deleteById_('RegisteredVisitors', payload.id, schoolId);
-    if (deletedVisitor.success) {
-      invalidatePublicEvaluatorCache_();
-      logAuditAction(schoolId, session.name, 'حذف زائر', 'تم حذف سجل الزائر ' + payload.id, session.role);
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'تعطيل بيانات الزائرين مقتصر على الإدارة.' };
+    if (!payload.id) return { success: false, error: 'معرّف الزائر مطلوب.' };
+    var visitorSheet = ss.getSheetByName('RegisteredVisitors');
+    if (!visitorSheet || visitorSheet.getLastRow() < 2) return { success: false, error: 'الزائر غير موجود.' };
+    var visitorValues = visitorSheet.getDataRange().getValues();
+    var visitorHeaders = visitorValues[0].map(String);
+    var visitorIdCol = visitorHeaders.indexOf('id');
+    var visitorSchoolCol = visitorHeaders.indexOf('schoolId');
+    var visitorStatusCol = visitorHeaders.indexOf('status');
+    if ([visitorIdCol, visitorSchoolCol, visitorStatusCol].some(function(index) { return index < 0; })) {
+      return { success: false, error: 'تعذر تحديد أعمدة سجل الزائر؛ لم يتم تغيير أي بيانات.' };
     }
-    return deletedVisitor;
+    var visitorRowNumber = -1;
+    for (var visitorIndex = 1; visitorIndex < visitorValues.length; visitorIndex++) {
+      if (String(visitorValues[visitorIndex][visitorIdCol]) === String(payload.id) &&
+          String(visitorValues[visitorIndex][visitorSchoolCol] || 'sch_alsadara_01') === String(schoolId)) {
+        visitorRowNumber = visitorIndex + 1;
+        break;
+      }
+    }
+    if (visitorRowNumber < 0) return { success: false, error: 'الزائر غير موجود في هذه المدرسة.' };
+    visitorSheet.getRange(visitorRowNumber, visitorStatusCol + 1).setValue('inactive');
+    invalidatePublicEvaluatorCache_();
+    logAuditAction(schoolId, session.name, 'تعطيل زائر', 'تم تعطيل سجل الزائر ' + payload.id + ' مع الاحتفاظ ببياناته.', session.role);
+    return { success: true, status: 'inactive', message: 'تم تعطيل الزائر مع الاحتفاظ بسجله.' };
   }
 
   if (action === 'deleteAuditLogs') {
