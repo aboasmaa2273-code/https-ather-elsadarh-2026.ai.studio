@@ -3329,15 +3329,21 @@ function upsertObjectRow_(sheetName, obj, idKey, schoolId) {
     return value === undefined || value === null ? '' : (typeof value === 'object' ? JSON.stringify(value) : value);
   });
   var data = sheet.getDataRange().getValues();
+  var matchingIdRows = [];
   for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]) === id) {
-      var schoolCol = headers.indexOf('schoolId');
-      if (schoolCol >= 0 && String(data[i][schoolCol]) !== String(schoolId)) {
-        return { success: false, error: 'لا يمكن تعديل سجل تابع لمدرسة أخرى.' };
-      }
-      sheet.getRange(i + 1, 1, 1, row.length).setValues([row]);
-      return { success: true, id: id };
+    if (String(data[i][0]) === id) matchingIdRows.push(i + 1);
+  }
+  if (matchingIdRows.length > 1) {
+    return { success: false, error: 'معرّف السجل مكرر في قاعدة البيانات؛ أوقفنا الحفظ احترازيًا دون تعديل أي سجل.' };
+  }
+  if (matchingIdRows.length === 1) {
+    var targetRow = matchingIdRows[0];
+    var schoolCol = headers.indexOf('schoolId');
+    if (schoolCol >= 0 && String(data[targetRow - 1][schoolCol]) !== String(schoolId)) {
+      return { success: false, error: 'لا يمكن تعديل سجل تابع لمدرسة أخرى.' };
     }
+    sheet.getRange(targetRow, 1, 1, row.length).setValues([row]);
+    return { success: true, id: id };
   }
   sheet.appendRow(row);
   return { success: true, id: id };
