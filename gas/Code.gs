@@ -1666,6 +1666,13 @@ function dispatchApiAction_(action, payload, session) {
       var visitRows = visitSheet.getDataRange().getValues();
       var visitHeaders = visitRows[0].map(String);
       var visitStatusCol = visitHeaders.indexOf('status');
+      var matchingApprovalRows = [];
+      for (var va = 1; va < visitRows.length; va++) {
+        if (String(visitRows[va][0]) === String(payload.id)) matchingApprovalRows.push(va + 1);
+      }
+      if (matchingApprovalRows.length > 1) {
+        return { success: false, error: 'رقم الزيارة مكرر؛ أوقفنا الاعتماد احترازيًا دون تغيير أي سجل.' };
+      }
       for (var vi = 1; vi < visitRows.length; vi++) {
         if (String(visitRows[vi][0]) === String(payload.id) && String(visitRows[vi][1]) === String(schoolId)) {
           if (visitStatusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
@@ -2745,6 +2752,13 @@ function unapproveVisit_(visitId, session, schoolId) {
     var headers = data[0].map(String);
     var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
     if (statusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
+    var matchingUnapprovalRows = [];
+    for (var ur = 1; ur < data.length; ur++) {
+      if (String(data[ur][0]) === String(visitId)) matchingUnapprovalRows.push(ur + 1);
+    }
+    if (matchingUnapprovalRows.length > 1) {
+      return { success: false, error: 'رقم التقرير مكرر؛ أوقفنا إلغاء الاعتماد احترازيًا دون تغيير أي سجل.' };
+    }
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
       if (String(data[i][statusCol] || '') === 'archived') return { success: false, error: 'لا يمكن إلغاء اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
