@@ -2275,97 +2275,154 @@ function updateUserCredentials_(payload, session) {
     var passwordColumnSetup = ensureUserPasswordColumns_(sheet);
     if (!passwordColumnSetup.success) return passwordColumnSetup;
   }
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(String);
-  var idCol = headers.indexOf('id');
-  var schoolCol = headers.indexOf('schoolId');
-  var nameCol = headers.indexOf('name');
-  var usernameCol = headers.indexOf('username');
-  var roleCol = headers.indexOf('role');
-  var statusCol = headers.indexOf('status');
-  var saltCol = headers.indexOf('passwordSalt');
-  var hashCol = headers.indexOf('passwordHash');
-  if ([idCol, schoolCol, nameCol, usernameCol, roleCol, statusCol].some(function(i) { return i < 0; })) {
-    return { success: false, error: 'بنية ورقة الحسابات غير مكتملة.' };
-  }
-  var rowIndex = -1;
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][idCol]) !== targetId) continue;
-    var rowSchoolId = String(data[i][schoolCol] || 'sch_alsadara_01');
-    if (rowSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') continue;
-    rowIndex = i + 1;
-    break;
-  }
-  if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود أو لا تملك صلاحية تعديله.' };
-  var row = data[rowIndex - 1].slice();
-  var previousUsername = String(row[usernameCol] || '').trim().toLowerCase();
-  var targetRole = normalizeAtharRole_(row[roleCol]);
-  if (!isSelf && session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
-    return { success: false, error: 'لا يمكن لإدارة المدرسة تعديل بيانات حساب مسؤول المنصة أو مسؤول المدرسة.' };
-  }
-  var name = String(payload.name || '').trim();
-  var username = String(payload.username || '').trim().toLowerCase();
-  var password = String(payload.password || '');
-  if (!name) return { success: false, error: 'الاسم الكامل مطلوب.' };
-  if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) return { success: false, error: 'اسم المستخدم يجب أن يتكون من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا أو . _ -' };
-  if (data.slice(1).some(function(other) {
-    return String(other[idCol]) !== targetId && String(other[usernameCol] || '').toLowerCase() === username;
-  })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
-  if (password && password.length < 10) return { success: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.' };
-  if (password && (saltCol < 0 || hashCol < 0)) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة.' };
 
-  row[nameCol] = name;
-  row[usernameCol] = username;
-  sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
-  var directorySheetForIdentity = ss.getSheetByName('RegisteredVisitors');
-  if (directorySheetForIdentity) {
-    var directoryValuesForIdentity = directorySheetForIdentity.getDataRange().getValues();
-    var directoryHeadersForIdentity = directoryValuesForIdentity[0].map(String);
-    var directorySchoolCol = directoryHeadersForIdentity.indexOf('schoolId');
-    var directoryNameCol = directoryHeadersForIdentity.indexOf('name');
-    var directoryUsernameCol = directoryHeadersForIdentity.indexOf('username');
-    for (var directoryIndex = 1; directoryIndex < directoryValuesForIdentity.length; directoryIndex++) {
-      if (previousUsername &&
-          directorySchoolCol >= 0 && directoryUsernameCol >= 0 &&
-          String(directoryValuesForIdentity[directoryIndex][directorySchoolCol] || 'sch_alsadara_01') === String(row[schoolCol] || session.schoolId) &&
-          String(directoryValuesForIdentity[directoryIndex][directoryUsernameCol] || '').trim().toLowerCase() === previousUsername) {
-        if (directoryNameCol >= 0) directorySheetForIdentity.getRange(directoryIndex + 1, directoryNameCol + 1).setValue(name);
-        if (directoryUsernameCol >= 0) directorySheetForIdentity.getRange(directoryIndex + 1, directoryUsernameCol + 1).setValue(username);
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { success: false, error: 'توجد عملية أخرى لتحديث الحسابات؛ انتظر قليلًا ثم أعد المحاولة.' };
+  var accountSnapshot = null;
+  var directorySnapshots = [];
+  var accountWriteStarted = false;
+  var directoryWriteStarted = false;
+  try {
+    // Re-read all account data only after acquiring the lock. This makes the
+    // duplicate-username check and the subsequent write one serialized operation.
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0].map(String);
+    var idCol = headers.indexOf('id');
+    var schoolCol = headers.indexOf('schoolId');
+    var nameCol = headers.indexOf('name');
+    var usernameCol = headers.indexOf('username');
+    var roleCol = headers.indexOf('role');
+    var statusCol = headers.indexOf('status');
+    var saltCol = headers.indexOf('passwordSalt');
+    var hashCol = headers.indexOf('passwordHash');
+    if ([idCol, schoolCol, nameCol, usernameCol, roleCol, statusCol].some(function(i) { return i < 0; })) {
+      return { success: false, error: 'بنية ورقة الحسابات غير مكتملة.' };
+    }
+
+    var rowIndex = -1;
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== targetId) continue;
+      var rowSchoolId = String(data[i][schoolCol] || 'sch_alsadara_01');
+      if (rowSchoolId !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') continue;
+      rowIndex = i + 1;
+      break;
+    }
+    if (rowIndex < 0) return { success: false, error: 'الحساب المطلوب غير موجود أو لا تملك صلاحية تعديله.' };
+
+    var row = data[rowIndex - 1].slice();
+    var previousUsername = String(row[usernameCol] || '').trim().toLowerCase();
+    var targetRole = normalizeAtharRole_(row[roleCol]);
+    if (!isSelf && session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
+      return { success: false, error: 'لا يمكن لإدارة المدرسة تعديل بيانات حساب مسؤول المنصة أو مسؤول المدرسة.' };
+    }
+    var name = String(payload.name || '').trim();
+    var username = String(payload.username || '').trim().toLowerCase();
+    var password = String(payload.password || '');
+    if (!name) return { success: false, error: 'الاسم الكامل مطلوب.' };
+    if (!/^[a-zA-Z0-9._-]{3,40}$/.test(username)) return { success: false, error: 'اسم المستخدم يجب أن يتكون من 3 إلى 40 حرفًا إنجليزيًا أو رقمًا أو . _ -' };
+    if (data.slice(1).some(function(other) {
+      return String(other[idCol]) !== targetId &&
+        String(other[usernameCol] || '').trim().toLowerCase() === username;
+    })) return { success: false, error: 'اسم المستخدم مستخدم بالفعل. اختر اسمًا آخر.' };
+    if (password && password.length < 10) return { success: false, error: 'كلمة المرور الجديدة يجب ألا تقل عن 10 أحرف.' };
+    if (password && (saltCol < 0 || hashCol < 0)) return { success: false, error: 'أعمدة تشفير كلمات المرور غير مهيأة.' };
+
+    row[nameCol] = name;
+    row[usernameCol] = username;
+    if (password) {
+      var newSalt = Utilities.getUuid() + Utilities.getUuid();
+      row[saltCol] = newSalt;
+      row[hashCol] = passwordHash_(password, newSalt);
+    }
+
+    var directorySheet = ss.getSheetByName('RegisteredVisitors');
+    if (directorySheet && directorySheet.getLastRow() > 1 && previousUsername) {
+      var directoryValues = directorySheet.getDataRange().getValues();
+      var directoryHeaders = directoryValues[0].map(String);
+      var directorySchoolCol = directoryHeaders.indexOf('schoolId');
+      var directoryNameCol = directoryHeaders.indexOf('name');
+      var directoryUsernameCol = directoryHeaders.indexOf('username');
+      if (directorySchoolCol >= 0 && directoryNameCol >= 0 && directoryUsernameCol >= 0) {
+        for (var di = 1; di < directoryValues.length; di++) {
+          if (String(directoryValues[di][directorySchoolCol] || 'sch_alsadara_01') === String(row[schoolCol] || session.schoolId) &&
+              String(directoryValues[di][directoryUsernameCol] || '').trim().toLowerCase() === previousUsername) {
+            var nextDirectoryRow = directoryValues[di].slice();
+            nextDirectoryRow[directoryNameCol] = name;
+            nextDirectoryRow[directoryUsernameCol] = username;
+            directorySnapshots.push({ row: di + 1, before: directoryValues[di].slice(), after: nextDirectoryRow });
+          }
+        }
       }
     }
-  }
-  invalidatePublicEvaluatorCache_();
-  if (password) {
-    var salt = Utilities.getUuid() + Utilities.getUuid();
-    sheet.getRange(rowIndex, saltCol + 1).setValue(salt);
-    sheet.getRange(rowIndex, hashCol + 1).setValue(passwordHash_(password, salt));
-  }
-  var updatedUser = {
-    id: targetId,
-    schoolId: String(row[schoolCol] || session.schoolId),
-    name: name,
-    username: username,
-    email: String(row[headers.indexOf('email')] || ''),
-    role: String(row[roleCol] || session.role),
-    jobNumber: String(row[headers.indexOf('jobNumber')] || ''),
-    specialization: String(row[headers.indexOf('specialization')] || ''),
-    status: String(row[statusCol] || 'active'),
-    teacherId: String(row[headers.indexOf('teacherId')] || '')
-  };
-  var directorySheet = ss.getSheetByName('RegisteredVisitors');
-  if (directorySheet) {
-    var directoryMatch = rowsAsObjects_(directorySheet).filter(function(visitor) {
-      return String(visitor.schoolId || updatedUser.schoolId) === updatedUser.schoolId &&
-        String(visitor.username || '').trim().toLowerCase() === username &&
-        normalizeAtharStatus_(visitor.status) !== 'inactive';
-    })[0];
-    if (directoryMatch) {
-      updatedUser.roleTitle = String(directoryMatch.roleTitle || '');
-      updatedUser.department = String(directoryMatch.department || '');
+
+    accountSnapshot = { row: rowIndex, before: data[rowIndex - 1].slice(), after: row.slice() };
+    // Store the password salt/hash in the same row write as the identity fields.
+    accountWriteStarted = true;
+    sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
+
+    if (directorySnapshots.length) {
+      directoryWriteStarted = true;
+      directorySnapshots.forEach(function(snapshot) {
+        directorySheet.getRange(snapshot.row, 1, 1, snapshot.after.length).setValues([snapshot.after]);
+      });
     }
+
+    invalidatePublicEvaluatorCache_();
+    var updatedUser = {
+      id: targetId,
+      schoolId: String(row[schoolCol] || session.schoolId),
+      name: name,
+      username: username,
+      email: String(row[headers.indexOf('email')] || ''),
+      role: String(row[roleCol] || session.role),
+      jobNumber: String(row[headers.indexOf('jobNumber')] || ''),
+      specialization: String(row[headers.indexOf('specialization')] || ''),
+      status: String(row[statusCol] || 'active'),
+      teacherId: String(row[headers.indexOf('teacherId')] || '')
+    };
+    if (directorySheet) {
+      var directoryMatch = rowsAsObjects_(directorySheet).filter(function(visitor) {
+        return String(visitor.schoolId || updatedUser.schoolId) === updatedUser.schoolId &&
+          String(visitor.username || '').trim().toLowerCase() === username &&
+          normalizeAtharStatus_(visitor.status) !== 'inactive';
+      })[0];
+      if (directoryMatch) {
+        updatedUser.roleTitle = String(directoryMatch.roleTitle || '');
+        updatedUser.department = String(directoryMatch.department || '');
+      }
+    }
+    logAuditAction(updatedUser.schoolId, session.name, 'تحديث بيانات الدخول', 'تم تحديث بيانات الحساب ' + targetId, session.role);
+    return { success: true, user: updatedUser };
+  } catch (updateError) {
+    var rollbackErrors = [];
+    // Best-effort compensation: restore directory rows and the account row.
+    if (directoryWriteStarted) {
+      directorySnapshots.slice().reverse().forEach(function(snapshot) {
+        try {
+          directorySheet.getRange(snapshot.row, 1, 1, snapshot.before.length).setValues([snapshot.before]);
+        } catch (directoryRollbackError) {
+          rollbackErrors.push(String(directoryRollbackError));
+        }
+      });
+    }
+    if (accountWriteStarted && accountSnapshot) {
+      try {
+        sheet.getRange(accountSnapshot.row, 1, 1, accountSnapshot.before.length).setValues([accountSnapshot.before]);
+      } catch (accountRollbackError) {
+        rollbackErrors.push(String(accountRollbackError));
+      }
+    }
+    invalidatePublicEvaluatorCache_();
+    return {
+      success: false,
+      error: rollbackErrors.length
+        ? 'تعذر تحديث الحساب، وفشلت استعادة بعض البيانات السابقة تلقائيًا. أوقف تعديل الحساب وراجع سجل Users ودليل الزائرين قبل إعادة المحاولة.'
+        : 'تعذر تحديث الحساب؛ أُعيدت البيانات السابقة قدر الإمكان. لم يكتمل التحديث.',
+      rollbackIncomplete: rollbackErrors.length > 0
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (releaseError) {}
   }
-  logAuditAction(updatedUser.schoolId, session.name, 'تحديث بيانات الدخول', 'تم تحديث الاسم واسم المستخدم للحساب ' + targetId, session.role);
-  return { success: true, user: updatedUser };
 }
 
 function saveInternalNote_(payload, session, schoolId) {
