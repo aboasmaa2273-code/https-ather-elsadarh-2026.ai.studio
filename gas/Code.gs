@@ -1504,27 +1504,33 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'approveVisit') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'اعتماد الزيارات مقتصر على الإدارة المخولة.' };
-    var visitSheet = ss.getSheetByName('Visits');
-    if (!visitSheet) return { success: false, error: 'ورقة الزيارات غير موجودة.' };
-    var visitRows = visitSheet.getDataRange().getValues();
-    var visitHeaders = visitRows[0].map(String);
-    var visitStatusCol = visitHeaders.indexOf('status');
-    for (var vi = 1; vi < visitRows.length; vi++) {
-      if (String(visitRows[vi][0]) === String(payload.id) && String(visitRows[vi][1]) === String(schoolId)) {
-        if (visitStatusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
-        var previousVisitStatus = String(visitRows[vi][visitStatusCol] || '');
-        if (previousVisitStatus === 'archived') return { success: false, error: 'لا يمكن اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
-        if (previousVisitStatus !== 'approved') {
-          recordVisitSnapshot_(ss, String(payload.id), visitRows[vi], visitHeaders, schoolId, session.name, session.role, 'اعتماد التقرير');
-          visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
-          var approvedUpdatedCol = visitHeaders.indexOf('updatedAt');
-          if (approvedUpdatedCol >= 0) visitSheet.getRange(vi + 1, approvedUpdatedCol + 1).setValue(new Date().toISOString());
-          logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+    var approveVisitLock = LockService.getScriptLock();
+    if (!approveVisitLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. حاول مرة أخرى.' };
+    try {
+      var visitSheet = ss.getSheetByName('Visits');
+      if (!visitSheet) return { success: false, error: 'ورقة الزيارات غير موجودة.' };
+      var visitRows = visitSheet.getDataRange().getValues();
+      var visitHeaders = visitRows[0].map(String);
+      var visitStatusCol = visitHeaders.indexOf('status');
+      for (var vi = 1; vi < visitRows.length; vi++) {
+        if (String(visitRows[vi][0]) === String(payload.id) && String(visitRows[vi][1]) === String(schoolId)) {
+          if (visitStatusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
+          var previousVisitStatus = String(visitRows[vi][visitStatusCol] || '');
+          if (previousVisitStatus === 'archived') return { success: false, error: 'لا يمكن اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
+          if (previousVisitStatus !== 'approved') {
+            recordVisitSnapshot_(ss, String(payload.id), visitRows[vi], visitHeaders, schoolId, session.name, session.role, 'اعتماد التقرير');
+            visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
+            var approvedUpdatedCol = visitHeaders.indexOf('updatedAt');
+            if (approvedUpdatedCol >= 0) visitSheet.getRange(vi + 1, approvedUpdatedCol + 1).setValue(new Date().toISOString());
+            logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+          }
+          return { success: true, id: payload.id, status: 'approved' };
         }
-        return { success: true, id: payload.id, status: 'approved' };
       }
+      return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
+    } finally {
+      approveVisitLock.releaseLock();
     }
-    return { success: false, error: 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
   }
   if (action === 'sendTeacherVisitNotes') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية مراسلة المعلم.' };
@@ -2413,21 +2419,27 @@ function archiveVisit_(visitId, session, schoolId) {
 
 function unapproveVisit_(visitId, session, schoolId) {
   if (!visitId) return { success: false, error: 'رقم التقرير مطلوب.' };
-  var ss = getDatabaseSpreadsheet_();
-  var sheet = ss.getSheetByName('Visits');
-  var data = sheet.getDataRange().getValues();
-  var headers = data[0].map(String);
-  var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
-    if (String(data[i][statusCol] || '') === 'archived') return { success: false, error: 'لا يمكن إلغاء اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
-    recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'إلغاء اعتماد التقرير');
-    sheet.getRange(i + 1, statusCol + 1).setValue('completed');
-    if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
-    logAuditAction(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
-    return { success: true, id: visitId, status: 'completed' };
+  var unapproveVisitLock = LockService.getScriptLock();
+  if (!unapproveVisitLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. حاول مرة أخرى.' };
+  try {
+    var ss = getDatabaseSpreadsheet_();
+    var sheet = ss.getSheetByName('Visits');
+    var data = sheet.getDataRange().getValues();
+    var headers = data[0].map(String);
+    var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][0]) !== String(visitId) || String(data[i][1]) !== String(schoolId)) continue;
+      if (String(data[i][statusCol] || '') === 'archived') return { success: false, error: 'لا يمكن إلغاء اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
+      recordVisitSnapshot_(ss, visitId, data[i], headers, schoolId, session.name, session.role, 'إلغاء اعتماد التقرير');
+      sheet.getRange(i + 1, statusCol + 1).setValue('completed');
+      if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
+      logAuditAction(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
+      return { success: true, id: visitId, status: 'completed' };
+    }
+    return { success: false, error: 'التقرير غير موجود في المدرسة.' };
+  } finally {
+    unapproveVisitLock.releaseLock();
   }
-  return { success: false, error: 'التقرير غير موجود في المدرسة.' };
 }
 
 function restoreVisit_(visitId, session, schoolId) {
