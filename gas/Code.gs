@@ -3873,3 +3873,9 @@ function setupAtharFiveInitialAccounts_() {
     lock.releaseLock();
   }
 }
+
+
+// Public editor entry point for the isolated test setup.
+function setupAtharFiveInitialAccounts() {
+  return setupAtharFiveInitialAccounts_();
+}
