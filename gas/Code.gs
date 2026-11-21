@@ -1776,24 +1776,14 @@ function dispatchApiAction_(action, payload, session) {
   }
 
   if (action === 'deleteAuditLogs') {
-    if (!requireRole_(session, adminRoles)) return { success: false, error: 'حذف سجل العمليات مقتصر على مسؤول المنصة أو إدارة المدرسة.' };
-    var auditSheet = ss.getSheetByName('AuditLog');
-    if (!auditSheet || auditSheet.getLastRow() < 2) return { success: true, deletedCount: 0 };
-    var auditValues = auditSheet.getDataRange().getValues();
-    var auditHeaders = auditValues[0].map(String);
-    var auditSchoolCol = auditHeaders.indexOf('schoolId');
-    var auditIdCol = auditHeaders.indexOf('id');
-    if (auditSchoolCol < 0 || auditIdCol < 0) return { success: false, error: 'تعذر تحديد أعمدة سجل العمليات.' };
-    var requestedAuditIds = Array.isArray(payload.ids) ? payload.ids.map(String) : [];
-    var deleteAllAuditLogs = requestedAuditIds.length === 0;
-    var auditRowsToDelete = [];
-    for (var auditRow = 1; auditRow < auditValues.length; auditRow++) {
-      var belongsToSchool = String(auditValues[auditRow][auditSchoolCol]) === String(schoolId);
-      var isRequested = deleteAllAuditLogs || requestedAuditIds.indexOf(String(auditValues[auditRow][auditIdCol])) >= 0;
-      if (belongsToSchool && isRequested) auditRowsToDelete.push(auditRow + 1);
-    }
-    for (var deleteIndex = auditRowsToDelete.length - 1; deleteIndex >= 0; deleteIndex--) auditSheet.deleteRow(auditRowsToDelete[deleteIndex]);
-    return { success: true, deletedCount: auditRowsToDelete.length };
+    if (!requireRole_(session, adminRoles)) return { success: false, error: 'الاطلاع على سجل العمليات مقتصر على الإدارة المخولة.' };
+    // Audit history is retained for accountability and must not be physically deleted.
+    // Keep this legacy API action as a compatibility guard for older clients.
+    return {
+      success: false,
+      deletedCount: 0,
+      error: 'حذف سجلات التدقيق غير متاح حفاظًا على الشفافية والسجل التاريخي. يمكن تصدير السجلات أو تصفيتها دون حذفها.'
+    };
   }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
