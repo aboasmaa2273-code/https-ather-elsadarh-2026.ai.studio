@@ -2484,13 +2484,62 @@ function archiveVisits_(visitIds, session, schoolId) {
     if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
     var migration = ensureVisitArchiveColumns_(sheet);
     if (!migration.success) return migration;
-    var archived = [];
-    for (var i = 0; i < ids.length; i++) {
-      var result = archiveVisit_(ids[i], session, schoolId);
-      if (!result.success) return { success: false, error: result.error || 'تعذرت أرشفة أحد التقارير.', archivedCount: archived.length, archivedIds: archived };
-      archived.push(ids[i]);
+    var archiveHeadersNow = sheet.getDataRange().getValues();
+    var archiveHeaderNames = archiveHeadersNow[0].map(String);
+    var archiveIdCol = archiveHeaderNames.indexOf('id');
+    var archiveSchoolCol = archiveHeaderNames.indexOf('schoolId');
+    var archiveStatusCol = archiveHeaderNames.indexOf('status');
+    var archivePriorCol = archiveHeaderNames.indexOf('statusBeforeArchive');
+    var archiveAtCol = archiveHeaderNames.indexOf('archivedAt');
+    var archiveByCol = archiveHeaderNames.indexOf('archivedBy');
+    var archiveUpdatedCol = archiveHeaderNames.indexOf('updatedAt');
+    var archiveBatchSnapshots = [];
+    try {
+      ids.forEach(function(id) {
+        var foundRow = -1;
+        for (var ai = 1; ai < archiveHeadersNow.length; ai++) {
+          if (String(archiveHeadersNow[ai][archiveIdCol]) === id && String(archiveHeadersNow[ai][archiveSchoolCol]) === String(schoolId)) {
+            foundRow = ai + 1;
+            archiveBatchSnapshots.push({
+              row: foundRow,
+              status: archiveHeadersNow[ai][archiveStatusCol],
+              priorStatus: archiveHeadersNow[ai][archivePriorCol],
+              archivedAt: archiveHeadersNow[ai][archiveAtCol],
+              archivedBy: archiveHeadersNow[ai][archiveByCol],
+              updatedAt: archiveUpdatedCol >= 0 ? archiveHeadersNow[ai][archiveUpdatedCol] : undefined
+            });
+            break;
+          }
+        }
+        if (foundRow < 0) throw new Error('تعذر إعادة تحديد أحد التقارير بعد فحص الأرشفة.');
+      });
+      for (var i = 0; i < ids.length; i++) {
+        var archiveResult = archiveVisit_(ids[i], session, schoolId);
+        if (!archiveResult.success) throw new Error(archiveResult.error || 'تعذرت أرشفة أحد التقارير.');
+      }
+      return { success: true, archivedCount: ids.length, archivedIds: ids };
+    } catch (archiveBatchError) {
+      var archiveBatchRollbackErrors = [];
+      archiveBatchSnapshots.forEach(function(snapshot) {
+        try {
+          sheet.getRange(snapshot.row, archiveStatusCol + 1).setValue(snapshot.status);
+          sheet.getRange(snapshot.row, archivePriorCol + 1).setValue(snapshot.priorStatus);
+          sheet.getRange(snapshot.row, archiveAtCol + 1).setValue(snapshot.archivedAt);
+          sheet.getRange(snapshot.row, archiveByCol + 1).setValue(snapshot.archivedBy);
+          if (archiveUpdatedCol >= 0) sheet.getRange(snapshot.row, archiveUpdatedCol + 1).setValue(snapshot.updatedAt);
+        } catch (rollbackError) { archiveBatchRollbackErrors.push(String(rollbackError)); }
+      });
+      logAuditAction(schoolId, session.name, 'التراجع عن أرشفة جماعية', 'تعذرت أرشفة المجموعة؛ تمت محاولة إعادة الحالات السابقة. عدد السجلات التي تعذر التراجع عنها: ' + archiveBatchRollbackErrors.length, session.role);
+      return {
+        success: false,
+        error: archiveBatchRollbackErrors.length
+          ? 'تعذرت الأرشفة الجماعية وفشلت استعادة بعض الحالات السابقة. راجع السجلات قبل إعادة المحاولة.'
+          : 'تعذرت الأرشفة الجماعية؛ أُعيدت حالات التقارير السابقة.',
+        archivedCount: 0,
+        archivedIds: [],
+        rollbackIncomplete: archiveBatchRollbackErrors.length > 0
+      };
     }
-    return { success: true, archivedCount: archived.length, archivedIds: archived };
   } finally {
     lock.releaseLock();
   }
@@ -2519,13 +2568,59 @@ function restoreVisits_(visitIds, session, schoolId) {
     if (ids.some(function(id) { return !found[id]; })) return { success: false, error: 'أحد التقارير المحددة غير موجود. لم يتم تغيير أي سجل.' };
     var migration = ensureVisitArchiveColumns_(sheet);
     if (!migration.success) return migration;
-    var restored = [];
-    for (var i = 0; i < ids.length; i++) {
-      var result = restoreVisit_(ids[i], session, schoolId);
-      if (!result.success) return { success: false, error: result.error || 'تعذرت استعادة أحد التقارير.', restoredCount: restored.length, restoredIds: restored };
-      restored.push(ids[i]);
+    var restoreHeadersNow = sheet.getDataRange().getValues();
+    var restoreHeaderNames = restoreHeadersNow[0].map(String);
+    var restoreIdCol = restoreHeaderNames.indexOf('id');
+    var restoreSchoolCol = restoreHeaderNames.indexOf('schoolId');
+    var restoreStatusCol = restoreHeaderNames.indexOf('status');
+    var restoreAtCol = restoreHeaderNames.indexOf('restoredAt');
+    var restoreByCol = restoreHeaderNames.indexOf('restoredBy');
+    var restoreUpdatedCol = restoreHeaderNames.indexOf('updatedAt');
+    var restoreBatchSnapshots = [];
+    try {
+      ids.forEach(function(id) {
+        var foundRow = -1;
+        for (var ri = 1; ri < restoreHeadersNow.length; ri++) {
+          if (String(restoreHeadersNow[ri][restoreIdCol]) === id && String(restoreHeadersNow[ri][restoreSchoolCol]) === String(schoolId)) {
+            foundRow = ri + 1;
+            restoreBatchSnapshots.push({
+              row: foundRow,
+              status: restoreHeadersNow[ri][restoreStatusCol],
+              restoredAt: restoreHeadersNow[ri][restoreAtCol],
+              restoredBy: restoreHeadersNow[ri][restoreByCol],
+              updatedAt: restoreUpdatedCol >= 0 ? restoreHeadersNow[ri][restoreUpdatedCol] : undefined
+            });
+            break;
+          }
+        }
+        if (foundRow < 0) throw new Error('تعذر إعادة تحديد أحد التقارير بعد فحص الاستعادة.');
+      });
+      for (var i = 0; i < ids.length; i++) {
+        var restoreResult = restoreVisit_(ids[i], session, schoolId);
+        if (!restoreResult.success) throw new Error(restoreResult.error || 'تعذرت استعادة أحد التقارير.');
+      }
+      return { success: true, restoredCount: ids.length, restoredIds: ids };
+    } catch (restoreBatchError) {
+      var restoreBatchRollbackErrors = [];
+      restoreBatchSnapshots.forEach(function(snapshot) {
+        try {
+          sheet.getRange(snapshot.row, restoreStatusCol + 1).setValue(snapshot.status);
+          sheet.getRange(snapshot.row, restoreAtCol + 1).setValue(snapshot.restoredAt);
+          sheet.getRange(snapshot.row, restoreByCol + 1).setValue(snapshot.restoredBy);
+          if (restoreUpdatedCol >= 0) sheet.getRange(snapshot.row, restoreUpdatedCol + 1).setValue(snapshot.updatedAt);
+        } catch (rollbackError) { restoreBatchRollbackErrors.push(String(rollbackError)); }
+      });
+      logAuditAction(schoolId, session.name, 'التراجع عن استعادة جماعية', 'تعذرت استعادة المجموعة؛ تمت محاولة إعادة الحالات المؤرشفة السابقة. عدد السجلات التي تعذر التراجع عنها: ' + restoreBatchRollbackErrors.length, session.role);
+      return {
+        success: false,
+        error: restoreBatchRollbackErrors.length
+          ? 'تعذرت الاستعادة الجماعية وفشلت إعادة بعض التقارير إلى الأرشيف. راجع السجلات قبل إعادة المحاولة.'
+          : 'تعذرت الاستعادة الجماعية؛ أُعيدت حالات التقارير المؤرشفة السابقة.',
+        restoredCount: 0,
+        restoredIds: [],
+        rollbackIncomplete: restoreBatchRollbackErrors.length > 0
+      };
     }
-    return { success: true, restoredCount: restored.length, restoredIds: restored };
   } finally {
     lock.releaseLock();
   }
