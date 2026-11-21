@@ -153,7 +153,7 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 
   const handleOpenFollowUp = (plan: ImprovementPlan) => {
     setSelectedPlanForFollowUp(plan);
-    setFollowUpStatus(plan.status === 'completed' ? 'completed' : 'completed');
+    setFollowUpStatus(plan.status || 'in_progress');
     setFollowUpResult(plan.followUpResult || '');
     setFollowUpNotes(plan.followUpNotes || '');
     setIsFollowUpModalOpen(true);
