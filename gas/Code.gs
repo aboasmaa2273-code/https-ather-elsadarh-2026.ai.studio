@@ -1337,7 +1337,8 @@ function dispatchApiAction_(action, payload, session) {
     var batchIdCol = batchHeaders.indexOf('importBatchId');
     var batchTeacherIdCol = batchHeaders.indexOf('id');
     var batchSchoolCol = batchHeaders.indexOf('schoolId');
-    if (batchIdCol < 0 || batchTeacherIdCol < 0 || batchSchoolCol < 0) return { success: false, error: 'لا تتوفر بيانات تتبع دفعة الاستيراد.' };
+    var batchStatusCol = batchHeaders.indexOf('status');
+    if ([batchIdCol, batchTeacherIdCol, batchSchoolCol, batchStatusCol].some(function(index) { return index < 0; })) return { success: false, error: 'لا تتوفر بيانات تتبع دفعة الاستيراد أو حالة المعلم؛ لم يتم تغيير أي سجل.' };
     var batchValues = batchSheet.getRange(2, 1, batchSheet.getLastRow() - 1, batchSheet.getLastColumn()).getValues();
     // Preserve imported teacher records referenced by any historical or active school data.
     var referencedTeacherIds = {};
@@ -1355,10 +1356,43 @@ function dispatchApiAction_(action, payload, session) {
       if (referencedTeacherIds[teacherId]) { protectedCount++; return; }
       rowsToRemove.push(index + 2);
     });
-    for (var removeIndex = rowsToRemove.length - 1; removeIndex >= 0; removeIndex--) batchSheet.deleteRow(rowsToRemove[removeIndex]);
-    if (rowsToRemove.length) logAuditAction(schoolId, session.name, 'التراجع عن استيراد المعلمين', 'تم حذف ' + rowsToRemove.length + ' سجل من دفعة ' + batchId + (protectedCount ? ' مع الإبقاء على ' + protectedCount + ' سجل مرتبط بزيارات سابقة.' : ''), session.role);
-    return { success: true, deletedCount: rowsToRemove.length, protectedCount: protectedCount,
-      message: protectedCount ? 'تم حذف السجلات غير المرتبطة بزيارات، والإبقاء على السجلات المرتبطة بتاريخ زيارات.' : 'تم حذف دفعة الاستيراد.' };
+    var batchRollbackLock = LockService.getScriptLock();
+    if (!batchRollbackLock.tryLock(10000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. لم يتم تغيير أي سجل؛ أعد المحاولة.' };
+    var batchSnapshots = [];
+    try {
+      // Revalidate every candidate under the lock and snapshot its current status.
+      rowsToRemove.forEach(function(rowNumber) {
+        var liveRow = batchSheet.getRange(rowNumber, 1, 1, batchHeaders.length).getValues()[0];
+        if (String(liveRow[batchTeacherIdCol] || '') === '' ||
+            String(liveRow[batchSchoolCol] || '') !== String(schoolId) ||
+            String(liveRow[batchIdCol] || '') !== batchId) {
+          throw new Error('تغير أحد سجلات الدفعة بعد الفحص الأولي؛ ألغيت العملية دون متابعة.');
+        }
+        batchSnapshots.push({ row: rowNumber, status: liveRow[batchStatusCol] });
+      });
+      // Rollback means deactivation, never physical deletion of teacher history.
+      batchSnapshots.forEach(function(snapshot) {
+        batchSheet.getRange(snapshot.row, batchStatusCol + 1).setValue('inactive');
+      });
+    } catch (batchRollbackError) {
+      var batchRestoreErrors = [];
+      batchSnapshots.forEach(function(snapshot) {
+        try { batchSheet.getRange(snapshot.row, batchStatusCol + 1).setValue(snapshot.status); }
+        catch (restoreError) { batchRestoreErrors.push(String(restoreError)); }
+      });
+      return {
+        success: false,
+        error: batchRestoreErrors.length
+          ? 'تعذر إلغاء الدفعة بالكامل، وفشلت استعادة حالة بعض المعلمين. راجع السجلات قبل إعادة المحاولة.'
+          : 'تعذر إلغاء الدفعة؛ أُعيدت حالات المعلمين السابقة قدر الإمكان.',
+        rollbackIncomplete: batchRestoreErrors.length > 0
+      };
+    } finally {
+      try { batchRollbackLock.releaseLock(); } catch (releaseError) {}
+    }
+    if (batchSnapshots.length) logAuditAction(schoolId, session.name, 'إلغاء دفعة استيراد المعلمين', 'تم تعطيل ' + batchSnapshots.length + ' معلم من دفعة ' + batchId + ' مع الاحتفاظ بالسجلات، وإبقاء ' + protectedCount + ' سجل محمي مرتبط ببيانات أخرى.', session.role);
+    return { success: true, deletedCount: 0, deactivatedCount: batchSnapshots.length, protectedCount: protectedCount,
+      message: 'تم تعطيل المعلمين غير المرتبطين بسجلات أخرى دون حذف بياناتهم؛ وأُبقيت السجلات المرتبطة كما هي.' };
   }
   if (action === 'saveTeacher') {
     if (!requireRole_(session, managementRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة المعلمين.' };
@@ -2582,30 +2616,14 @@ function saveSettingsRows_(settings, userName) {
   return { success: true };
 }
 
-function deleteById_(sheetName, id, schoolId) {
-  if (!id) return { success: false, error: 'المعرّف مطلوب.' };
-  var sheet = getDatabaseSpreadsheet_().getSheetByName(sheetName);
-  if (!sheet) return { success: false, error: 'ورقة البيانات غير موجودة.' };
-  var data = sheet.getDataRange().getValues();
-  for (var i = data.length - 1; i >= 1; i--) {
-    if (String(data[i][0]) === String(id) && String(data[i][1]) === String(schoolId)) {
-      sheet.deleteRow(i + 1);
-      return { success: true };
-    }
-  }
-  return { success: false, error: 'السجل غير موجود في هذه المدرسة.' };
+// Defensive tombstones: these legacy physical-delete helpers have no active call sites.
+// Keep them as explicit refusals so a future caller cannot erase visit history accidentally.
+function deleteById_(_sheetName, _id, _schoolId) {
+  return { success: false, error: 'الحذف النهائي للسجلات التاريخية معطل. استخدم الأرشفة أو التعطيل.' };
 }
 
-function deleteVisitRows_(visitId, schoolId) {
-  var result = deleteById_('Visits', visitId, schoolId);
-  if (!result.success) return result;
-  ['VisitIndicators', 'VisitDomains'].forEach(function(name) {
-    var sheet = getDatabaseSpreadsheet_().getSheetByName(name);
-    if (!sheet || sheet.getLastRow() < 2) return;
-    var rows = sheet.getDataRange().getValues();
-    for (var i = rows.length - 1; i >= 1; i--) if (String(rows[i][1]) === String(visitId)) sheet.deleteRow(i + 1);
-  });
-  return { success: true };
+function deleteVisitRows_(_visitId, _schoolId) {
+  return { success: false, error: 'الحذف النهائي للزيارات وتفاصيلها معطل. استخدم الأرشفة والاستعادة.' };
 }
 
 // تُشغّل مرة واحدة من محرر Apps Script بواسطة مسؤول النظام لتوسيع أعمدة Users.
