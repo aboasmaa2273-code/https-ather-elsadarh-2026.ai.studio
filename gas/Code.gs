@@ -2331,38 +2331,71 @@ function setUserStatus_(payload, session) {
   if (!database) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
   var sheet = database.getSheetByName('Users');
   if (!sheet || sheet.getLastRow() < 2) return { success: false, error: 'ورقة الحسابات غير موجودة.' };
-  var data = sheet.getDataRange().getValues(), headers = data[0].map(String);
-  var schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status'), idCol = headers.indexOf('id');
-  var roleCol = headers.indexOf('role');
-  if ([schoolCol, statusCol, idCol, roleCol].some(function(index) { return index < 0; })) return { success: false, error: 'بنية ورقة الحسابات غير مكتملة.' };
-  for (var i = 1; i < data.length; i++) {
-    if (String(data[i][idCol]) !== id) continue;
-    var targetSchool = String(data[i][schoolCol] || 'sch_alsadara_01');
-    if (targetSchool !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') {
-      return { success: false, error: 'لا يمكن تغيير حالة حساب تابع لمدرسة أخرى.' };
+
+  // Serialize status changes with account edits, teacher changes, and other
+  // protected writes. Re-read the target only after acquiring the shared lock.
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) return { success: false, error: 'توجد عملية أخرى لإدارة الحسابات؛ انتظر قليلًا ثم أعد المحاولة.' };
+  var targetSnapshot = null;
+  var targetRowNumber = -1;
+  var writeStarted = false;
+  try {
+    var data = sheet.getDataRange().getValues(), headers = data[0].map(String);
+    var schoolCol = headers.indexOf('schoolId'), statusCol = headers.indexOf('status'), idCol = headers.indexOf('id');
+    var roleCol = headers.indexOf('role'), teacherIdCol = headers.indexOf('teacherId'), jobNumberCol = headers.indexOf('jobNumber');
+    if ([schoolCol, statusCol, idCol, roleCol].some(function(index) { return index < 0; })) {
+      return { success: false, error: 'بنية ورقة الحسابات غير مكتملة؛ لم يتم تغيير أي بيانات.' };
     }
-    var targetRole = normalizeAtharRole_(data[i][roleCol]);
-    if (session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
-      return { success: false, error: 'لا يمكن لإدارة المدرسة تعطيل حساب مسؤول المنصة أو حساب إدارة المدرسة.' };
-    }
-    var next = payload.status === 'active' ? 'active' : 'inactive';
-    if (next === 'active' && targetRole === 'teacher') {
-      var userTeacherIdCol = headers.indexOf('teacherId');
-      var userJobNumberCol = headers.indexOf('jobNumber');
-      var linkedTeacherId = userTeacherIdCol >= 0 ? String(data[i][userTeacherIdCol] || '') : '';
-      var linkedTeacherJob = userJobNumberCol >= 0 ? String(data[i][userJobNumberCol] || '') : '';
-      var teacherResolutionForStatus = resolveActiveTeacherAccount_(database, targetSchool, linkedTeacherId, linkedTeacherJob);
-      if (!teacherResolutionForStatus.success) return { success: false, error: teacherResolutionForStatus.error };
-      if (userTeacherIdCol >= 0 && linkedTeacherId !== String(teacherResolutionForStatus.teacher.id || '')) {
-        sheet.getRange(i + 1, userTeacherIdCol + 1).setValue(String(teacherResolutionForStatus.teacher.id || ''));
+
+    for (var i = 1; i < data.length; i++) {
+      if (String(data[i][idCol]) !== id) continue;
+      var row = data[i].slice();
+      targetRowNumber = i + 1;
+      var targetSchool = String(row[schoolCol] || 'sch_alsadara_01');
+      if (targetSchool !== String(session.schoolId || 'sch_alsadara_01') && session.role !== 'platform_admin') {
+        return { success: false, error: 'لا يمكن تغيير حالة حساب تابع لمدرسة أخرى.' };
       }
+      var targetRole = normalizeAtharRole_(row[roleCol]);
+      if (session.role !== 'platform_admin' && ['platform_admin', 'school_admin'].indexOf(targetRole) >= 0) {
+        return { success: false, error: 'لا يمكن لإدارة المدرسة تعطيل حساب مسؤول المنصة أو حساب إدارة المدرسة.' };
+      }
+
+      var next = payload.status === 'active' ? 'active' : 'inactive';
+      if (next === 'active' && targetRole === 'teacher') {
+        var linkedTeacherId = teacherIdCol >= 0 ? String(row[teacherIdCol] || '') : '';
+        var linkedTeacherJob = jobNumberCol >= 0 ? String(row[jobNumberCol] || '') : '';
+        var teacherResolution = resolveActiveTeacherAccount_(database, targetSchool, linkedTeacherId, linkedTeacherJob);
+        if (!teacherResolution.success) return { success: false, error: teacherResolution.error };
+        if (teacherIdCol >= 0) row[teacherIdCol] = String(teacherResolution.teacher.id || '');
+      }
+
+      targetSnapshot = row.slice();
+      var updatedRow = row.slice();
+      updatedRow[statusCol] = next;
+      writeStarted = true;
+      sheet.getRange(targetRowNumber, 1, 1, headers.length).setValues([updatedRow]);
+      invalidatePublicEvaluatorCache_();
+      logAuditAction(targetSchool, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
+      return { success: true, id: id, status: next };
     }
-    sheet.getRange(i + 1, statusCol + 1).setValue(next);
+    return { success: false, error: 'الحساب غير موجود.' };
+  } catch (statusError) {
+    var rollbackError = '';
+    if (writeStarted && targetSnapshot && targetRowNumber > 0) {
+      try { sheet.getRange(targetRowNumber, 1, 1, targetSnapshot.length).setValues([targetSnapshot]); }
+      catch (restoreError) { rollbackError = String(restoreError); }
+    }
     invalidatePublicEvaluatorCache_();
-    logAuditAction(targetSchool, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
-    return { success: true, id: id, status: next };
+    return {
+      success: false,
+      error: rollbackError
+        ? 'تعذر تغيير حالة الحساب وفشلت استعادة بعض القيم السابقة. راجع سجل Users قبل إعادة المحاولة.'
+        : 'تعذر تغيير حالة الحساب؛ أُعيدت القيم السابقة قدر الإمكان.',
+      rollbackIncomplete: !!rollbackError
+    };
+  } finally {
+    try { lock.releaseLock(); } catch (releaseError) {}
   }
-  return { success: false, error: 'الحساب غير موجود.' };
 }
 
 function updateUserCredentials_(payload, session) {
