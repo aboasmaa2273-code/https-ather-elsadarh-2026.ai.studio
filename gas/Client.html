@@ -199,6 +199,7 @@
     var data = atharState.bootstrap || {};
     var teachers = (data.teachers || []).filter(function(t){ return String(t.status || 'active') !== 'inactive'; });
     var indicators = (data.indicators || []).filter(function(i){ return i.isActive !== false && String(i.isActive).toLowerCase() !== 'false'; });
+    var evaluationDomains = data.evaluationDomains || [];
     var academicSettings = {};
     (data.settings || []).forEach(function(row){
       if (String(row.key || '') !== 'academicSettings') return;
@@ -230,6 +231,12 @@
             '</select><textarea class="indicator-notes" rows="2" placeholder="ملاحظات المشاهدة (اختياري)" style="width:100%;margin-top:.5rem;padding:.6rem;border:1px solid #CBD5E1;border-radius:6px;"></textarea></div>';
         }).join('') + '</section>';
     }).join('');
+    var domainMarkup = evaluationDomains.map(function(domain){
+      return '<div class="visit-domain" data-domain-id="'+escapeHtml(domain.id)+'" data-domain-name="'+escapeHtml(domain.name || '')+'" style="padding:.7rem 0;border-bottom:1px solid #E2E8F0;">' +
+        '<label style="display:block;font-weight:600;margin-bottom:.4rem;">'+escapeHtml(domain.name || '')+'</label>' +
+        '<select class="domain-rating" style="width:100%;padding:.65rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<option value="very_weak">ضعيف جدًا</option><option value="weak">ضعيف</option><option value="acceptable">مقبول</option><option value="good">جيد</option><option value="very_good">جيد جدًا</option><option value="outstanding">متميز</option></select></div>';
+    }).join('');
     viewport.innerHTML = '<section class="login-card" style="max-width:100%;"><h2 style="color:#172C40;">تسجيل زيارة صفية جديدة</h2>' +
       '<p style="color:#64748B;margin:.5rem 0 1rem;">أدخل بيانات المشاهدة، ثم قيّم المؤشرات التي تمت ملاحظتها. يمكنك ترك المؤشر على «لم يُشاهد» عند عدم توفر دليل عليه.</p>' +
       '<form id="athar-visit-form"><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">' +
@@ -252,6 +259,8 @@
       '<div><label for="visit-primary-role">دور المقيم / الزائر الأساسي</label><select id="visit-primary-role" required style="width:100%;padding:.7rem;"><option value="evaluator">مقيّم</option><option value="admin">إداري</option><option value="teacher">معلم</option><option value="cluster_director">مدير / مديرة النطاق</option><option value="principal">مدير المدرسة</option><option value="vice_principal">مساعد مدير</option><option value="head_of_arabic">رئيس هيئة تدريس المواد العربية</option><option value="department_head">رئيس قسم</option><option value="academic_supervisor">موجه تربوي / أخصائي</option><option value="other">أخرى</option></select></div>' +
       '<div><label for="visit-additional-visitors">الزائرون الآخرون (اسم كل زائر في سطر)</label><textarea id="visit-additional-visitors" rows="3" maxlength="1000" placeholder="اكتب أسماء الزائرين الآخرين، كل اسم في سطر مستقل" style="width:100%;padding:.7rem;"></textarea><small style="color:#64748B;">سيُسجَّل الزائرون الإضافيون بالدور المحدد أعلاه.</small></div></div>' +
       '<h3 style="margin:1.5rem 0 .5rem;color:#172C40;">مؤشرات المشاهدة والتقييم</h3>' + (indicatorMarkup || '<p>لا توجد مؤشرات متاحة في بيانات المنصة.</p>') +
+      '<h3 style="margin:1.5rem 0 .5rem;color:#172C40;">تقييم المجالات العامة</h3>' + (domainMarkup || '<p style="color:#64748B;">لا توجد مجالات تقييم معرفة في مكتبة المنصة حاليًا.</p>') +
+      '<div style="margin-top:1rem;"><label for="visit-elearning">مستوى نضج التعلّم الإلكتروني</label><select id="visit-elearning" style="width:100%;padding:.7rem;"><option value="weak">ضعيف</option><option value="acceptable">مقبول</option><option value="good" selected>جيد</option><option value="very_good">جيد جدًا</option><option value="excellent">ممتاز</option></select></div>';
       '<div style="margin-top:1rem;"><label for="visit-strengths">نقاط القوة</label><textarea id="visit-strengths" rows="3" style="width:100%;padding:.7rem;" placeholder="اكتب كل نقطة في سطر مستقل"></textarea></div>' +
       '<div style="margin-top:1rem;"><label for="visit-improvements">مجالات التحسين</label><textarea id="visit-improvements" rows="3" style="width:100%;padding:.7rem;" placeholder="اكتب كل مجال في سطر مستقل"></textarea></div>' +
       '<div style="margin-top:1rem;"><label for="visit-recommendations">التوصيات العملية</label><textarea id="visit-recommendations" rows="3" style="width:100%;padding:.7rem;"></textarea></div>' +
@@ -314,6 +323,8 @@
       visitorRole: document.getElementById('visit-primary-role').value,
       visitors: [{id:String((atharState.user || {}).id || 'current-evaluator'),name:String((atharState.user || {}).name || ''),role:document.getElementById('visit-primary-role').value}].concat(document.getElementById('visit-additional-visitors').value.split(/\r?\n/).map(function(name,index){return name.trim() ? {id:'visit-visitor-' + Date.now() + '-' + index,name:name.trim(),role:document.getElementById('visit-primary-role').value} : null;}).filter(Boolean)),
       indicators: indicators,
+      domains: Array.prototype.slice.call(document.querySelectorAll('.visit-domain')).map(function(row){return {domainId:row.getAttribute('data-domain-id'),domainName:row.getAttribute('data-domain-name'),rating:row.querySelector('.domain-rating').value};}),
+      eLearningMaturity: document.getElementById('visit-elearning').value,
       strengths: document.getElementById('visit-strengths').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
       improvementAreas: document.getElementById('visit-improvements').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
       practicalRecommendations: document.getElementById('visit-recommendations').value.trim(),
