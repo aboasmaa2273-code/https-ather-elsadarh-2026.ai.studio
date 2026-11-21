@@ -1383,13 +1383,27 @@ function dispatchApiAction_(action, payload, session) {
     if (!batchRollbackLock.tryLock(10000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. لم يتم تغيير أي سجل؛ أعد المحاولة.' };
     var batchSnapshots = [];
     try {
+      // Recompute references under the same script lock used by visit/plan writes.
+      // A teacher linked after the initial preview must never be deactivated by rollback.
+      var liveReferencedTeacherIds = {};
+      ['Visits', 'ImprovementPlans', 'InternalNotes', 'AdministrativeFollowUps', 'Users'].forEach(function(sheetName) {
+        rowsAsObjects_(ss.getSheetByName(sheetName)).forEach(function(record) {
+          if (String(record.schoolId || schoolId) === String(schoolId) && record.teacherId) {
+            liveReferencedTeacherIds[String(record.teacherId)] = true;
+          }
+        });
+      });
       // Revalidate every candidate under the lock and snapshot its current status.
       rowsToRemove.forEach(function(rowNumber) {
         var liveRow = batchSheet.getRange(rowNumber, 1, 1, batchHeaders.length).getValues()[0];
-        if (String(liveRow[batchTeacherIdCol] || '') === '' ||
+        var liveTeacherId = String(liveRow[batchTeacherIdCol] || '');
+        if (!liveTeacherId ||
             String(liveRow[batchSchoolCol] || '') !== String(schoolId) ||
             String(liveRow[batchIdCol] || '') !== batchId) {
           throw new Error('تغير أحد سجلات الدفعة بعد الفحص الأولي؛ ألغيت العملية دون متابعة.');
+        }
+        if (liveReferencedTeacherIds[liveTeacherId]) {
+          throw new Error('ارتبط أحد المعلمين بسجل جديد بعد الفحص الأولي؛ ألغيت العملية لحماية السجلات المرتبطة.');
         }
         batchSnapshots.push({ row: rowNumber, status: liveRow[batchStatusCol] });
       });
