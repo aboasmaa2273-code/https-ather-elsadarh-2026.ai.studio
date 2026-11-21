@@ -981,6 +981,27 @@ function validateSession_(token) {
     })[0];
     if (!liveAccount || normalizeAtharStatus_(liveAccount.status) !== 'active') return null;
     if (normalizeAtharRole_(liveAccount.role) !== user.role) return null;
+    // A teacher session is bound to the current employee identity, not merely the
+    // account ID. Re-linking an account or deactivating its teacher record invalidates
+    // previously issued tokens before bootstrap can expose any teacher-owned records.
+    if (user.role === 'teacher') {
+      var liveJobNumber = String(liveAccount.jobNumber || '');
+      var tokenJobNumber = String(user.jobNumber || '');
+      if (liveJobNumber !== tokenJobNumber) return null;
+      var liveTeacherId = String(liveAccount.teacherId || '');
+      var teacherSheetForSession = getDatabaseSpreadsheet_().getSheetByName('Teachers');
+      if (!teacherSheetForSession || teacherSheetForSession.getLastRow() < 2) return null;
+      var liveTeacherRecords = rowsAsObjects_(teacherSheetForSession).filter(function(teacherRecord) {
+        return String(teacherRecord.schoolId || '') === String(user.schoolId) &&
+          (liveTeacherId
+            ? String(teacherRecord.id || '') === liveTeacherId
+            : (liveJobNumber && String(teacherRecord.jobNumber || '') === liveJobNumber));
+      });
+      if (liveTeacherRecords.length !== 1) return null;
+      var currentTeacher = liveTeacherRecords[0];
+      if (normalizeAtharStatus_(currentTeacher.status) !== 'active') return null;
+      if (String(user.teacherId || '') !== String(currentTeacher.id || '')) return null;
+    }
     return user;
   } catch (e) {
     return null;
