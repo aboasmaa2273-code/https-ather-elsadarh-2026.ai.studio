@@ -431,6 +431,8 @@ function ensureVisitExtendedColumns_(sheet) {
 function saveClassroomVisit_(visitData) {
   var lock = LockService.getScriptLock();
   if (!lock.tryLock(20000)) return { success: false, error: 'هناك عملية حفظ أخرى قيد التنفيذ. حاول مرة أخرى.' };
+  // Snapshot used only to recover an existing visit if a later write fails.
+  var visitSaveRollback = null;
   
   try {
     var ss = getDatabaseSpreadsheet_();
@@ -571,6 +573,43 @@ function saveClassroomVisit_(visitData) {
     }
     var existingRowIndex = matchingVisitRows.length === 1 ? matchingVisitRows[0] : -1;
 
+    // Capture the complete live parent row and all existing child rows before the first
+    // mutation. This allows best-effort recovery if replacing an existing visit fails.
+    if (existingRowIndex > 0) {
+      var parentWidthBeforeSave = visitsSheet.getLastColumn();
+      var childSnapshotsBeforeSave = [];
+      [indSheet, domainsSheet].forEach(function(childSheet) {
+        if (!childSheet) return;
+        var childLastRow = childSheet.getLastRow();
+        var childLastColumn = childSheet.getLastColumn();
+        var childHeaders = childLastColumn > 0
+          ? childSheet.getRange(1, 1, 1, childLastColumn).getValues()[0].map(String)
+          : [];
+        var childVisitIdCol = childHeaders.indexOf('visitId');
+        if (childVisitIdCol < 0) throw new Error('تعذر حفظ نسخة احتياطية من تفاصيل الزيارة قبل التعديل.');
+        var matchingRows = [];
+        if (childLastRow > 1) {
+          var childData = childSheet.getRange(2, 1, childLastRow - 1, childLastColumn).getValues();
+          childData.forEach(function(childRow) {
+            if (String(childRow[childVisitIdCol] || '') === String(visitId)) matchingRows.push(childRow);
+          });
+        }
+        childSnapshotsBeforeSave.push({
+          sheet: childSheet,
+          visitIdColumn: childVisitIdCol,
+          width: childLastColumn,
+          rows: matchingRows
+        });
+      });
+      visitSaveRollback = {
+        visitId: String(visitId),
+        parentRowIndex: existingRowIndex,
+        parentWidth: parentWidthBeforeSave,
+        parentRow: visitsSheet.getRange(existingRowIndex, 1, 1, parentWidthBeforeSave).getValues()[0],
+        childSheets: childSnapshotsBeforeSave
+      };
+    }
+
     if (existingRowIndex > 0) {
       var liveExistingVisit = data[existingRowIndex - 1];
       var liveVisitSchoolId = String(liveExistingVisit[1] || '');
@@ -661,7 +700,61 @@ function saveClassroomVisit_(visitData) {
       message: 'تم حفظ الزيارة بنجاح في Google Sheets.'
     };
   } catch (err) {
-    return { success: false, error: err.toString() };
+    var rollbackErrors = [];
+    if (visitSaveRollback) {
+      // Restore the original parent row first, then replace current child rows
+      // with the exact pre-save snapshots. VisitHistory is intentionally retained.
+      try {
+        visitsSheet.getRange(
+          visitSaveRollback.parentRowIndex,
+          1,
+          1,
+          visitSaveRollback.parentWidth
+        ).setValues([visitSaveRollback.parentRow]);
+      } catch (parentRollbackError) {
+        rollbackErrors.push('تعذرت استعادة بيانات التقرير الأساسية: ' + String(parentRollbackError));
+      }
+      visitSaveRollback.childSheets.forEach(function(snapshot) {
+        try {
+          var currentLastRow = snapshot.sheet.getLastRow();
+          if (currentLastRow > 1) {
+            var currentRows = snapshot.sheet.getRange(2, 1, currentLastRow - 1, snapshot.sheet.getLastColumn()).getValues();
+            for (var cr = currentRows.length - 1; cr >= 0; cr--) {
+              if (String(currentRows[cr][snapshot.visitIdColumn] || '') === visitSaveRollback.visitId) {
+                snapshot.sheet.deleteRow(cr + 2);
+              }
+            }
+          }
+          if (snapshot.rows.length) {
+            snapshot.sheet.getRange(
+              snapshot.sheet.getLastRow() + 1,
+              1,
+              snapshot.rows.length,
+              snapshot.width
+            ).setValues(snapshot.rows);
+          }
+        } catch (childRollbackError) {
+          rollbackErrors.push('تعذرت استعادة تفاصيل ' + snapshot.sheet.getName() + ': ' + String(childRollbackError));
+        }
+      });
+      logAuditAction_(
+        visitSaveRollback.parentRow[1],
+        visitData.actorName || visitData.evaluatorName,
+        'محاولة استعادة تقرير بعد تعثر الحفظ',
+        'تعثر تحديث التقرير ' + visitSaveRollback.visitId +
+          '. أخطاء الاستعادة: ' + rollbackErrors.length,
+        visitData.actorRole || visitData.evaluatorRole
+      );
+    }
+    return {
+      success: false,
+      error: rollbackErrors.length
+        ? 'تعذر إكمال حفظ الزيارة، ولم تنجح استعادة جميع البيانات السابقة. يرجى مراجعة التقرير قبل إعادة المحاولة. التفاصيل: ' + err.toString()
+        : (visitSaveRollback
+            ? 'تعذر إكمال حفظ الزيارة؛ أُعيدت بيانات التقرير وتفاصيله السابقة بقدر الإمكان. ' + err.toString()
+            : 'تعذر إكمال حفظ الزيارة. إذا كان هذا تقريرًا جديدًا وظهرت بياناته في القائمة، فيرجى مراجعته قبل إعادة المحاولة. ' + err.toString()),
+      rollbackIncomplete: rollbackErrors.length > 0
+    };
   } finally {
     lock.releaseLock();
   }
