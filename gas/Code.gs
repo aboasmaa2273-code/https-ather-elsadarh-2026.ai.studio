@@ -3358,18 +3358,81 @@ function upsertObjectRow_(sheetName, obj, idKey, schoolId) {
 }
 
 function saveSettingsRows_(settings, userName) {
-  var ss = getDatabaseSpreadsheet_();
-  var sheet = ss.getSheetByName('Settings');
-  if (!sheet) return { success: false, error: 'ورقة الإعدادات غير موجودة.' };
-  var now = new Date().toISOString();
-  Object.keys(settings || {}).forEach(function(key) {
+  var allowedKeys = ['platformSettings', 'academicSettings'];
+  var requestedKeys = Object.keys(settings || {});
+  if (!requestedKeys.length || requestedKeys.some(function(key) { return allowedKeys.indexOf(key) < 0; })) {
+    return { success: false, error: 'تتضمن عملية الحفظ مفتاح إعداد غير معتمد؛ لم يتم تغيير أي إعداد.' };
+  }
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تحفظ إعدادات المنصة. حاول مرة أخرى.' };
+  var sheet = null;
+  var snapshots = [];
+  var newRows = [];
+  try {
+    var ss = getDatabaseSpreadsheet_();
+    sheet = ss && ss.getSheetByName('Settings');
+    if (!sheet || sheet.getLastColumn() < 1) return { success: false, error: 'ورقة الإعدادات غير موجودة أو لا تحتوي على عناوين.' };
+    var headers = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(function(value) { return String(value).trim(); });
+    var keyCol = headers.indexOf('key');
+    var valueCol = headers.indexOf('value');
+    var updatedAtCol = headers.indexOf('updatedAt');
+    var updatedByCol = headers.indexOf('updatedBy');
+    if ([keyCol, valueCol, updatedAtCol, updatedByCol].some(function(index) { return index < 0; })) {
+      return { success: false, error: 'ترتيب أو بنية أعمدة الإعدادات غير مكتمل؛ لم يتم تغيير أي إعداد.' };
+    }
     var data = sheet.getDataRange().getValues();
-    var found = -1;
-    for (var i = 1; i < data.length; i++) if (String(data[i][0]) === key) found = i + 1;
-    var row = [key, typeof settings[key] === 'object' ? JSON.stringify(settings[key]) : settings[key], now, userName];
-    if (found > 0) sheet.getRange(found, 1, 1, 4).setValues([row]); else sheet.appendRow(row);
-  });
-  return { success: true };
+    var targets = {};
+    requestedKeys.forEach(function(key) {
+      var matches = [];
+      for (var i = 1; i < data.length; i++) {
+        if (String(data[i][keyCol] || '') === key) matches.push(i + 1);
+      }
+      if (matches.length > 1) throw new Error('مفتاح الإعداد "' + key + '" مكرر في قاعدة البيانات؛ أوقفنا الحفظ دون تعديل أي سجل.');
+      targets[key] = matches.length ? matches[0] : 0;
+    });
+    var now = new Date().toISOString();
+    requestedKeys.forEach(function(key) {
+      var rowNumber = targets[key];
+      var row = new Array(headers.length).fill('');
+      if (rowNumber) {
+        var before = data[rowNumber - 1].slice();
+        snapshots.push({ row: rowNumber, values: before });
+        row = before.slice();
+      }
+      var settingValue = settings[key];
+      row[keyCol] = key;
+      row[valueCol] = settingValue !== null && typeof settingValue === 'object' ? JSON.stringify(settingValue) : settingValue;
+      row[updatedAtCol] = now;
+      row[updatedByCol] = userName || '';
+      if (rowNumber) {
+        sheet.getRange(rowNumber, 1, 1, headers.length).setValues([row]);
+      } else {
+        var appendRow = sheet.getLastRow() + 1;
+        newRows.push({ row: appendRow });
+        sheet.getRange(appendRow, 1, 1, headers.length).setValues([row]);
+      }
+    });
+    return { success: true, savedKeys: requestedKeys };
+  } catch (err) {
+    var rollbackErrors = [];
+    snapshots.slice().reverse().forEach(function(snapshot) {
+      try { sheet.getRange(snapshot.row, 1, 1, snapshot.values.length).setValues([snapshot.values]); }
+      catch (rollbackError) { rollbackErrors.push(String(rollbackError)); }
+    });
+    newRows.slice().reverse().forEach(function(entry) {
+      try { sheet.getRange(entry.row, 1, 1, sheet.getLastColumn()).clearContent(); }
+      catch (rollbackError) { rollbackErrors.push(String(rollbackError)); }
+    });
+    return {
+      success: false,
+      error: rollbackErrors.length
+        ? 'تعذر حفظ الإعدادات بالكامل، ولم تنجح استعادة جميع القيم السابقة. أوقف الحفظ وراجع ورقة Settings قبل إعادة المحاولة.'
+        : (err && err.message ? err.message : 'تعذر حفظ الإعدادات؛ أُعيدت القيم السابقة بقدر الإمكان.'),
+      rollbackIncomplete: rollbackErrors.length > 0
+    };
+  } finally {
+    lock.releaseLock();
+  }
 }
 
 // Defensive tombstones: these legacy physical-delete helpers have no active call sites.
