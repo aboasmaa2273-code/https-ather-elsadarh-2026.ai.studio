@@ -3,6 +3,7 @@ import { GAS_FILES, GasFile } from '../services/gasCodeGenerator';
 import { 
   Database, 
   Copy, 
+  Check,
   Download, 
   FileCode, 
   Layers, 
