@@ -1591,12 +1591,49 @@ function dispatchApiAction_(action, payload, session) {
       if (String(planArchiveData[planRow][archiveStatusCol] || 'active') !== 'archived') planRowsToArchive.push(planRow + 1);
     }
     if (planRowsToArchive.length !== requestedPlanIds.length) return { success: false, error: 'بعض الخطط المحددة غير موجودة أو مؤرشفة مسبقًا. لم يتم تغيير أي سجل.' };
-    var archivedTimestamp = new Date().toISOString();
-    planRowsToArchive.forEach(function(rowNumber) {
-      planArchiveSheet.getRange(rowNumber, archiveStatusCol + 1).setValue('archived');
-      planArchiveSheet.getRange(rowNumber, archivedAtCol + 1).setValue(archivedTimestamp);
-      planArchiveSheet.getRange(rowNumber, archivedByCol + 1).setValue(session.name);
-    });
+    var planArchiveLock = LockService.getScriptLock();
+    if (!planArchiveLock.tryLock(10000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. أعد المحاولة بعد قليل؛ لم يتم تغيير أي سجل.' };
+    var archiveSnapshots = [];
+    try {
+      // Snapshot all original archive fields before the first write.
+      planRowsToArchive.forEach(function(rowNumber) {
+        archiveSnapshots.push({
+          row: rowNumber,
+          status: planArchiveSheet.getRange(rowNumber, archiveStatusCol + 1).getValue(),
+          archivedAt: planArchiveSheet.getRange(rowNumber, archivedAtCol + 1).getValue(),
+          archivedBy: planArchiveSheet.getRange(rowNumber, archivedByCol + 1).getValue()
+        });
+      });
+      var archivedTimestamp = new Date().toISOString();
+      planRowsToArchive.forEach(function(rowNumber) {
+        planArchiveSheet.getRange(rowNumber, archiveStatusCol + 1).setValue('archived');
+        planArchiveSheet.getRange(rowNumber, archivedAtCol + 1).setValue(archivedTimestamp);
+        planArchiveSheet.getRange(rowNumber, archivedByCol + 1).setValue(session.name);
+      });
+    } catch (archiveWriteError) {
+      // Best-effort rollback: restore every snapshotted cell, including rows already changed.
+      var archiveRollbackErrors = [];
+      archiveSnapshots.forEach(function(snapshot) {
+        try {
+          planArchiveSheet.getRange(snapshot.row, archiveStatusCol + 1).setValue(snapshot.status);
+          planArchiveSheet.getRange(snapshot.row, archivedAtCol + 1).setValue(snapshot.archivedAt);
+          planArchiveSheet.getRange(snapshot.row, archivedByCol + 1).setValue(snapshot.archivedBy);
+        } catch (rollbackError) {
+          archiveRollbackErrors.push(String(rollbackError));
+        }
+      });
+      planArchiveLock.releaseLock();
+      return {
+        success: false,
+        error: archiveRollbackErrors.length
+          ? 'تعذر إكمال الأرشفة، وفشلت استعادة بعض القيم تلقائيًا. أوقف العمليات وراجع السجلات قبل إعادة المحاولة.'
+          : 'تعذر إكمال الأرشفة؛ أُعيدت القيم السابقة للخطة قدر الإمكان. أعد المحاولة.',
+        rollbackIncomplete: archiveRollbackErrors.length > 0
+      };
+    } finally {
+      // Release only when this execution still owns the lock.
+      try { planArchiveLock.releaseLock(); } catch (releaseError) {}
+    }
     logAuditAction(schoolId, session.name, 'أرشفة خطط تطوير', 'تمت أرشفة ' + planRowsToArchive.length + ' خطة تطوير مع الاحتفاظ بسجلات المتابعة.', session.role);
     return { success: true, archivedCount: planRowsToArchive.length, preservedFollowUps: true };
   }
@@ -1627,12 +1664,49 @@ function dispatchApiAction_(action, payload, session) {
       rowsToRestore.push(restoreRow + 1);
     }
     if (rowsToRestore.length !== restoreIds.length) return { success: false, error: 'بعض الخطط المحددة غير موجودة.' };
-    var restoredTimestamp = new Date().toISOString();
-    rowsToRestore.forEach(function(rowNumber) {
-      restorePlanSheet.getRange(rowNumber, restoreStatusCol + 1).setValue('active');
-      restorePlanSheet.getRange(rowNumber, restoredAtCol + 1).setValue(restoredTimestamp);
-      restorePlanSheet.getRange(rowNumber, restoredByCol + 1).setValue(session.name);
-    });
+    var restorePlanLock = LockService.getScriptLock();
+    if (!restorePlanLock.tryLock(10000)) return { success: false, error: 'هناك عملية أخرى قيد التنفيذ. أعد المحاولة بعد قليل؛ لم يتم تغيير أي سجل.' };
+    var restoreSnapshots = [];
+    try {
+      // Snapshot all original restore fields before the first write.
+      rowsToRestore.forEach(function(rowNumber) {
+        restoreSnapshots.push({
+          row: rowNumber,
+          status: restorePlanSheet.getRange(rowNumber, restoreStatusCol + 1).getValue(),
+          restoredAt: restorePlanSheet.getRange(rowNumber, restoredAtCol + 1).getValue(),
+          restoredBy: restorePlanSheet.getRange(rowNumber, restoredByCol + 1).getValue()
+        });
+      });
+      var restoredTimestamp = new Date().toISOString();
+      rowsToRestore.forEach(function(rowNumber) {
+        restorePlanSheet.getRange(rowNumber, restoreStatusCol + 1).setValue('active');
+        restorePlanSheet.getRange(rowNumber, restoredAtCol + 1).setValue(restoredTimestamp);
+        restorePlanSheet.getRange(rowNumber, restoredByCol + 1).setValue(session.name);
+      });
+    } catch (restoreWriteError) {
+      // Best-effort rollback: restore every snapshotted cell, including rows already changed.
+      var restoreRollbackErrors = [];
+      restoreSnapshots.forEach(function(snapshot) {
+        try {
+          restorePlanSheet.getRange(snapshot.row, restoreStatusCol + 1).setValue(snapshot.status);
+          restorePlanSheet.getRange(snapshot.row, restoredAtCol + 1).setValue(snapshot.restoredAt);
+          restorePlanSheet.getRange(snapshot.row, restoredByCol + 1).setValue(snapshot.restoredBy);
+        } catch (rollbackError) {
+          restoreRollbackErrors.push(String(rollbackError));
+        }
+      });
+      restorePlanLock.releaseLock();
+      return {
+        success: false,
+        error: restoreRollbackErrors.length
+          ? 'تعذرت الاستعادة، وفشلت استعادة بعض القيم السابقة تلقائيًا. أوقف العمليات وراجع السجلات قبل إعادة المحاولة.'
+          : 'تعذرت الاستعادة؛ أُعيدت القيم السابقة للخطة قدر الإمكان. أعد المحاولة.',
+        rollbackIncomplete: restoreRollbackErrors.length > 0
+      };
+    } finally {
+      // Release only when this execution still owns the lock.
+      try { restorePlanLock.releaseLock(); } catch (releaseError) {}
+    }
     logAuditAction(schoolId, session.name, 'استعادة خطط تطوير', 'تمت استعادة ' + rowsToRestore.length + ' خطة تطوير.', session.role);
     return { success: true, restoredCount: rowsToRestore.length };
   }
