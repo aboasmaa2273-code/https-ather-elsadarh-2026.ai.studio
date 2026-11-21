@@ -3798,3 +3798,78 @@ function sendTeacherVisitNotes_(payload, session, schoolId) {
   return { success: true, visitId: visitId, recipient: recipient, sentAt: sentAt, message: 'تم إرسال الملاحظات إلى بريد المعلم بنجاح.' };
 }
 
+
+
+// إنشاء الحسابات الخمسة الأولية لبيئة الاختبار فقط.
+// تُنشأ الحسابات الناقصة دون تعديل أي حساب موجود، وتُعرض كلمات المرور المؤقتة مرة واحدة في سجل التنفيذ.
+function setupAtharFiveInitialAccounts_() {
+  var lock = LockService.getScriptLock();
+  if (!lock.tryLock(20000)) throw new Error('قاعدة البيانات مشغولة؛ أعد المحاولة لاحقًا.');
+  try {
+    var ss = getDatabaseSpreadsheet_();
+    var users = ss.getSheetByName('Users');
+    var visitors = ss.getSheetByName('RegisteredVisitors');
+    if (!users || !visitors) throw new Error('أوراق Users وRegisteredVisitors غير موجودة. شغّل التهيئة أولًا.');
+    var schema = ensureUserPasswordColumns_(users);
+    if (!schema.success) throw new Error(schema.error);
+    var headers = schema.headers;
+    var data = users.getDataRange().getValues();
+    var userRows = data.slice(1);
+    var specs = [
+      {name:'الأستاذة عائشة الغفلي', username:'aisha', role:'evaluator', title:'مديرة النطاق'},
+      {name:'الأستاذة مريم محمد سيف النيادي', username:'maryam', role:'evaluator', title:'مديرة المدرسة'},
+      {name:'الأستاذ طلال معتوق النعيمي', username:'talal', role:'evaluator', title:'مساعد مدير'},
+      {name:'الأستاذة صالحة مبارك البلوشي', username:'saleha', role:'evaluator', title:'رئيس هيئة تدريس المواد العربية'},
+      {name:'مسؤول منصة أَثَر', username:'atharadmin', role:'platform_admin', title:'مسؤول المنصة'}
+    ];
+    var idCol = headers.indexOf('id'), usernameCol = headers.indexOf('username');
+    var schoolCol = headers.indexOf('schoolId');
+    if (idCol < 0 || usernameCol < 0 || schoolCol < 0) throw new Error('أعمدة Users الأساسية غير مكتملة.');
+    var existingByUsername = {};
+    userRows.forEach(function(row) {
+      var u = String(row[usernameCol] || '').trim().toLowerCase();
+      if (u) existingByUsername[u] = (existingByUsername[u] || 0) + 1;
+    });
+    specs.forEach(function(spec) {
+      if (existingByUsername[spec.username] > 1) throw new Error('اسم المستخدم مكرر في قاعدة البيانات: ' + spec.username + '. لم تُنشأ أي حسابات.');
+    });
+    var created = [];
+    var visitorHeaders = visitors.getRange(1,1,1,visitors.getLastColumn()).getValues()[0].map(String);
+    specs.forEach(function(spec) {
+      if (existingByUsername[spec.username] === 1) return;
+      var tempPassword = 'AtH!' + Utilities.getUuid().replace(/-/g,'').slice(0,16);
+      var salt = Utilities.getUuid() + Utilities.getUuid();
+      var obj = {
+        id: Utilities.getUuid(), schoolId:'sch_alsadara_01', name:spec.name, email:'',
+        role:spec.role, jobNumber:'', specialization:'', status:'active',
+        createdAt:new Date().toISOString(), username:spec.username, teacherId:'',
+        roleTitle:spec.title, department:'', passwordSalt:salt,
+        passwordHash:passwordHash_(tempPassword,salt)
+      };
+      var row = headers.map(function(h){ return Object.prototype.hasOwnProperty.call(obj,h) ? obj[h] : ''; });
+      users.appendRow(row);
+      var visitorObj = {
+        id:Utilities.getUuid(), schoolId:'sch_alsadara_01', name:spec.name,
+        role:spec.role, roleTitle:spec.title, department:'', jobNumber:'',
+        email:'', phone:'', username:spec.username, status:'active',
+        createdAt:new Date().toISOString()
+      };
+      if (visitorHeaders.length) {
+        visitors.appendRow(visitorHeaders.map(function(h){ return Object.prototype.hasOwnProperty.call(visitorObj,h) ? visitorObj[h] : ''; }));
+      }
+      created.push({name:spec.name, username:spec.username, temporaryPassword:tempPassword});
+    });
+    invalidatePublicEvaluatorCache_();
+    var result = {
+      success:true,
+      createdCount:created.length,
+      alreadyExisted:specs.length-created.length,
+      accounts:created,
+      message:'تم تجهيز الحسابات الناقصة فقط. غيّر كلمات المرور المؤقتة بعد أول دخول.'
+    };
+    Logger.log('ATHAR_INITIAL_ACCOUNT_CREDENTIALS_ONCE: ' + JSON.stringify(result));
+    return result;
+  } finally {
+    lock.releaseLock();
+  }
+}
