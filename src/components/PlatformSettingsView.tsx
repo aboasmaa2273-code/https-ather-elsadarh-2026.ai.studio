@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole, normalizeUserRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { atharRemoteAction, atharRemoteBootstrap } from '../services/gasBridgeClient';
@@ -78,6 +78,8 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
   const [feedbackMessage, setFeedbackMessage] = useState<{ type: 'success' | 'error'; text: string } | null>(null);
   const [diagnosticResult, setDiagnosticResult] = useState<any>(null);
   const [isDiagnosing, setIsDiagnosing] = useState(false);
+  const [isSavingPlatform, setIsSavingPlatform] = useState(false);
+  const isSavingPlatformRef = useRef(false);
 
   // Registered Visitors Directory State
   const [visitorsList, setVisitorsList] = useState<RegisteredVisitor[]>([]);
@@ -207,7 +209,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
 
   // Save Platform Identity
   const handleSavePlatform = async () => {
-    if (!canEdit) return;
+    if (!canEdit || isSavingPlatformRef.current) return;
+    isSavingPlatformRef.current = true;
+    setIsSavingPlatform(true);
     const updated: PlatformSettings = {
       platformName,
       platformTitle,
@@ -229,6 +233,9 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       await onRefreshSettings();
     } catch (error) {
       showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Error occurred while saving.' : 'حدث خطأ أثناء الحفظ.'));
+    } finally {
+      isSavingPlatformRef.current = false;
+      setIsSavingPlatform(false);
     }
   };
 
@@ -401,6 +408,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 <button
                   type="button"
                   onClick={handleSavePlatform}
+              disabled={!canEdit || isSavingPlatform}
                   className="px-5 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] flex items-center gap-2 cursor-pointer shadow-sm"
                 >
                   <Check className="w-4 h-4 text-[#C6A66A]" />
@@ -572,7 +580,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={platformName}
                   onChange={(e) => setPlatformName(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold text-[#172C40]"
                 />
               </div>
@@ -583,7 +591,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={platformTitle}
                   onChange={(e) => setPlatformTitle(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -594,7 +602,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={slogan}
                   onChange={(e) => setSlogan(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-['Tajawal']"
                 />
               </div>
@@ -605,7 +613,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={schoolName}
                   onChange={(e) => setSchoolName(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold"
                 />
               </div>
@@ -616,7 +624,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={schoolStage}
                   onChange={(e) => setSchoolStage(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -627,7 +635,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={principalName}
                   onChange={(e) => setPrincipalName(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   placeholder={isEn ? 'School Principal Full Name' : 'اسم مدير المدرسة'}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-bold"
                 />
@@ -639,7 +647,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   rows={2}
                   value={welcomeMessage}
                   onChange={(e) => setWelcomeMessage(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg"
                 />
               </div>
@@ -650,7 +658,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   placeholder="https://..."
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]"
                 />
@@ -662,7 +670,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="email"
                   value={contactEmail}
                   onChange={(e) => setContactEmail(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono"
                 />
               </div>
@@ -673,7 +681,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                   type="text"
                   value={contactPhone}
                   onChange={(e) => setContactPhone(e.target.value)}
-                disabled={!canEdit}
+                disabled={!canEdit || isSavingPlatform}
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono"
                 />
               </div>
