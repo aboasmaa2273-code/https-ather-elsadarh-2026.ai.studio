@@ -1986,6 +1986,9 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'savePlan') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية إدارة خطط التطوير.' };
+    var savePlanLock = LockService.getScriptLock();
+    if (!savePlanLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تحفظ خطة تطوير. حاول مرة أخرى بعد قليل.' };
+    try {
     var ownershipMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
     if (!ownershipMigration.success) return ownershipMigration;
     var matchingPlanTeachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(t) {
@@ -2037,6 +2040,9 @@ function dispatchApiAction_(action, payload, session) {
     var savedPlan = upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
     if (savedPlan.success) logAuditAction(schoolId, session.name, 'حفظ خطة تطوير', 'تم حفظ خطة تطوير للمعلم: ' + planTeacher.fullName, session.role);
     return savedPlan;
+    } finally {
+      try { savePlanLock.releaseLock(); } catch (releaseError) {}
+    }
   }
   if (action === 'deletePlans') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'أرشفة خطط التطوير مقتصرة على الإدارة والمقيمين المخولين.' };
@@ -2199,34 +2205,90 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'savePlanFollowUp') {
     if (!requireRole_(session, evaluatorRoles)) return { success: false, error: 'ليست لديك صلاحية متابعة خطط التطوير.' };
-    var followPlanMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
-    if (!followPlanMigration.success) return followPlanMigration;
-    var planSheet = ss.getSheetByName('ImprovementPlans');
-    var planData = planSheet.getDataRange().getValues();
-    var planHeaders = planData[0].map(String);
-    var planIndex = -1;
-    for (var pi = 1; pi < planData.length; pi++) {
-      if (String(planData[pi][0]) === String(payload.planId) && String(planData[pi][1]) === String(schoolId)) { planIndex = pi + 1; break; }
+    var followUpLock = LockService.getScriptLock();
+    if (!followUpLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تتابع خطة تطوير. حاول مرة أخرى بعد قليل.' };
+    var appendedFollowUpRow = 0;
+    var followUpPlanSnapshot = null;
+    var followUpPlanSheet = null;
+    var followUpStatusColumn = -1;
+    var followUpDateColumn = -1;
+    try {
+      var followPlanMigration = ensureImprovementPlanOwnershipColumns_(ss.getSheetByName('ImprovementPlans'));
+      if (!followPlanMigration.success) return followPlanMigration;
+      followUpPlanSheet = ss.getSheetByName('ImprovementPlans');
+      var planData = followUpPlanSheet.getDataRange().getValues();
+      if (!planData.length) return { success: false, error: 'ورقة خطط التطوير فارغة.' };
+      var planHeaders = planData[0].map(String);
+      var planIdColumn = planHeaders.indexOf('id');
+      var planSchoolColumn = planHeaders.indexOf('schoolId');
+      followUpStatusColumn = planHeaders.indexOf('status');
+      followUpDateColumn = planHeaders.indexOf('followUpDate');
+      if ([planIdColumn, planSchoolColumn, followUpStatusColumn, followUpDateColumn].some(function(index) { return index < 0; })) {
+        return { success: false, error: 'بنية أعمدة خطة التطوير غير مكتملة؛ لم يتم تسجيل المتابعة.' };
+      }
+      var matchingFollowUpPlans = [];
+      for (var pi = 1; pi < planData.length; pi++) {
+        if (String(planData[pi][planIdColumn]) === String(payload.planId) &&
+            String(planData[pi][planSchoolColumn]) === String(schoolId)) {
+          matchingFollowUpPlans.push({ row: pi + 1, values: planData[pi] });
+        }
+      }
+      if (matchingFollowUpPlans.length !== 1) {
+        return { success: false, error: matchingFollowUpPlans.length
+          ? 'معرّف خطة التطوير مكرر؛ أوقفنا المتابعة دون تغيير أي سجل.'
+          : 'خطة التطوير غير موجودة في المدرسة.' };
+      }
+      var selectedPlanRow = matchingFollowUpPlans[0];
+      var selectedPlan = {};
+      planHeaders.forEach(function(header, index) { selectedPlan[header] = selectedPlanRow.values[index]; });
+      if (String(selectedPlan.archiveStatus || '') === 'archived') return { success: false, error: 'لا يمكن تسجيل متابعة لخطة مؤرشفة. استعد الخطة أولاً من الأرشيف.' };
+      if (session.role === 'evaluator' && String(selectedPlan.evaluatorId || '') !== String(session.id)) {
+        return { success: false, error: 'يمكنك متابعة خطط التطوير التي أنشأتها فقط.' };
+      }
+      var followSheet = ss.getSheetByName('PlanFollowUps');
+      if (!followSheet) return { success: false, error: 'ورقة متابعة الخطط غير موجودة.' };
+      var followUpStatus = String(payload.status || 'in_progress');
+      var followUpDate = payload.followUpDate || new Date().toISOString();
+      followUpPlanSnapshot = {
+        row: selectedPlanRow.row,
+        status: selectedPlanRow.values[followUpStatusColumn],
+        date: selectedPlanRow.values[followUpDateColumn]
+      };
+      appendedFollowUpRow = followSheet.getLastRow() + 1;
+      followSheet.appendRow([
+        Utilities.getUuid(), payload.planId, followUpDate, session.name,
+        payload.followUpResult || '', payload.followUpNotes || '', followUpStatus, new Date().toISOString()
+      ]);
+      followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpStatusColumn + 1).setValue(followUpStatus);
+      followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpDateColumn + 1).setValue(followUpDate);
+      logAuditAction(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId, session.role);
+      return { success: true, id: followSheet.getRange(appendedFollowUpRow, 1).getValue() };
+    } catch (followUpError) {
+      var followUpRollbackErrors = [];
+      if (followUpPlanSnapshot && followUpPlanSheet) {
+        try { followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpStatusColumn + 1).setValue(followUpPlanSnapshot.status); }
+        catch (statusRollbackError) { followUpRollbackErrors.push(String(statusRollbackError)); }
+        try { followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpDateColumn + 1).setValue(followUpPlanSnapshot.date); }
+        catch (dateRollbackError) { followUpRollbackErrors.push(String(dateRollbackError)); }
+      }
+      if (appendedFollowUpRow > 0) {
+        try {
+          var rollbackFollowSheet = ss.getSheetByName('PlanFollowUps');
+          if (rollbackFollowSheet && rollbackFollowSheet.getLastRow() >= appendedFollowUpRow) {
+            rollbackFollowSheet.deleteRow(appendedFollowUpRow);
+          }
+        } catch (followUpRowRollbackError) { followUpRollbackErrors.push(String(followUpRowRollbackError)); }
+      }
+      return {
+        success: false,
+        error: followUpRollbackErrors.length
+          ? 'تعذر حفظ المتابعة، وفشلت استعادة بعض القيم السابقة. أوقف إعادة المحاولة وراجع الخطة وسجل المتابعات.'
+          : 'تعذر حفظ المتابعة؛ أُعيدت حالة الخطة وتاريخها وأُلغي سجل المتابعة الجزئي.',
+        rollbackIncomplete: followUpRollbackErrors.length > 0
+      };
+    } finally {
+      followUpLock.releaseLock();
     }
-    if (planIndex < 0) return { success: false, error: 'خطة التطوير غير موجودة في المدرسة.' };
-    var selectedPlan = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(p) {
-      return String(p.id) === String(payload.planId) && String(p.schoolId) === String(schoolId);
-    })[0];
-    if (!selectedPlan) return { success: false, error: 'خطة التطوير غير موجودة في المدرسة.' };
-    if (String(selectedPlan.archiveStatus || '') === 'archived') return { success: false, error: 'لا يمكن تسجيل متابعة لخطة مؤرشفة. استعد الخطة أولاً من الأرشيف.' };
-    if (session.role === 'evaluator' && String(selectedPlan.evaluatorId || '') !== String(session.id)) {
-      return { success: false, error: 'يمكنك متابعة خطط التطوير التي أنشأتها فقط.' };
-    }
-    var followSheet = ss.getSheetByName('PlanFollowUps');
-    if (!followSheet) return { success: false, error: 'ورقة متابعة الخطط غير موجودة.' };
-    var followId = Utilities.getUuid();
-    followSheet.appendRow([followId, payload.planId, payload.followUpDate || new Date().toISOString(), session.name, payload.followUpResult || '', payload.followUpNotes || '', payload.status || 'in_progress', new Date().toISOString()]);
-    var statusCol = planHeaders.indexOf('status');
-    var dateCol = planHeaders.indexOf('followUpDate');
-    if (statusCol >= 0) planSheet.getRange(planIndex, statusCol + 1).setValue(payload.status || 'in_progress');
-    if (dateCol >= 0) planSheet.getRange(planIndex, dateCol + 1).setValue(payload.followUpDate || new Date().toISOString());
-    logAuditAction(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId, session.role);
-    return { success: true, id: followId };
   }
   if (action === 'saveSettings') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'تعديل الإعدادات مقتصر على إدارة المنصة والمدرسة.' };
@@ -2897,6 +2959,9 @@ function updateUserCredentials_(payload, session) {
 }
 
 function saveInternalNote_(payload, session, schoolId) {
+  var internalNoteLock = LockService.getScriptLock();
+  if (!internalNoteLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تحفظ ملاحظة إدارية. حاول مرة أخرى بعد قليل.' };
+  try {
   var ownerMigration = ensureInternalNoteOwnerColumn_(getDatabaseSpreadsheet_().getSheetByName('InternalNotes'));
   if (!ownerMigration.success) return ownerMigration;
   var text = String(payload.noteText || '').trim();
@@ -2940,9 +3005,15 @@ function saveInternalNote_(payload, session, schoolId) {
   var result = upsertObjectRow_('InternalNotes', note, 'id', schoolId);
   if (result.success) logAuditAction(schoolId, session.name, existing ? 'تعديل ملاحظة إدارية داخلية' : 'إضافة ملاحظة إدارية داخلية', 'المعلم: ' + teacher.fullName, session.role);
   return result;
+  } finally {
+    try { internalNoteLock.releaseLock(); } catch (releaseError) {}
+  }
 }
 
 function saveAdministrativeFollowUp_(payload, session, schoolId) {
+  var adminFollowUpLock = LockService.getScriptLock();
+  if (!adminFollowUpLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تحفظ متابعة إدارية. حاول مرة أخرى بعد قليل.' };
+  try {
   var matchingFollowUpTeachers = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Teachers')).filter(function(t) {
     return String(t.id) === String(payload.teacherId) && String(t.schoolId) === String(schoolId);
   });
@@ -2973,6 +3044,9 @@ function saveAdministrativeFollowUp_(payload, session, schoolId) {
   var result = upsertObjectRow_('AdministrativeFollowUps', item, 'id', schoolId);
   if (result.success) logAuditAction(schoolId, session.name, existing ? 'تعديل متابعة إدارية' : 'إضافة متابعة إدارية', 'المعلم: ' + teacher.fullName, session.role);
   return result;
+  } finally {
+    try { adminFollowUpLock.releaseLock(); } catch (releaseError) {}
+  }
 }
 
 function recordVisitSnapshot_(ss, visitId, oldVisitRow, visitHeaders, schoolId, actorName, actorRole, action) {
@@ -3292,6 +3366,9 @@ function restoreVisits_(visitIds, session, schoolId) {
 }
 
 function saveVisitor_(payload, session) {
+  var visitorSaveLock = LockService.getScriptLock();
+  if (!visitorSaveLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تحدّث دليل الزائرين. حاول مرة أخرى بعد قليل.' };
+  try {
   var sheet = ensureRegisteredVisitorsSheet_();
   var name = String(payload.name || '').trim();
   if (!name) return { success: false, error: 'اسم الزائر مطلوب.' };
@@ -3334,6 +3411,9 @@ function saveVisitor_(payload, session) {
   var result = upsertObjectRow_('RegisteredVisitors', visitor, 'id', visitor.schoolId);
   if (result.success) { invalidatePublicEvaluatorCache_(); logAuditAction(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role); }
   return result;
+  } finally {
+    try { visitorSaveLock.releaseLock(); } catch (releaseError) {}
+  }
 }
 
 function upsertObjectRow_(sheetName, obj, idKey, schoolId) {
