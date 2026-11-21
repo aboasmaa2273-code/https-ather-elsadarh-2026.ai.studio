@@ -2135,15 +2135,22 @@ function dispatchApiAction_(action, payload, session) {
     if ([visitorIdCol, visitorSchoolCol, visitorStatusCol].some(function(index) { return index < 0; })) {
       return { success: false, error: 'تعذر تحديد أعمدة سجل الزائر؛ لم يتم تغيير أي بيانات.' };
     }
-    var visitorRowNumber = -1;
+    var matchingVisitorRows = [];
     for (var visitorIndex = 1; visitorIndex < visitorValues.length; visitorIndex++) {
       if (String(visitorValues[visitorIndex][visitorIdCol]) === String(payload.id) &&
           String(visitorValues[visitorIndex][visitorSchoolCol] || 'sch_alsadara_01') === String(schoolId)) {
-        visitorRowNumber = visitorIndex + 1;
-        break;
+        matchingVisitorRows.push(visitorIndex + 1);
       }
     }
-    if (visitorRowNumber < 0) return { success: false, error: 'الزائر غير موجود في هذه المدرسة.' };
+    if (matchingVisitorRows.length !== 1) {
+      return {
+        success: false,
+        error: matchingVisitorRows.length > 1
+          ? 'معرّف الزائر مكرر في سجلات المدرسة؛ أوقفنا التعطيل دون تعديل أي سجل.'
+          : 'الزائر غير موجود في هذه المدرسة.'
+      };
+    }
+    var visitorRowNumber = matchingVisitorRows[0];
     visitorSheet.getRange(visitorRowNumber, visitorStatusCol + 1).setValue('inactive');
     invalidatePublicEvaluatorCache_();
     logAuditAction(schoolId, session.name, 'تعطيل زائر', 'تم تعطيل سجل الزائر ' + payload.id + ' مع الاحتفاظ ببياناته.', session.role);
