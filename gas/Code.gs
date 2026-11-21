@@ -2056,10 +2056,20 @@ function dispatchApiAction_(action, payload, session) {
     var requestedStatus = payload.status === 'active' ? 'active' : 'inactive';
     var usersSheetForStatus = ss.getSheetByName('Users');
     var accountRowsForStatus = rowsAsObjects_(usersSheetForStatus);
-    var targetAccount = accountRowsForStatus.filter(function(u) {
-      return String(u.schoolId) === String(schoolId) && String(u.username || '').trim().toLowerCase() === targetUsername;
-    })[0];
-    if (!targetAccount || normalizeAtharRole_(targetAccount.role) !== 'evaluator') return { success: false, error: 'لم يتم العثور على حساب مقيم أو زائر بهذا الاسم.' };
+    var matchingVisitAccounts = accountRowsForStatus.filter(function(u) {
+      return String(u.schoolId) === String(schoolId) &&
+        String(u.username || '').trim().toLowerCase() === targetUsername &&
+        normalizeAtharRole_(u.role) === 'evaluator';
+    });
+    if (matchingVisitAccounts.length !== 1) {
+      return {
+        success: false,
+        error: matchingVisitAccounts.length > 1
+          ? 'اسم المستخدم مرتبط بأكثر من حساب في هذه المدرسة؛ أوقفنا تغيير الحالة احترازيًا دون تعديل أي سجل.'
+          : 'لم يتم العثور على حساب مقيم أو زائر بهذا الاسم.'
+      };
+    }
+    var targetAccount = matchingVisitAccounts[0];
     var statusResult = setUserStatus_({ id: targetAccount.id, status: requestedStatus }, session);
     if (!statusResult.success) return statusResult;
     var directorySheetForStatus = ensureRegisteredVisitorsSheet_();
