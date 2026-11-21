@@ -496,13 +496,14 @@ function saveClassroomVisit_(visitData) {
 
     // التحقق هل الزيارة موجودة للتعديل
     var data = visitsSheet.getDataRange().getValues();
-    var existingRowIndex = -1;
+    var matchingVisitRows = [];
     for (var r = 1; r < data.length; r++) {
-      if (data[r][0] === visitId) {
-        existingRowIndex = r + 1;
-        break;
-      }
+      if (String(data[r][0] || '') === String(visitId)) matchingVisitRows.push(r + 1);
     }
+    if (matchingVisitRows.length > 1) {
+      throw new Error('رقم الزيارة مكرر في سجل الزيارات؛ أوقفنا الحفظ احترازيًا دون تعديل أي سجل.');
+    }
+    var existingRowIndex = matchingVisitRows.length === 1 ? matchingVisitRows[0] : -1;
 
     if (existingRowIndex > 0) {
       var liveExistingVisit = data[existingRowIndex - 1];
@@ -1603,9 +1604,13 @@ function dispatchApiAction_(action, payload, session) {
       // The form assigns a visit ID before the first autosave. A new ID is
       // therefore expected not to exist yet; only enforce edit rules when
       // the ID is already present in the Visits sheet.
-      var visitWithSameId = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
+      var matchingVisitsForEdit = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
         return String(v.id) === String(payload.id);
-      })[0] || null;
+      });
+      if (matchingVisitsForEdit.length > 1) {
+        return { success: false, error: 'رقم الزيارة مكرر في قاعدة البيانات؛ أوقفنا التعديل احترازيًا دون تغيير أي سجل.' };
+      }
+      var visitWithSameId = matchingVisitsForEdit.length === 1 ? matchingVisitsForEdit[0] : null;
 
       if (visitWithSameId && String(visitWithSameId.schoolId) !== String(schoolId)) {
         return { success: false, error: 'رقم الزيارة مرتبط بسجل في مدرسة أخرى.' };
