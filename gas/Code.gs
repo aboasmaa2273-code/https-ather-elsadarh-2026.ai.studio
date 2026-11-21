@@ -1511,6 +1511,7 @@ function dispatchApiAction_(action, payload, session) {
     var plans = allPlanRows.filter(function(x) { return String(x.archiveStatus || 'active') !== 'archived'; });
     var archivedPlans = allPlanRows.filter(function(x) { return String(x.archiveStatus || 'active') === 'archived'; });
     var indicators = rowsAsObjects_(ss.getSheetByName('IndicatorLibrary'));
+    var evaluationDomains = rowsAsObjects_(ss.getSheetByName('EvaluationDomains'));
     var settings = rowsAsObjects_(ss.getSheetByName('Settings'));
     // Do not silently select an arbitrary value when a singleton setting key
     // has been duplicated. Saving already rejects duplicates; bootstrap must
@@ -1623,7 +1624,7 @@ function dispatchApiAction_(action, payload, session) {
       plans = plans.filter(function(x) { return String(x.teacherId) === String(session.teacherId); });
       archivedPlans = [];
     }
-    return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, archivedPlans: archivedPlans, indicators: indicators,
+    return { success: true, user: session, teachers: teachers, visits: visits, plans: plans, archivedPlans: archivedPlans, indicators: indicators, evaluationDomains: evaluationDomains,
       settings: settings, auditLogs: auditLogs, users: users, visitors: requireRole_(session, evaluatorRoles) ? visitorRows : [],
       internalNotes: internalNotes, internalNoteHistory: internalNoteHistory, administrativeFollowUps: administrativeFollowUps, visitHistory: visitHistory };
   }
