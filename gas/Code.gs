@@ -834,6 +834,9 @@ function apiLogin_(payload) {
   var identifier = String(payload.username || '').trim().toLowerCase();
   var password = String(payload.password || '');
   if (!identifier || !password) return { success: false, error: 'أدخل اسم المستخدم وكلمة المرور.' };
+  if (isLoginTemporarilyBlocked_(identifier)) {
+    return { success: false, error: 'تم إيقاف محاولات الدخول لهذا الاسم مؤقتًا بعد محاولات غير ناجحة. أعد المحاولة بعد 15 دقيقة.' };
+  }
 
   var ss = getDatabaseSpreadsheet_();
   if (!ss) return { success: false, error: 'قاعدة البيانات غير مهيأة.' };
@@ -870,8 +873,10 @@ function apiLogin_(payload) {
     var salt = String(row[saltCol] || '');
     var expected = String(row[hashCol] || '');
     if (!salt || !expected || !constantTimeEquals_(passwordHash_(password, salt), expected)) {
+      recordFailedLoginAttempt_(identifier);
       return { success: false, error: 'بيانات الدخول غير صحيحة.' };
     }
+    clearLoginFailureCount_(identifier);
 
     var rawRole = String(row[roleCol] || '').trim().toLowerCase();
     var role = normalizeAtharRole_(rawRole);
@@ -931,6 +936,44 @@ function passwordHash_(password, salt) {
     var v = (b < 0 ? b + 256 : b).toString(16);
     return v.length === 1 ? '0' + v : v;
   }).join('');
+}
+
+function loginAttemptCacheKey_(identifier) {
+  var normalized = String(identifier || '').trim().toLowerCase();
+  var digest = Utilities.computeDigest(Utilities.DigestAlgorithm.SHA_256, normalized, Utilities.Charset.UTF_8);
+  var hex = digest.map(function(b) {
+    var value = (b < 0 ? b + 256 : b).toString(16);
+    return value.length === 1 ? '0' + value : value;
+  }).join('');
+  return 'ATHAR_LOGIN_FAILURES_' + hex;
+}
+
+function isLoginTemporarilyBlocked_(identifier) {
+  try {
+    var cached = CacheService.getScriptCache().get(loginAttemptCacheKey_(identifier));
+    return Number(cached || 0) >= 5;
+  } catch (cacheError) {
+    console.error('Login throttle read error:', cacheError);
+    return false;
+  }
+}
+
+function recordFailedLoginAttempt_(identifier) {
+  try {
+    var cache = CacheService.getScriptCache();
+    var key = loginAttemptCacheKey_(identifier);
+    var nextCount = Number(cache.get(key) || 0) + 1;
+    cache.put(key, String(nextCount), 900);
+    return nextCount;
+  } catch (cacheError) {
+    console.error('Login throttle write error:', cacheError);
+    return 0;
+  }
+}
+
+function clearLoginFailureCount_(identifier) {
+  try { CacheService.getScriptCache().remove(loginAttemptCacheKey_(identifier)); }
+  catch (cacheError) { console.error('Login throttle clear error:', cacheError); }
 }
 
 function constantTimeEquals_(a, b) {
@@ -2115,6 +2158,8 @@ function saveUserAccount_(payload, session) {
   var existingSnapshot = null;
   var existingWriteStarted = false;
   var newAccountRow = -1;
+  var intendedNewAccountId = '';
+  var originalLastRow = sheet.getLastRow();
   try {
     // Read and validate under the same lock as the write to prevent duplicate usernames.
     var data = sheet.getDataRange().getValues();
@@ -2212,6 +2257,7 @@ function saveUserAccount_(payload, session) {
       existingWriteStarted = true;
       sheet.getRange(rowIndex, 1, 1, headers.length).setValues([row]);
     } else {
+      intendedNewAccountId = id;
       sheet.appendRow(row);
       newAccountRow = sheet.getLastRow();
     }
@@ -2234,6 +2280,26 @@ function saveUserAccount_(payload, session) {
     }
     // Never physically delete an account row. If a new row was appended but
     // the operation still failed, leave it retained and inactive.
+    if (newAccountRow < 0 && intendedNewAccountId) {
+      // appendRow may throw after the row has reached Sheets; locate only the
+      // newly intended ID in rows appended during this execution.
+      try {
+        var afterFailure = sheet.getDataRange().getValues();
+        var failureHeaders = afterFailure[0].map(String);
+        var failureIdCol = failureHeaders.indexOf('id');
+        var failureSchoolCol = failureHeaders.indexOf('schoolId');
+        for (var fi = Math.max(1, originalLastRow); fi < afterFailure.length; fi++) {
+          if (failureIdCol >= 0 && String(afterFailure[fi][failureIdCol] || '') === intendedNewAccountId) {
+            if (failureSchoolCol < 0 || String(afterFailure[fi][failureSchoolCol] || 'sch_alsadara_01') === String(session.schoolId || 'sch_alsadara_01')) {
+              newAccountRow = fi + 1;
+              break;
+            }
+          }
+        }
+      } catch (locateNewAccountError) {
+        rollbackErrors.push(String(locateNewAccountError));
+      }
+    }
     if (newAccountRow > 0) {
       try {
         var currentHeaders = sheet.getRange(1, 1, 1, sheet.getLastColumn()).getValues()[0].map(String);
