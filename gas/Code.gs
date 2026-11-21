@@ -1478,9 +1478,15 @@ function dispatchApiAction_(action, payload, session) {
     for (var vi = 1; vi < visitRows.length; vi++) {
       if (String(visitRows[vi][0]) === String(payload.id) && String(visitRows[vi][1]) === String(schoolId)) {
         if (visitStatusCol < 0) return { success: false, error: 'عمود حالة الزيارة غير موجود.' };
-        if (String(visitRows[vi][visitStatusCol] || '') === 'archived') return { success: false, error: 'لا يمكن اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
-        visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
-        logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+        var previousVisitStatus = String(visitRows[vi][visitStatusCol] || '');
+        if (previousVisitStatus === 'archived') return { success: false, error: 'لا يمكن اعتماد تقرير مؤرشف. استعد التقرير أولاً من الأرشيف.' };
+        if (previousVisitStatus !== 'approved') {
+          recordVisitSnapshot_(ss, String(payload.id), visitRows[vi], visitHeaders, schoolId, session.name, session.role, 'اعتماد التقرير');
+          visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
+          var approvedUpdatedCol = visitHeaders.indexOf('updatedAt');
+          if (approvedUpdatedCol >= 0) visitSheet.getRange(vi + 1, approvedUpdatedCol + 1).setValue(new Date().toISOString());
+          logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+        }
         return { success: true, id: payload.id, status: 'approved' };
       }
     }
