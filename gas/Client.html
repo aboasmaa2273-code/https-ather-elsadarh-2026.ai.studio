@@ -228,7 +228,7 @@
       '<div><label for="visit-grade">الصف</label><select id="visit-grade" required style="width:100%;padding:.7rem;">'+gradeOptions+'</select></div>' +
       '<div><label for="visit-section">الشعبة</label><select id="visit-section" required style="width:100%;padding:.7rem;">'+sectionOptions+'</select></div>' +
       '<div><label for="visit-subject">المادة</label><input id="visit-subject" required maxlength="80" placeholder="اكتب اسم المادة" style="width:100%;padding:.7rem;"></div>' +
-      '<div><label for="visit-type">نوع الزيارة</label><select id="visit-type" required style="width:100%;padding:.7rem;"><option value="full">مشاهدة الحصة كاملة</option><option value="targeted">زيارة سريعة مستهدفة (10–15 دقيقة)</option></select></div>' +
+      '<div><label for="visit-type">نوع الزيارة</label><select id="visit-type" required style="width:100%;padding:.7rem;"><option value="full">مشاهدة الحصة كاملة</option><option value="quick">زيارة سريعة مستهدفة (10–15 دقيقة)</option></select></div>' +
       '<div><label for="visit-date">تاريخ الزيارة</label><input id="visit-date" type="date" required value="'+new Date().toISOString().slice(0,10)+'" style="width:100%;padding:.7rem;"></div>' +
       '<div><label for="visit-time">وقت الزيارة</label><input id="visit-time" type="time" required style="width:100%;padding:.7rem;"></div>' +
       '</div><div style="margin-top:1rem;"><label for="visit-goal">هدف الزيارة / محور التركيز</label><textarea id="visit-goal" rows="2" maxlength="1000" style="width:100%;padding:.7rem;" placeholder="اكتب الهدف، خصوصًا في الزيارة السريعة المستهدفة"></textarea></div>' +
@@ -258,7 +258,7 @@
       return {
         indicatorId: row.getAttribute('data-indicator-id'),
         indicatorText: row.getAttribute('data-indicator-text'),
-        group: row.getAttribute('data-indicator-group'),
+        indicatorGroup: row.getAttribute('data-indicator-group'),
         rating: row.querySelector('.indicator-rating').value,
         notes: row.querySelector('.indicator-notes').value.trim()
       };
