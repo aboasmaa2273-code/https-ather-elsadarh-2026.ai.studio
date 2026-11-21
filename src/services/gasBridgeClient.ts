@@ -109,6 +109,7 @@ class AtharGasBridgeClient {
       frame.style.pointerEvents = 'none';
       frame.style.border = '0';
       const timer = window.setTimeout(() => {
+        this.loadingTimer = null;
         this.loading = null;
         this.rejectLoading = null;
         if (this.messageListener === onMessage) this.messageListener = null;
