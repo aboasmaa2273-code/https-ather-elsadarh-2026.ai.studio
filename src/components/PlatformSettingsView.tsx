@@ -167,7 +167,24 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
       const response: any = await atharRemoteAction('sessionDiagnostics', {});
       setDiagnosticResult(response.diagnostics || response);
     } catch (error) {
-      setDiagnosticResult({ error: error instanceof Error ? error.message : 'تعذر تنفيذ التشخيص.' });
+      const message = error instanceof Error ? error.message : 'تعذر تنفيذ التشخيص.';
+      // Older published Apps Script deployments may not yet expose sessionDiagnostics.
+      // Fall back to the supported read-only health action without hiding that limitation.
+      if (/غير مدعومة|unsupported|sessionDiagnostics/i.test(message)) {
+        try {
+          const health: any = await atharRemoteAction('health', {});
+          setDiagnosticResult({
+            ...health,
+            warning: isEn
+              ? 'Detailed session diagnostics require updating the published Apps Script deployment. Showing the available read-only database health check instead.'
+              : 'يتطلب فحص تفاصيل الجلسة تحديث نسخة Apps Script المنشورة. نعرض هنا فحص سلامة قاعدة البيانات المتاح للقراءة فقط.'
+          });
+        } catch (healthError) {
+          setDiagnosticResult({ error: healthError instanceof Error ? healthError.message : message });
+        }
+      } else {
+        setDiagnosticResult({ error: message });
+      }
     } finally {
       setIsDiagnosing(false);
     }
