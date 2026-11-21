@@ -41,6 +41,7 @@ class AtharGasBridgeClient {
   private bridgeOrigin = '';
   private messageListener: ((event: MessageEvent) => void) | null = null;
   private rejectLoading: ((reason: Error) => void) | null = null;
+  private loadingTimer: number | null = null;
 
   private isGoogleBridgeOrigin(origin: string): boolean {
     try {
@@ -115,6 +116,7 @@ class AtharGasBridgeClient {
         window.removeEventListener('message', onMessage);
         reject(new Error('تعذر فتح جسر Google Apps Script. تحقق من رابط النشر وإتاحته.'));
       }, 20000);
+      this.loadingTimer = timer;
 
       const onMessage = (event: MessageEvent) => {
         const root = frame.contentWindow;
@@ -129,6 +131,7 @@ class AtharGasBridgeClient {
           this.bridgeWindow = event.source as Window;
           this.bridgeOrigin = event.origin;
           window.clearTimeout(timer);
+          this.loadingTimer = null;
           this.ready = true;
           this.loading = null;
           this.rejectLoading = null;
@@ -149,6 +152,7 @@ class AtharGasBridgeClient {
       window.addEventListener('message', onMessage);
       frame.addEventListener('error', () => {
         window.clearTimeout(timer);
+        this.loadingTimer = null;
         window.removeEventListener('message', onMessage);
         if (this.messageListener === onMessage) this.messageListener = null;
         this.rejectLoading = null;
@@ -193,6 +197,10 @@ class AtharGasBridgeClient {
   dispose(): void {
     this.ready = false;
     this.loading = null;
+    if (this.loadingTimer !== null) {
+      window.clearTimeout(this.loadingTimer);
+      this.loadingTimer = null;
+    }
     if (this.messageListener) {
       window.removeEventListener('message', this.messageListener);
       this.messageListener = null;
