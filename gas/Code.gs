@@ -852,6 +852,14 @@ function apiLogin_(payload) {
     return { success: false, error: 'يلزم تحديث بنية ورقة Users وإعداد كلمات مرور الحسابات من مسؤول النظام.' };
   }
 
+  // Fail closed if legacy data or a concurrent account write created duplicate usernames.
+  var matchingLoginRows = values.slice(1).filter(function(accountRow) {
+    return String(accountRow[usernameCol] || '').trim().toLowerCase() === identifier;
+  });
+  if (matchingLoginRows.length > 1) {
+    return { success: false, error: 'اسم المستخدم مرتبط بأكثر من حساب؛ أوقفنا تسجيل الدخول احترازيًا. راجع مسؤول النظام.' };
+  }
+
   for (var i = 1; i < values.length; i++) {
     var row = values[i];
     var rowEmail = String(row[emailCol] || '').trim().toLowerCase();
