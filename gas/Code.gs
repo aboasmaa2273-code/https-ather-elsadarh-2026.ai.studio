@@ -517,9 +517,9 @@ function saveClassroomVisit_(visitData) {
       var liveVisitStatus = String(liveExistingVisit[liveVisitStatusCol] || '');
       var actorRoleForSave = String(visitData.actorRole || '');
       if (liveVisitStatus === 'archived') throw new Error('لا يمكن تعديل تقرير مؤرشف. استعد التقرير من الأرشيف أولاً.');
-      if (actorRoleForSave === 'evaluator' && liveVisitEvaluatorCol >= 0 &&
-          String(liveExistingVisit[liveVisitEvaluatorCol] || '') !== String(visitData.actorId || '')) {
-        throw new Error('لا يمكنك تعديل زيارة سجّلها مقيم آخر.');
+      if (actorRoleForSave === 'evaluator' &&
+          (liveVisitEvaluatorCol < 0 || String(liveExistingVisit[liveVisitEvaluatorCol] || '') !== String(visitData.actorId || ''))) {
+        throw new Error('تعذر التحقق من ملكية الزيارة؛ أوقف التعديل لحماية السجل.');
       }
       if (liveVisitStatus === 'approved' && actorRoleForSave === 'evaluator') {
         throw new Error('لا يمكن للمقيم تعديل تقرير معتمد من الإدارة.');
