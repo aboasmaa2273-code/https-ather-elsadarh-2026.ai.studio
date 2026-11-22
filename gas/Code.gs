@@ -2474,59 +2474,99 @@ function dispatchApiAction_(action, payload, session) {
   }
   if (action === 'deleteTeacher') {
     if (!requireRole_(session, adminRoles)) return { success: false, error: 'ليست لديك صلاحية حذف المعلمين.' };
-    // Safe removal: deactivate the teacher instead of physically deleting a row
-    // that may be referenced by historical visits, reports, plans, or user accounts.
-    var safeTeacherSheet = ss.getSheetByName('Teachers');
-    if (!safeTeacherSheet || safeTeacherSheet.getLastRow() < 2) return { success: false, error: 'المعلم غير موجود.' };
-    var safeTeacherHeaders = safeTeacherSheet.getRange(1, 1, 1, safeTeacherSheet.getLastColumn()).getValues()[0].map(String);
-    var safeTeacherIdCol = safeTeacherHeaders.indexOf('id');
-    var safeTeacherSchoolCol = safeTeacherHeaders.indexOf('schoolId');
-    var safeTeacherStatusCol = safeTeacherHeaders.indexOf('status');
-    var safeTeacherJobCol = safeTeacherHeaders.indexOf('jobNumber');
-    if (safeTeacherIdCol < 0 || safeTeacherSchoolCol < 0 || safeTeacherStatusCol < 0) return { success: false, error: 'تعذر تحديد أعمدة سجل المعلمين.' };
-    var safeTeacherRows = safeTeacherSheet.getDataRange().getValues();
-    var safeTeacherRow = -1, safeTeacherJobNumber = '';
-    for (var sti = 1; sti < safeTeacherRows.length; sti++) {
-      if (String(safeTeacherRows[sti][safeTeacherIdCol]) === String(payload.id) && String(safeTeacherRows[sti][safeTeacherSchoolCol]) === String(schoolId)) {
-        safeTeacherRow = sti + 1;
-        safeTeacherJobNumber = safeTeacherJobCol >= 0 ? String(safeTeacherRows[sti][safeTeacherJobCol] || '') : '';
-        break;
+    // Safe removal: deactivate only; never physically delete historical teacher data.
+    var teacherDeactivationLock = LockService.getScriptLock();
+    if (!teacherDeactivationLock.tryLock(15000)) return { success: false, error: 'هناك عملية أخرى تعدّل بيانات المعلمين. حاول مرة أخرى.' };
+    var teacherStatusSnapshot = null;
+    var linkedTeacherStatusSnapshots = [];
+    var linkedUsersSheet = null;
+    var safeTeacherSheet = null;
+    var safeTeacherStatusCol = -1;
+    var linkedUserStatusCol = -1;
+    try {
+      safeTeacherSheet = ss.getSheetByName('Teachers');
+      if (!safeTeacherSheet || safeTeacherSheet.getLastRow() < 2) return { success: false, error: 'المعلم غير موجود.' };
+      var safeTeacherHeaders = safeTeacherSheet.getRange(1, 1, 1, safeTeacherSheet.getLastColumn()).getValues()[0].map(String);
+      var safeTeacherIdCol = safeTeacherHeaders.indexOf('id');
+      var safeTeacherSchoolCol = safeTeacherHeaders.indexOf('schoolId');
+      safeTeacherStatusCol = safeTeacherHeaders.indexOf('status');
+      var safeTeacherJobCol = safeTeacherHeaders.indexOf('jobNumber');
+      if ([safeTeacherIdCol, safeTeacherSchoolCol, safeTeacherStatusCol].some(function(index) { return index < 0; })) {
+        return { success: false, error: 'تعذر تحديد أعمدة سجل المعلمين؛ لم يتم تغيير أي سجل.' };
       }
-    }
-    if (safeTeacherRow < 0) return { success: false, error: 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
-
-    // Disable any linked teacher login as part of the same safe deactivation.
-    // Match by teacherId first, with employee number as a legacy compatibility fallback.
-    var disabledTeacherAccounts = 0;
-    var linkedUsersSheet = ss.getSheetByName('Users');
-    if (linkedUsersSheet && linkedUsersSheet.getLastRow() > 1) {
-      var linkedUserData = linkedUsersSheet.getDataRange().getValues();
-      var linkedUserHeaders = linkedUserData[0].map(String);
-      var linkedSchoolCol = linkedUserHeaders.indexOf('schoolId');
-      var linkedRoleCol = linkedUserHeaders.indexOf('role');
-      var linkedTeacherCol = linkedUserHeaders.indexOf('teacherId');
-      var linkedJobCol = linkedUserHeaders.indexOf('jobNumber');
-      var linkedStatusCol = linkedUserHeaders.indexOf('status');
-      if ([linkedSchoolCol, linkedRoleCol, linkedStatusCol].some(function(index) { return index < 0; })) {
-        return { success: false, error: 'تعذر التحقق من حسابات المعلم المرتبطة؛ بنية ورقة الحسابات غير مكتملة. لم يتم تغيير سجل المعلم.' };
-      }
-      for (var lui = 1; lui < linkedUserData.length; lui++) {
-        var linkedRole = normalizeAtharRole_(linkedRoleCol >= 0 ? linkedUserData[lui][linkedRoleCol] : '');
-        var linkedSchool = String(linkedUserData[lui][linkedSchoolCol] || 'sch_alsadara_01');
-        var linkedById = linkedTeacherCol >= 0 && String(linkedUserData[lui][linkedTeacherCol] || '') === String(payload.id);
-        var linkedByJob = linkedJobCol >= 0 && safeTeacherJobNumber && String(linkedUserData[lui][linkedJobCol] || '') === safeTeacherJobNumber;
-        if (linkedSchool !== String(schoolId) || linkedRole !== 'teacher' || (!linkedById && !linkedByJob)) continue;
-        if (String(linkedUserData[lui][linkedStatusCol] || '') !== 'inactive') {
-          linkedUsersSheet.getRange(lui + 1, linkedStatusCol + 1).setValue('inactive');
-          disabledTeacherAccounts++;
+      var safeTeacherRows = safeTeacherSheet.getDataRange().getValues();
+      var matchingTeacherRows = [];
+      var safeTeacherJobNumber = '';
+      for (var sti = 1; sti < safeTeacherRows.length; sti++) {
+        if (String(safeTeacherRows[sti][safeTeacherIdCol]) === String(payload.id) &&
+            String(safeTeacherRows[sti][safeTeacherSchoolCol]) === String(schoolId)) {
+          matchingTeacherRows.push(sti + 1);
+          safeTeacherJobNumber = safeTeacherJobCol >= 0 ? String(safeTeacherRows[sti][safeTeacherJobCol] || '') : '';
         }
       }
-    }
+      if (matchingTeacherRows.length !== 1) {
+        return { success: false, error: matchingTeacherRows.length
+          ? 'معرّف المعلم مكرر داخل المدرسة؛ أوقفنا التعطيل احترازيًا دون تغيير أي سجل.'
+          : 'المعلم غير موجود في المدرسة المرتبطة بالحساب.' };
+      }
+      var safeTeacherRow = matchingTeacherRows[0];
+      teacherStatusSnapshot = safeTeacherSheet.getRange(safeTeacherRow, safeTeacherStatusCol + 1).getValue();
 
-    safeTeacherSheet.getRange(safeTeacherRow, safeTeacherStatusCol + 1).setValue('inactive');
-    if (disabledTeacherAccounts) logAuditAction_(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + payload.id, session.role);
-    logAuditAction_(schoolId, session.name, 'تعطيل سجل معلم', 'تم تعطيل سجل المعلم ' + payload.id + ' مع الاحتفاظ بالزيارات والتقارير التاريخية.', session.role);
-    return { success: true, id: payload.id, status: 'inactive', disabledAccounts: disabledTeacherAccounts, preservedHistory: true, message: 'تم تعطيل سجل المعلم وحسابات الدخول المرتبطة به مع الاحتفاظ بجميع السجلات التاريخية.' };
+      // Preflight every linked account before writing; keep original statuses for rollback.
+      linkedUsersSheet = ss.getSheetByName('Users');
+      var disabledTeacherAccounts = 0;
+      if (linkedUsersSheet && linkedUsersSheet.getLastRow() > 1) {
+        var linkedUserData = linkedUsersSheet.getDataRange().getValues();
+        var linkedUserHeaders = linkedUserData[0].map(String);
+        var linkedSchoolCol = linkedUserHeaders.indexOf('schoolId');
+        var linkedRoleCol = linkedUserHeaders.indexOf('role');
+        var linkedTeacherCol = linkedUserHeaders.indexOf('teacherId');
+        var linkedJobCol = linkedUserHeaders.indexOf('jobNumber');
+        linkedUserStatusCol = linkedUserHeaders.indexOf('status');
+        if ([linkedSchoolCol, linkedRoleCol, linkedUserStatusCol].some(function(index) { return index < 0; })) {
+          return { success: false, error: 'تعذر التحقق من حسابات المعلم المرتبطة؛ بنية ورقة الحسابات غير مكتملة. لم يتم تغيير أي سجل.' };
+        }
+        for (var lui = 1; lui < linkedUserData.length; lui++) {
+          var linkedRole = normalizeAtharRole_(linkedUserData[lui][linkedRoleCol]);
+          var linkedSchool = String(linkedUserData[lui][linkedSchoolCol] || 'sch_alsadara_01');
+          var linkedById = linkedTeacherCol >= 0 && String(linkedUserData[lui][linkedTeacherCol] || '') === String(payload.id);
+          var linkedByJob = linkedJobCol >= 0 && safeTeacherJobNumber && String(linkedUserData[lui][linkedJobCol] || '') === safeTeacherJobNumber;
+          if (linkedSchool !== String(schoolId) || linkedRole !== 'teacher' || (!linkedById && !linkedByJob)) continue;
+          if (String(linkedUserData[lui][linkedUserStatusCol] || '') !== 'inactive') {
+            linkedTeacherStatusSnapshots.push({ row: lui + 1, status: linkedUserData[lui][linkedUserStatusCol] });
+          }
+        }
+      }
+
+      try {
+        linkedTeacherStatusSnapshots.forEach(function(snapshot) {
+          linkedUsersSheet.getRange(snapshot.row, linkedUserStatusCol + 1).setValue('inactive');
+          disabledTeacherAccounts++;
+        });
+        safeTeacherSheet.getRange(safeTeacherRow, safeTeacherStatusCol + 1).setValue('inactive');
+      } catch (writeError) {
+        var rollbackErrors = [];
+        linkedTeacherStatusSnapshots.forEach(function(snapshot) {
+          try { linkedUsersSheet.getRange(snapshot.row, linkedUserStatusCol + 1).setValue(snapshot.status); }
+          catch (rollbackError) { rollbackErrors.push(String(rollbackError)); }
+        });
+        try { safeTeacherSheet.getRange(safeTeacherRow, safeTeacherStatusCol + 1).setValue(teacherStatusSnapshot); }
+        catch (teacherRollbackError) { rollbackErrors.push(String(teacherRollbackError)); }
+        return {
+          success: false,
+          error: rollbackErrors.length
+            ? 'تعذر إكمال تعطيل المعلم، ولم تنجح استعادة بعض الحالات السابقة. راجع الحسابات وسجل المعلم قبل إعادة المحاولة.'
+            : 'تعذر إكمال تعطيل المعلم؛ أُعيدت الحالات السابقة دون حذف أي سجل.',
+          rollbackIncomplete: rollbackErrors.length > 0
+        };
+      }
+
+      if (disabledTeacherAccounts) logAuditAction_(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + payload.id, session.role);
+      logAuditAction_(schoolId, session.name, 'تعطيل سجل معلم', 'تم تعطيل سجل المعلم ' + payload.id + ' مع الاحتفاظ بالزيارات والتقارير التاريخية.', session.role);
+      return { success: true, id: payload.id, status: 'inactive', disabledAccounts: disabledTeacherAccounts, preservedHistory: true, message: 'تم تعطيل سجل المعلم وحسابات الدخول المرتبطة به مع الاحتفاظ بجميع السجلات التاريخية.' };
+    } finally {
+      teacherDeactivationLock.releaseLock();
+    }
   }
   if (action === 'saveInternalNote') {
     if (!requireRole_(session, ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'])) return { success: false, error: 'ليست لديك صلاحية الاطلاع على الملاحظات الإدارية الداخلية.' };
