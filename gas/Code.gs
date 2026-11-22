@@ -894,7 +894,7 @@ function saveTeacher_(teacherData) {
       sheet.appendRow(newRow);
     }
 
-    logAuditAction(teacherData.schoolId || 'sch_alsadara_01', teacherData.actorName || 'مسؤول النظام', 'حفظ بيانات معلم', 'تم حفظ المعلم: ' + fullName + ' (' + jobNumber + ')', teacherData.actorRole);
+    logAuditAction_(teacherData.schoolId || 'sch_alsadara_01', teacherData.actorName || 'مسؤول النظام', 'حفظ بيانات معلم', 'تم حفظ المعلم: ' + fullName + ' (' + jobNumber + ')', teacherData.actorRole);
 
     return {
       success: true,
@@ -932,12 +932,6 @@ function logAuditAction_(schoolId, userName, action, details, userRole) {
     console.error("Audit log error:", e);
   }
 }
-
-// Backward-compatible public name used by existing API actions.
-function logAuditAction(schoolId, userName, action, details, userRole) {
-  return logAuditAction_(schoolId, userName, action, details, userRole);
-}
-
 
 // ====================================================
 // 8. واجهة API مركزية للمنصة الخارجية (React)
@@ -1153,7 +1147,7 @@ function apiLogin_(payload) {
     }
     if (!user.roleTitle) user.roleTitle = role === 'platform_admin' ? 'مسؤول المنصة' : role === 'school_admin' ? 'مدير المدرسة' : role === 'vice_principal' ? 'مساعد مدير المدرسة' : 'مقيّم معتمد';
     var token = createSessionToken_(user);
-    logAuditAction(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.', user.role);
+    logAuditAction_(user.schoolId, user.name, 'تسجيل دخول', 'تم تسجيل الدخول إلى منصة أَثَر.', user.role);
     return { success: true, token: token, user: user, expiresIn: 21600 };
   }
   // Count unknown usernames as failed attempts too, so username enumeration
@@ -1693,7 +1687,7 @@ function dispatchApiAction_(action, payload, session) {
       });
       if (acceptedRows.length) {
         importSheet.getRange(importSheet.getLastRow() + 1, 1, acceptedRows.length, importHeaders.length).setValues(acceptedRows);
-        logAuditAction(importSchoolId, session.name, 'استيراد جماعي للمعلمين', 'تم استيراد ' + acceptedRows.length + ' معلم، واستبعاد ' + rejected.length + ' سجل.', session.role);
+        logAuditAction_(importSchoolId, session.name, 'استيراد جماعي للمعلمين', 'تم استيراد ' + acceptedRows.length + ' معلم، واستبعاد ' + rejected.length + ' سجل.', session.role);
       }
       return { success: true, importedCount: acceptedRows.length, rejectedCount: rejected.length, errors: rejected,
         importBatchId: acceptedRows.length ? importBatchId : '',
@@ -1781,7 +1775,7 @@ function dispatchApiAction_(action, payload, session) {
     } finally {
       try { batchRollbackLock.releaseLock(); } catch (releaseError) {}
     }
-    if (batchSnapshots.length) logAuditAction(schoolId, session.name, 'إلغاء دفعة استيراد المعلمين', 'تم تعطيل ' + batchSnapshots.length + ' معلم من دفعة ' + batchId + ' مع الاحتفاظ بالسجلات، وإبقاء ' + protectedCount + ' سجل محمي مرتبط ببيانات أخرى.', session.role);
+    if (batchSnapshots.length) logAuditAction_(schoolId, session.name, 'إلغاء دفعة استيراد المعلمين', 'تم تعطيل ' + batchSnapshots.length + ' معلم من دفعة ' + batchId + ' مع الاحتفاظ بالسجلات، وإبقاء ' + protectedCount + ' سجل محمي مرتبط ببيانات أخرى.', session.role);
     return { success: true, deletedCount: 0, deactivatedCount: batchSnapshots.length, protectedCount: protectedCount,
       message: 'تم تعطيل المعلمين غير المرتبطين بسجلات أخرى دون حذف بياناتهم؛ وأُبقيت السجلات المرتبطة كما هي.' };
   }
@@ -1836,7 +1830,7 @@ function dispatchApiAction_(action, payload, session) {
         disabledLinkedTeacherAccounts++;
       });
     }
-    if (disabledLinkedTeacherAccounts) logAuditAction(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledLinkedTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + teacher.id, session.role);
+    if (disabledLinkedTeacherAccounts) logAuditAction_(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledLinkedTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + teacher.id, session.role);
     return { success: true, id: teacher.id, status: teacher.status, disabledAccounts: disabledLinkedTeacherAccounts };
   }
   if (action === 'saveVisit') {
@@ -1933,7 +1927,7 @@ function dispatchApiAction_(action, payload, session) {
             try {
               visitSheet.getRange(vi + 1, visitStatusCol + 1).setValue('approved');
               if (approvedUpdatedCol >= 0) visitSheet.getRange(vi + 1, approvedUpdatedCol + 1).setValue(new Date().toISOString());
-              logAuditAction(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
+              logAuditAction_(schoolId, session.name, 'اعتماد زيارة صفية', 'تم اعتماد الزيارة ' + payload.id, session.role);
             } catch (approvalWriteError) {
               var approvalRollbackFailed = false;
               try {
@@ -1983,7 +1977,7 @@ function dispatchApiAction_(action, payload, session) {
     }
     var waTeacher = matchingWaTeachers[0];
     var waType = String(payload.messageType || 'رسالة').substring(0, 40);
-    logAuditAction(schoolId, session.name, 'فتح واتساب للمعلم', 'تم فتح محادثة واتساب للمعلم ' + String(waTeacher.fullName || waVisit.teacherName || '') + ' بشأن الزيارة ' + waVisitId + ' (' + waType + '). لا يؤكد هذا السجل إرسال الرسالة.', session.role);
+    logAuditAction_(schoolId, session.name, 'فتح واتساب للمعلم', 'تم فتح محادثة واتساب للمعلم ' + String(waTeacher.fullName || waVisit.teacherName || '') + ' بشأن الزيارة ' + waVisitId + ' (' + waType + '). لا يؤكد هذا السجل إرسال الرسالة.', session.role);
     return { success: true, status: 'opened', message: 'تم تسجيل فتح محادثة واتساب فقط؛ لا يمكن للمنصة التحقق من إرسال الرسالة.' };
   }
   if (action === 'sendApprovedVisitReport') {
@@ -2044,7 +2038,7 @@ function dispatchApiAction_(action, payload, session) {
       restoredBy: existingPlan ? (existingPlan.restoredBy || '') : ''
     };
     var savedPlan = upsertObjectRow_('ImprovementPlans', planRow, 'id', schoolId);
-    if (savedPlan.success) logAuditAction(schoolId, session.name, 'حفظ خطة تطوير', 'تم حفظ خطة تطوير للمعلم: ' + planTeacher.fullName, session.role);
+    if (savedPlan.success) logAuditAction_(schoolId, session.name, 'حفظ خطة تطوير', 'تم حفظ خطة تطوير للمعلم: ' + planTeacher.fullName, session.role);
     return savedPlan;
     } finally {
       try { savePlanLock.releaseLock(); } catch (releaseError) {}
@@ -2127,7 +2121,7 @@ function dispatchApiAction_(action, payload, session) {
       // Release only when this execution still owns the lock.
       try { planArchiveLock.releaseLock(); } catch (releaseError) {}
     }
-    logAuditAction(schoolId, session.name, 'أرشفة خطط تطوير', 'تمت أرشفة ' + planRowsToArchive.length + ' خطة تطوير مع الاحتفاظ بسجلات المتابعة.', session.role);
+    logAuditAction_(schoolId, session.name, 'أرشفة خطط تطوير', 'تمت أرشفة ' + planRowsToArchive.length + ' خطة تطوير مع الاحتفاظ بسجلات المتابعة.', session.role);
     return { success: true, archivedCount: planRowsToArchive.length, preservedFollowUps: true };
   }
   if (action === 'restorePlans') {
@@ -2206,7 +2200,7 @@ function dispatchApiAction_(action, payload, session) {
       // Release only when this execution still owns the lock.
       try { restorePlanLock.releaseLock(); } catch (releaseError) {}
     }
-    logAuditAction(schoolId, session.name, 'استعادة خطط تطوير', 'تمت استعادة ' + rowsToRestore.length + ' خطة تطوير.', session.role);
+    logAuditAction_(schoolId, session.name, 'استعادة خطط تطوير', 'تمت استعادة ' + rowsToRestore.length + ' خطة تطوير.', session.role);
     return { success: true, restoredCount: rowsToRestore.length };
   }
   if (action === 'savePlanFollowUp') {
@@ -2269,7 +2263,7 @@ function dispatchApiAction_(action, payload, session) {
       ]);
       followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpStatusColumn + 1).setValue(followUpStatus);
       followUpPlanSheet.getRange(followUpPlanSnapshot.row, followUpDateColumn + 1).setValue(followUpDate);
-      logAuditAction(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId, session.role);
+      logAuditAction_(schoolId, session.name, 'متابعة خطة تطوير', 'تم تسجيل متابعة للخطة ' + payload.planId, session.role);
       return { success: true, id: followUpRecordId };
     } catch (followUpError) {
       var followUpRollbackErrors = [];
@@ -2315,7 +2309,7 @@ function dispatchApiAction_(action, payload, session) {
     if (payload.academicSettings) settingsPayload.academicSettings = payload.academicSettings;
     if (Object.keys(settingsPayload).length === 0) return { success: false, error: 'لا توجد إعدادات صالحة للحفظ.' };
     var settingsResult = saveSettingsRows_(settingsPayload, session.name);
-    if (settingsResult.success) logAuditAction(schoolId, session.name, 'تحديث إعدادات المنصة', 'تم تحديث إعدادات المنصة أو الإعدادات الأكاديمية.', session.role);
+    if (settingsResult.success) logAuditAction_(schoolId, session.name, 'تحديث إعدادات المنصة', 'تم تحديث إعدادات المنصة أو الإعدادات الأكاديمية.', session.role);
     return settingsResult;
   }
   if (action === 'updateUserCredentials') {
@@ -2364,7 +2358,7 @@ function dispatchApiAction_(action, payload, session) {
       }
     }
     invalidatePublicEvaluatorCache_();
-    logAuditAction(schoolId, session.name, 'تغيير حالة حساب زيارة', 'الحساب ' + targetUsername + ' أصبح ' + requestedStatus, session.role);
+    logAuditAction_(schoolId, session.name, 'تغيير حالة حساب زيارة', 'الحساب ' + targetUsername + ' أصبح ' + requestedStatus, session.role);
     return { success: true, username: targetUsername, status: requestedStatus };
   }
   if (action === 'createVisitAccount') {
@@ -2387,7 +2381,7 @@ function dispatchApiAction_(action, payload, session) {
       setUserStatus_({ id: accountResult.user.id, status: 'inactive' }, session);
       return { success: false, error: 'تعذر إكمال إضافة الحساب إلى دليل الزيارة؛ تم تعطيل الحساب احترازيًا. راجع مسؤول النظام.' };
     }
-    logAuditAction(schoolId, session.name, 'إنشاء حساب زيارة', 'تم إنشاء حساب ' + (accountType === 'visitor' ? 'زائر' : 'مقيم') + ': ' + String(payload.name || ''), session.role);
+    logAuditAction_(schoolId, session.name, 'إنشاء حساب زيارة', 'تم إنشاء حساب ' + (accountType === 'visitor' ? 'زائر' : 'مقيم') + ': ' + String(payload.name || ''), session.role);
     return { success: true, user: { id: accountResult.user.id, name: accountResult.user.name, username: accountResult.user.username, role: accountResult.user.role, status: 'active' } };
   }
   if (action === 'setUserStatus') {
@@ -2429,7 +2423,7 @@ function dispatchApiAction_(action, payload, session) {
     var visitorRowNumber = matchingVisitorRows[0];
     visitorSheet.getRange(visitorRowNumber, visitorStatusCol + 1).setValue('inactive');
     invalidatePublicEvaluatorCache_();
-    logAuditAction(schoolId, session.name, 'تعطيل زائر', 'تم تعطيل سجل الزائر ' + payload.id + ' مع الاحتفاظ ببياناته.', session.role);
+    logAuditAction_(schoolId, session.name, 'تعطيل زائر', 'تم تعطيل سجل الزائر ' + payload.id + ' مع الاحتفاظ ببياناته.', session.role);
     return { success: true, status: 'inactive', message: 'تم تعطيل الزائر مع الاحتفاظ بسجله.' };
   }
 
@@ -2495,8 +2489,8 @@ function dispatchApiAction_(action, payload, session) {
     }
 
     safeTeacherSheet.getRange(safeTeacherRow, safeTeacherStatusCol + 1).setValue('inactive');
-    if (disabledTeacherAccounts) logAuditAction(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + payload.id, session.role);
-    logAuditAction(schoolId, session.name, 'تعطيل سجل معلم', 'تم تعطيل سجل المعلم ' + payload.id + ' مع الاحتفاظ بالزيارات والتقارير التاريخية.', session.role);
+    if (disabledTeacherAccounts) logAuditAction_(schoolId, session.name, 'تعطيل حساب معلم مرتبط', 'تم تعطيل ' + disabledTeacherAccounts + ' حساب دخول مرتبط بالمعلم ' + payload.id, session.role);
+    logAuditAction_(schoolId, session.name, 'تعطيل سجل معلم', 'تم تعطيل سجل المعلم ' + payload.id + ' مع الاحتفاظ بالزيارات والتقارير التاريخية.', session.role);
     return { success: true, id: payload.id, status: 'inactive', disabledAccounts: disabledTeacherAccounts, preservedHistory: true, message: 'تم تعطيل سجل المعلم وحسابات الدخول المرتبطة به مع الاحتفاظ بجميع السجلات التاريخية.' };
   }
   if (action === 'saveInternalNote') {
@@ -2662,7 +2656,7 @@ function saveUserAccount_(payload, session) {
     }
 
     invalidatePublicEvaluatorCache_();
-    logAuditAction(schoolId, session.name, existingRow ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')', session.role);
+    logAuditAction_(schoolId, session.name, existingRow ? 'تعديل حساب مستخدم' : 'إنشاء حساب مستخدم', 'الحساب: ' + name + ' (' + role + ')', session.role);
     return { success: true, user: {
       id: id, schoolId: schoolId, name: name, username: username, email: obj.email,
       role: role, jobNumber: obj.jobNumber, specialization: obj.specialization,
@@ -2784,7 +2778,7 @@ function setUserStatus_(payload, session) {
       writeStarted = true;
       sheet.getRange(targetRowNumber, 1, 1, headers.length).setValues([updatedRow]);
       invalidatePublicEvaluatorCache_();
-      logAuditAction(targetSchool, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
+      logAuditAction_(targetSchool, session.name, 'تغيير حالة حساب', 'الحساب ' + id + ' أصبح ' + next, session.role);
       return { success: true, id: id, status: next };
     }
     return { success: false, error: 'الحساب غير موجود.' };
@@ -2947,7 +2941,7 @@ function updateUserCredentials_(payload, session) {
         updatedUser.department = String(directoryMatch.department || '');
       }
     }
-    logAuditAction(updatedUser.schoolId, session.name, 'تحديث بيانات الدخول', 'تم تحديث بيانات الحساب ' + targetId, session.role);
+    logAuditAction_(updatedUser.schoolId, session.name, 'تحديث بيانات الدخول', 'تم تحديث بيانات الحساب ' + targetId, session.role);
     return { success: true, user: updatedUser };
   } catch (updateError) {
     var rollbackErrors = [];
@@ -3026,7 +3020,7 @@ function saveInternalNote_(payload, session, schoolId) {
     updatedBy: session.name, updatedByRole: session.role, updatedAt: now, status: 'active'
   };
   var result = upsertObjectRow_('InternalNotes', note, 'id', schoolId);
-  if (result.success) logAuditAction(schoolId, session.name, existing ? 'تعديل ملاحظة إدارية داخلية' : 'إضافة ملاحظة إدارية داخلية', 'المعلم: ' + teacher.fullName, session.role);
+  if (result.success) logAuditAction_(schoolId, session.name, existing ? 'تعديل ملاحظة إدارية داخلية' : 'إضافة ملاحظة إدارية داخلية', 'المعلم: ' + teacher.fullName, session.role);
   return result;
   } finally {
     try { internalNoteLock.releaseLock(); } catch (releaseError) {}
@@ -3065,7 +3059,7 @@ function saveAdministrativeFollowUp_(payload, session, schoolId) {
     createdAt: existing ? existing.createdAt : now, updatedAt: now
   };
   var result = upsertObjectRow_('AdministrativeFollowUps', item, 'id', schoolId);
-  if (result.success) logAuditAction(schoolId, session.name, existing ? 'تعديل متابعة إدارية' : 'إضافة متابعة إدارية', 'المعلم: ' + teacher.fullName, session.role);
+  if (result.success) logAuditAction_(schoolId, session.name, existing ? 'تعديل متابعة إدارية' : 'إضافة متابعة إدارية', 'المعلم: ' + teacher.fullName, session.role);
   return result;
   } finally {
     try { adminFollowUpLock.releaseLock(); } catch (releaseError) {}
@@ -3134,7 +3128,7 @@ function archiveVisit_(visitId, session, schoolId) {
     sheet.getRange(i + 1, archivedByCol + 1).setValue(session.name);
     sheet.getRange(i + 1, statusCol + 1).setValue('archived');
     if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(now);
-    logAuditAction(schoolId, session.name, 'أرشفة تقرير زيارة', 'تمت أرشفة التقرير ' + visitId + ' مع حفظ حالته السابقة.', session.role);
+    logAuditAction_(schoolId, session.name, 'أرشفة تقرير زيارة', 'تمت أرشفة التقرير ' + visitId + ' مع حفظ حالته السابقة.', session.role);
     return { success: true, id: visitId, status: 'archived', previousStatus: previousStatus };
   }
   return { success: false, error: 'التقرير غير موجود في المدرسة.' };
@@ -3167,7 +3161,7 @@ function unapproveVisit_(visitId, session, schoolId) {
       try {
         sheet.getRange(i + 1, statusCol + 1).setValue('completed');
         if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(new Date().toISOString());
-        logAuditAction(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
+        logAuditAction_(schoolId, session.name, 'إلغاء اعتماد تقرير', 'تم إلغاء اعتماد التقرير ' + visitId, session.role);
       } catch (unapprovalWriteError) {
         var unapprovalRollbackFailed = false;
         try {
@@ -3211,7 +3205,7 @@ function restoreVisit_(visitId, session, schoolId) {
     sheet.getRange(i + 1, restoredAtCol + 1).setValue(now);
     sheet.getRange(i + 1, restoredByCol + 1).setValue(session.name);
     if (updatedCol >= 0) sheet.getRange(i + 1, updatedCol + 1).setValue(now);
-    logAuditAction(schoolId, session.name, 'استعادة تقرير من الأرشيف', 'تمت استعادة التقرير ' + visitId + ' إلى حالته السابقة: ' + previousStatus, session.role);
+    logAuditAction_(schoolId, session.name, 'استعادة تقرير من الأرشيف', 'تمت استعادة التقرير ' + visitId + ' إلى حالته السابقة: ' + previousStatus, session.role);
     return { success: true, id: visitId, status: previousStatus };
   }
   return { success: false, error: 'التقرير غير موجود في المدرسة.' };
@@ -3288,7 +3282,7 @@ function archiveVisits_(visitIds, session, schoolId) {
           if (archiveUpdatedCol >= 0) sheet.getRange(snapshot.row, archiveUpdatedCol + 1).setValue(snapshot.updatedAt);
         } catch (rollbackError) { archiveBatchRollbackErrors.push(String(rollbackError)); }
       });
-      logAuditAction(schoolId, session.name, 'التراجع عن أرشفة جماعية', 'تعذرت أرشفة المجموعة؛ تمت محاولة إعادة الحالات السابقة. عدد السجلات التي تعذر التراجع عنها: ' + archiveBatchRollbackErrors.length, session.role);
+      logAuditAction_(schoolId, session.name, 'التراجع عن أرشفة جماعية', 'تعذرت أرشفة المجموعة؛ تمت محاولة إعادة الحالات السابقة. عدد السجلات التي تعذر التراجع عنها: ' + archiveBatchRollbackErrors.length, session.role);
       return {
         success: false,
         error: archiveBatchRollbackErrors.length
@@ -3372,7 +3366,7 @@ function restoreVisits_(visitIds, session, schoolId) {
           if (restoreUpdatedCol >= 0) sheet.getRange(snapshot.row, restoreUpdatedCol + 1).setValue(snapshot.updatedAt);
         } catch (rollbackError) { restoreBatchRollbackErrors.push(String(rollbackError)); }
       });
-      logAuditAction(schoolId, session.name, 'التراجع عن استعادة جماعية', 'تعذرت استعادة المجموعة؛ تمت محاولة إعادة الحالات المؤرشفة السابقة. عدد السجلات التي تعذر التراجع عنها: ' + restoreBatchRollbackErrors.length, session.role);
+      logAuditAction_(schoolId, session.name, 'التراجع عن استعادة جماعية', 'تعذرت استعادة المجموعة؛ تمت محاولة إعادة الحالات المؤرشفة السابقة. عدد السجلات التي تعذر التراجع عنها: ' + restoreBatchRollbackErrors.length, session.role);
       return {
         success: false,
         error: restoreBatchRollbackErrors.length
@@ -3432,7 +3426,7 @@ function saveVisitor_(payload, session) {
     }
   }
   var result = upsertObjectRow_('RegisteredVisitors', visitor, 'id', visitor.schoolId);
-  if (result.success) { invalidatePublicEvaluatorCache_(); logAuditAction(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role); }
+  if (result.success) { invalidatePublicEvaluatorCache_(); logAuditAction_(visitor.schoolId, session.name, 'حفظ بيانات زائر', 'تم حفظ بيانات الزائر: ' + name, session.role); }
   return result;
   } finally {
     try { visitorSaveLock.releaseLock(); } catch (releaseError) {}
@@ -3744,7 +3738,7 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
   var sentAt = new Date().toISOString();
   logSheet.appendRow([Utilities.getUuid(), schoolId, visitId, teacher.id, teacher.fullName, recipient,
     session.name, session.role, sentAt, 'sent', subject, message]);
-  logAuditAction(schoolId, session.name, 'إرسال تقرير زيارة للمعلم', 'تم إرسال التقرير ' + visitId + ' إلى ' + recipient, session.role);
+  logAuditAction_(schoolId, session.name, 'إرسال تقرير زيارة للمعلم', 'تم إرسال التقرير ' + visitId + ' إلى ' + recipient, session.role);
   return { success: true, visitId: visitId, recipient: recipient, sentAt: sentAt, message: 'تم إرسال التقرير المعتمد إلى بريد المعلم بنجاح.' };
 }
 
@@ -3795,7 +3789,7 @@ function sendTeacherVisitNotes_(payload, session, schoolId) {
   var sentAt = new Date().toISOString();
   logSheet.appendRow([Utilities.getUuid(), schoolId, visitId, teacher.id, teacher.fullName, recipient,
     session.name, session.role, sentAt, 'sent', subject, notes]);
-  logAuditAction(schoolId, session.name, 'إرسال ملاحظات زيارة للمعلم', 'تم إرسال ملاحظات الزيارة ' + visitId + ' إلى ' + recipient, session.role);
+  logAuditAction_(schoolId, session.name, 'إرسال ملاحظات زيارة للمعلم', 'تم إرسال ملاحظات الزيارة ' + visitId + ' إلى ' + recipient, session.role);
   return { success: true, visitId: visitId, recipient: recipient, sentAt: sentAt, message: 'تم إرسال الملاحظات إلى بريد المعلم بنجاح.' };
 }
 
@@ -3876,7 +3870,3 @@ function setupAtharFiveInitialAccounts_() {
 }
 
 
-// Public editor entry point for the isolated test setup.
-function setupAtharFiveInitialAccounts() {
-  return setupAtharFiveInitialAccounts_();
-}
