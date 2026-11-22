@@ -1177,7 +1177,7 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         )}
                       </div>
 
-                      {activeRegisteredVisitors.length > 0 && (
+                      {idx > 0 && activeRegisteredVisitors.length > 0 && (
                         <div className="flex items-center justify-between text-[10px] text-slate-500">
                           <span>{t.visitorsManagement.quickPick}:</span>
                           <select
