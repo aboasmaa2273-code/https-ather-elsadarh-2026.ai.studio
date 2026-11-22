@@ -25,7 +25,7 @@ import { translations, Language } from '../i18n/translations';
 
 interface PublicHomeProps {
   platformSettings: PlatformSettings;
-  onLoginClick: () => void;
+  onLoginClick: (evaluatorName?: string) => void;
   onAddNewEvaluator?: (name: string, roleTitle?: string) => void;
   language?: Language;
 }
@@ -67,13 +67,17 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
   // Public evaluator cards must never create an authenticated session.
   // Every access attempt goes through the central username/password login.
-  const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
-    onLoginClick();
+  const handleCardClick = (user: User, _navigateTo: string = 'new-visit') => {
+    onLoginClick(user.name);
   };
 
   // Apply the verified school role title to the named leadership profile.
   // All other profiles continue to use their central-directory role title.
-  const displayEvaluators = evaluators.map(person => {
+  const roster = [...evaluators];
+  if (!roster.some(person => String(person.name || '').replace(/\s+/g, ' ').trim() === 'طلال معتوق النعيمي' || String(person.name || '').includes('طلال معتوق'))) {
+    roster.push({ id: 'evaluator_talal_matooq', name: 'طلال معتوق النعيمي', email: '', role: 'evaluator', schoolId: 'sch_alsadara_01', specialization: 'نائب مدير - مساعد مدير', username: '', status: 'active' });
+  }
+  const displayEvaluators = roster.map(person => {
     const normalizedName = String(person.name || '').replace(/\s+/g, ' ').trim();
     if (normalizedName === 'طلال معتوق على سعيد النعيمي') {
       return { ...person, roleTitle: 'نائب مدير - مساعد مدير' };
@@ -148,7 +152,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
               </a>
 
               <button
-                onClick={onLoginClick}
+                onClick={() => onLoginClick()}
                 className="px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <Lock className="w-4 h-4 text-[#C6A66A]" />
@@ -237,7 +241,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
             <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0 w-full md:w-auto">
               <button
-                onClick={onLoginClick}
+                onClick={() => onLoginClick()}
                 className="px-6 py-3.5 bg-gradient-to-r from-[#C6A66A] to-[#b89556] hover:from-[#d4b478] hover:to-[#c6a66a] text-[#172C40] font-black text-sm rounded-xl transition-all shadow-lg hover:shadow-[#C6A66A]/20 flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
               >
                 <Lock className="w-4 h-4 text-[#172C40]" />
