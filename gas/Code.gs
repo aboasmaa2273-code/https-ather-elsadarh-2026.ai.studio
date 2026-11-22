@@ -3219,6 +3219,12 @@ function archiveVisit_(visitId, session, schoolId) {
   var migration = ensureVisitArchiveColumns_(sheet);
   if (!migration.success) return migration;
   var data = sheet.getDataRange().getValues();
+  var matchingArchiveIds = data.slice(1).filter(function(row) { return String(row[0]) === String(visitId); });
+  if (matchingArchiveIds.length !== 1 || String(matchingArchiveIds[0][1]) !== String(schoolId)) {
+    return { success: false, error: matchingArchiveIds.length
+      ? 'رقم التقرير غير فريد على مستوى قاعدة البيانات؛ أوقفنا الأرشفة دون تغيير أي سجل.'
+      : 'التقرير غير موجود في المدرسة.' };
+  }
   var headers = data[0].map(String);
   var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId');
   var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
@@ -3296,6 +3302,12 @@ function restoreVisit_(visitId, session, schoolId) {
   var migration = ensureVisitArchiveColumns_(sheet);
   if (!migration.success) return migration;
   var data = sheet.getDataRange().getValues();
+  var matchingRestoreIds = data.slice(1).filter(function(row) { return String(row[0]) === String(visitId); });
+  if (matchingRestoreIds.length !== 1 || String(matchingRestoreIds[0][1]) !== String(schoolId)) {
+    return { success: false, error: matchingRestoreIds.length
+      ? 'رقم التقرير غير فريد على مستوى قاعدة البيانات؛ أوقفنا الاستعادة دون تغيير أي سجل.'
+      : 'التقرير غير موجود في المدرسة.' };
+  }
   var headers = data[0].map(String);
   var idCol = headers.indexOf('id'), schoolCol = headers.indexOf('schoolId');
   var statusCol = headers.indexOf('status'), updatedCol = headers.indexOf('updatedAt');
