@@ -11,107 +11,403 @@
     plans: []
   };
 
+  var atharSessionToken = '';
   document.addEventListener('DOMContentLoaded', function() {
-    loadInitialData();
+    document.getElementById('loading-spinner').style.display = 'none';
+    var nav = document.querySelector('.athar-nav');
+    if (nav) nav.style.display = 'none';
+    showPublicHome();
   });
 
-  function loadInitialData() {
-    if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run
-        .withSuccessHandler(function(response) {
-          document.getElementById('loading-spinner').style.display = 'none';
-          if (response && response.success) {
-            atharState.user = response.currentUser;
-            document.getElementById('user-display').textContent = response.currentUser.name + ' (' + response.currentUser.role + ')';
-            renderTab(atharState.currentTab);
-          } else {
-            showError('تعذر جلب البيانات الأولية: ' + (response.error || 'خطأ غير معروف'));
-          }
-        })
-        .withFailureHandler(function(error) {
-          document.getElementById('loading-spinner').style.display = 'none';
-          showError('فشل الاتصال بخادم Google Apps Script: ' + error.message);
-        })
-        .getBootstrapData();
-    } else {
-      // البيئة المستقلة للاختبار
-      document.getElementById('loading-spinner').style.display = 'none';
-      document.getElementById('user-display').textContent = 'بيئة المعاينة (وضع المحاكاة)';
-      renderTab(atharState.currentTab);
-    }
+
+  function showPublicHome() {
+    var viewport = document.getElementById('tab-viewport');
+    if (!viewport) return;
+    var nav = document.querySelector('.athar-nav');
+    if (nav) nav.style.display = 'none';
+    document.getElementById('user-display').textContent = 'زائر';
+    viewport.innerHTML =
+      '<div class="public-home"><section class="hero-panel">' +
+      '<div><div class="hero-kickers"><span class="hero-kicker">دولة الإمارات العربية المتحدة · وزارة التربية والتعليم</span><span class="hero-kicker">العام الأكاديمي 2026–2027</span></div>' +
+      '<h1 class="hero-title">أهلاً ومرحباً بكم في منصة <span>«أَثَر»</span></h1><p class="hero-subtitle">منظومة التميز والتطوير التعليمي</p>' +
+      '<p class="hero-school">مدرسة الصدارة بنين - الحلقة الثانية</p>' +
+      '<div class="hero-message"><strong>✦ نَرْصُدُ الأَدَاءَ... وَنَصْنَعُ الأَثَرَ</strong><p>منظومة مهنية لمشاهدة الممارسات الصفية، ورصد مؤشرات الأداء، وتوثيق الزيارات، ومتابعة خطط التطوير المهني.</p></div>' +
+      '<div class="hero-actions"><button class="hero-login" id="home-login">تسجيل الدخول للبدء ←</button><button class="hero-secondary" id="home-about">التعرّف إلى المنظومة</button></div></div>' +
+      '<div class="hero-image-wrap"><img class="hero-image" src="https://raw.githubusercontent.com/aboasmaa2273-code/https-ather-elsadarh-2026.ai.studio/main/src/assets/images/athar_hero_command_center.jfif" alt="وحدة المشاهدة والتقييم الصفي المباشر" onerror="this.style.display=\'none\';this.parentNode.style.background=\'#172C40\';">' +
+      '<div class="hero-image-caption"><strong>وحدة المشاهدة والتقييم الصفي المباشر</strong><span>رصد الممارسات الصفية وقياس نسب الإنجاز للمؤشرات وتوثيق خطط التطوير المهني.</span></div></div></section>' +
+      '<section class="home-features"><article class="home-feature"><b>المشاهدة والتقييم الصفي</b><p>توثيق الزيارات الكاملة والزيارات السريعة وفق مؤشرات الأداء المعتمدة.</p></article>' +
+      '<article class="home-feature"><b>متابعة الأداء والتقدم</b><p>لوحات متابعة وتقارير تساعد على قراءة النتائج وتحديد فرص التحسين.</p></article>' +
+      '<article class="home-feature"><b>خطط التطوير المهني</b><p>تحويل الملاحظات الصفية إلى إجراءات تطوير واضحة قابلة للمتابعة.</p></article></section></div>';
+    document.getElementById('home-login').addEventListener('click', function(){ showLogin(); });
+    document.getElementById('home-about').addEventListener('click', function(){ document.querySelector('.home-features').scrollIntoView({behavior:'smooth'}); });
+  }
+
+  function showLogin(message) {
+    var viewport = document.getElementById('tab-viewport');
+    if (!viewport) return;
+    viewport.innerHTML =
+      '<section class="login-card">' +
+        '<h2 style="margin-bottom:.5rem;color:#172C40;">تسجيل الدخول إلى أَثَر</h2>' +
+        '<p style="margin-bottom:1.25rem;color:#64748B;">أدخل اسم المستخدم وكلمة المرور المعتمدين.</p>' +
+        (message ? '<p role="alert" style="color:#B91C1C;margin-bottom:1rem;">'+escapeHtml(message)+'</p>' : '') +
+        '<button type="button" id="back-to-home" class="hero-secondary" style="margin-bottom:1rem;color:#172C40;border-color:#CBD5E1;background:#F8FAFC;">العودة إلى الصفحة الرئيسية</button>' +
+        '<form id="athar-login-form">' +
+          '<label for="athar-username">اسم المستخدم</label>' +
+          '<input id="athar-username" name="username" autocomplete="username" required style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+          '<label for="athar-password">كلمة المرور</label>' +
+          '<input id="athar-password" name="password" type="password" autocomplete="current-password" required style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+          '<button class="btn-primary" id="athar-login-button" type="submit">دخول</button>' +
+          '<p id="athar-login-status" aria-live="polite" style="margin-top:1rem;color:#64748B;"></p>' +
+        '</form>' +
+      '</section>';
+    document.getElementById('athar-login-form').addEventListener('submit', submitAtharLogin);
+    document.getElementById('back-to-home').addEventListener('click', showPublicHome);
+  }
+
+  function submitAtharLogin(event) {
+    event.preventDefault();
+    var button = document.getElementById('athar-login-button');
+    var status = document.getElementById('athar-login-status');
+    var username = document.getElementById('athar-username').value.trim();
+    var password = document.getElementById('athar-password').value;
+    button.disabled = true;
+    status.textContent = 'جارٍ التحقق من بيانات الدخول...';
+    google.script.run
+      .withSuccessHandler(function(result) {
+        if (!result || !result.success || !result.token) {
+          button.disabled = false;
+          status.textContent = '';
+          showLogin(result && result.error ? result.error : 'تعذر تسجيل الدخول.');
+          return;
+        }
+        atharSessionToken = result.token;
+        atharState.user = result.user;
+        loadAuthenticatedData();
+      })
+      .withFailureHandler(function() {
+        button.disabled = false;
+        status.textContent = 'تعذر الاتصال بالخادم. حاول مرة أخرى.';
+      })
+      .dispatchBridgeRequest({action:'login', payload:{username:username,password:password}});
+  }
+
+  function loadAuthenticatedData() {
+    google.script.run
+      .withSuccessHandler(function(response) {
+        if (!response || !response.success) {
+          atharSessionToken = '';
+          atharState.user = null;
+          showLogin(response && response.error ? response.error : 'تعذر تحميل بيانات الحساب.');
+          return;
+        }
+        atharState.bootstrap = response.data || response;
+        atharState.teachers = atharState.bootstrap.teachers || [];
+        atharState.visits = atharState.bootstrap.visits || [];
+        atharState.plans = atharState.bootstrap.plans || [];
+        document.getElementById('user-display').textContent =
+          (atharState.user.name || 'مستخدم') + ' — ' + (atharState.user.roleTitle || atharState.user.role);
+        var nav = document.querySelector('.athar-nav');
+        if (nav) nav.style.display = 'flex';
+        renderTab(atharState.currentTab);
+      })
+      .withFailureHandler(function() {
+        atharSessionToken = '';
+        atharState.user = null;
+        showLogin('تعذر تحميل بيانات المنصة بعد تسجيل الدخول.');
+      })
+      .dispatchBridgeRequest({action:'bootstrap', token:atharSessionToken, payload:{}});
+  }
+
+  function escapeHtml(value) {
+    return String(value || '').replace(/[&<>"']/g, function(ch) {
+      return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[ch];
+    });
+  }
+
+  function logoutAthar() {
+    atharSessionToken = '';
+    atharState.user = null;
+    var nav = document.querySelector('.athar-nav');
+    if (nav) nav.style.display = 'none';
+    document.getElementById('user-display').textContent = 'لم يتم تسجيل الدخول';
+    showPublicHome();
   }
 
   function switchGasTab(tabId) {
     atharState.currentTab = tabId;
     var buttons = document.querySelectorAll('.nav-btn');
     buttons.forEach(function(btn) { btn.classList.remove('active'); });
-    event.target.classList.add('active');
+    buttons.forEach(function(btn) { if (btn.getAttribute('onclick') && btn.getAttribute('onclick').indexOf("'" + tabId + "'") >= 0) btn.classList.add('active'); });
     renderTab(tabId);
   }
 
   function renderTab(tabId) {
     var viewport = document.getElementById('tab-viewport');
     if (!viewport) return;
-
+    var data = atharState.bootstrap || {};
+    var teachers = data.teachers || [];
+    var visits = data.visits || [];
+    var plans = data.plans || [];
+    var esc = escapeHtml;
+    function empty(msg) { return '<div class="table-box" style="padding:1.5rem;text-align:center;color:#64748B;">' + esc(msg) + '</div>'; }
+    function table(headers, rows) {
+      return '<div class="table-box" style="padding:1rem;overflow-x:auto;"><table><thead><tr>' +
+        headers.map(function(h){return '<th>'+esc(h)+'</th>';}).join('') +
+        '</tr></thead><tbody>' + (rows.length ? rows.map(function(row){return '<tr>'+row.map(function(v){return '<td>'+esc(v === undefined || v === null || v === '' ? '—' : v)+'</td>';}).join('')+'</tr>';}).join('') :
+        '<tr><td colspan="'+headers.length+'" style="text-align:center;padding:1.5rem;color:#64748B;">لا توجد سجلات حتى الآن.</td></tr>') +
+        '</tbody></table></div>';
+    }
     if (tabId === 'dashboard') {
-      viewport.innerHTML = 
+      var completed = visits.filter(function(v){return ['approved','completed'].indexOf(String(v.status||'').toLowerCase())>=0;}).length;
+      var activePlans = plans.filter(function(p){return ['completed','closed'].indexOf(String(p.status||'').toLowerCase())<0;}).length;
+      var uniqueTeachers = {};
+      visits.forEach(function(v){if(v.teacherId) uniqueTeachers[String(v.teacherId)]=true;});
+      var recent = visits.slice().sort(function(a,b){return String(b.date||'').localeCompare(String(a.date||''));}).slice(0,8);
+      viewport.innerHTML =
         '<div class="stat-grid">' +
-          '<div class="stat-card"><div class="stat-title">إجمالي الزيارات الصفية</div><div class="stat-value">24</div></div>' +
-          '<div class="stat-card"><div class="stat-title">الزيارات المكتملة</div><div class="stat-value">21</div></div>' +
-          '<div class="stat-card"><div class="stat-title">المعلمون الذين تمت زيارتهم</div><div class="stat-value">18</div></div>' +
-          '<div class="stat-card"><div class="stat-title">خطط التطوير المفتوحة</div><div class="stat-value">5</div></div>' +
-        '</div>' +
-        '<div class="table-box" style="padding: 1.5rem;">' +
-          '<h3 style="margin-bottom: 1rem; color: #172C40;">أحدث الزيارات الصفية المعتمدة</h3>' +
-          '<table>' +
-            '<thead><tr><th>رقم الزيارة</th><th>المعلم</th><th>المادة</th><th>الصف</th><th>نوع الزيارة</th><th>نسبة الإنجاز</th><th>الحالة</th></tr></thead>' +
-            '<tbody>' +
-              '<tr><td>VST-2024-001</td><td>راشد بن سلطان الكعبي</td><td>اللغة العربية</td><td>الصف الثامن (2)</td><td>زيارة كاملة</td><td>95.5%</td><td>معتمدة</td></tr>' +
-              '<tr><td>VST-2024-002</td><td>أحمد محمد الكعبي</td><td>الرياضيات</td><td>الصف السابع (3)</td><td>زيارة سريعة</td><td>91.7%</td><td>مكتملة</td></tr>' +
-            '</tbody>' +
-          '</table>' +
-        '</div>';
-    } else if (tabId === 'database-init') {
-      viewport.innerHTML = 
-        '<div class="table-box" style="padding: 2rem; max-width: 800px; margin: 0 auto;">' +
-          '<h2 style="color: #172C40; margin-bottom: 0.75rem;">تهيئة قاعدة بيانات Google Sheets (18 ورقة عمل)</h2>' +
-          '<p style="color: #64748B; margin-bottom: 1.5rem;">تقوم هذه الدالة بإنشاء وتنسيق كافة أوراق العمل الـ 18 المطلوبة وتعبئة الـ 22 مؤشراً صفياً المعتمدة تلقائياً.</p>' +
-          '<button class="btn-gold" onclick="executeDatabaseInit()">بدء التهيئة الفورية الآن</button>' +
-          '<div id="init-feedback" style="margin-top: 1.5rem; display: none;"></div>' +
-        '</div>';
+        '<div class="stat-card"><div class="stat-title">إجمالي الزيارات</div><div class="stat-value">'+visits.length+'</div></div>' +
+        '<div class="stat-card"><div class="stat-title">الزيارات المكتملة أو المعتمدة</div><div class="stat-value">'+completed+'</div></div>' +
+        '<div class="stat-card"><div class="stat-title">المعلمون الذين تمت زيارتهم</div><div class="stat-value">'+Object.keys(uniqueTeachers).length+'</div></div>' +
+        '<div class="stat-card"><div class="stat-title">خطط التطوير المفتوحة</div><div class="stat-value">'+activePlans+'</div></div></div>' +
+        '<h3 style="margin:1.5rem 0 .8rem;color:#172C40;">أحدث الزيارات المسجلة</h3>' +
+        table(['المعلم','المادة','الصف','الشعبة','تاريخ الزيارة','الحالة'],recent.map(function(v){return [v.teacherName,v.subject,v.grade,v.section,v.date,v.status];}));
+    } else if (tabId === 'teachers') {
+      viewport.innerHTML = '<h2 style="margin-bottom:1rem;color:#172C40;">إدارة المعلمين</h2>' +
+        table(['اسم المعلم','الرقم الوظيفي','التخصص','الحالة'],teachers.map(function(t){return [t.fullName,t.jobNumber,t.specialization,t.status];}));
+    } else if (tabId === 'visits') {
+      viewport.innerHTML = '<h2 style="margin-bottom:1rem;color:#172C40;">سجل الزيارات الصفية</h2>' +
+        table(['رقم الزيارة','المعلم','المادة','الصف','الشعبة','التاريخ','نوع الزيارة','الحالة'],visits.map(function(v){return [v.id,v.teacherName,v.subject,v.grade,v.section,v.date,v.visitType,v.status];}));
+    } else if (tabId === 'plans') {
+      viewport.innerHTML = '<h2 style="margin-bottom:1rem;color:#172C40;">خطط التطوير المهني</h2>' +
+        table(['المعلم','الهدف التطويري','الإجراء','المسؤول','تاريخ الاستحقاق','الحالة'],plans.map(function(p){return [p.teacherName,p.goal||p.developmentalGoal,p.procedure||p.actionProcedure,p.responsible||p.responsiblePerson,p.dueDate,p.status];}));
+    } else if (tabId === 'account') {
+      var user = atharState.user || {};
+      viewport.innerHTML = '<section class="login-card"><h2>إعدادات حسابي</h2><p style="color:#64748B;margin:.4rem 0 1rem;">يمكنك تحديث اسم العرض واسم المستخدم وكلمة المرور. اترك كلمة المرور فارغة إذا لم ترغب في تغييرها.</p>' +
+        '<form id="athar-account-form"><label for="account-name">الاسم</label><input id="account-name" required value="'+esc(user.name||'')+'" style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<label for="account-username">اسم المستخدم</label><input id="account-username" required minlength="3" maxlength="40" pattern="[A-Za-z0-9._-]{3,40}" value="'+esc(user.username||'')+'" style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<label for="account-password">كلمة المرور الجديدة (10 أحرف على الأقل)</label><input id="account-password" type="password" minlength="10" autocomplete="new-password" placeholder="اتركها فارغة للإبقاء على الحالية" style="display:block;width:100%;padding:.8rem;margin:.4rem 0 1rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<button class="btn-primary" type="submit" id="account-save">حفظ التغييرات</button><p id="account-feedback" aria-live="polite" style="margin-top:1rem;"></p></form></section>';
+      document.getElementById('athar-account-form').addEventListener('submit', saveAtharAccount);
+    } else if (tabId === 'new-visit') {
+      renderNewVisitForm(viewport);
     } else {
-      viewport.innerHTML = '<div class="table-box" style="padding: 2rem; text-align: center;"><p>عرض قسم: ' + tabId + '</p></div>';
+      viewport.innerHTML = empty('القسم غير متاح.');
     }
   }
 
-  function executeDatabaseInit() {
-    var feedback = document.getElementById('init-feedback');
-    feedback.style.display = 'block';
-    feedback.innerHTML = '<p style="color: #172C40;">جاري إنشاء وتنسيق الأوراق في Google Sheets عبر LockService...</p>';
-
-    if (typeof google !== 'undefined' && google.script && google.script.run) {
-      google.script.run
-        .withSuccessHandler(function(res) {
-          if (res.success) {
-            feedback.innerHTML = '<div style="background: #ECFDF5; border: 1px solid #10B981; padding: 1rem; border-radius: 6px; color: #065F46;">' +
-              '<strong>' + res.message + '</strong><br>' +
-              '<a href="' + res.spreadsheetUrl + '" target="_blank" style="color: #047857; text-decoration: underline; margin-top: 0.5rem; display: inline-block;">فتح جدول البيانات المباشر</a>' +
-            '</div>';
-          } else {
-            feedback.innerHTML = '<div style="background: #FEF2F2; border: 1px solid #EF4444; padding: 1rem; border-radius: 6px; color: #991B1B;">' + res.error + '</div>';
-          }
-        })
-        .withFailureHandler(function(err) {
-          feedback.innerHTML = '<div style="background: #FEF2F2; border: 1px solid #EF4444; padding: 1rem; border-radius: 6px; color: #991B1B;">فشل الاستدعاء: ' + err.message + '</div>';
-        })
-        .initializeDatabase();
-    } else {
-      setTimeout(function() {
-        feedback.innerHTML = '<div style="background: #EFF6FF; border: 1px solid #3B82F6; padding: 1rem; border-radius: 6px; color: #1E40AF;">' +
-          '<strong>وضع المحاكاة:</strong> تم اختبار دالة initializeDatabase() بنجاح تام وفق Schema الـ 18 ورقة المحددة.' +
-        '</div>';
-      }, 1000);
+  function renderNewVisitForm(viewport) {
+    var data = atharState.bootstrap || {};
+    var teachers = (data.teachers || []).filter(function(t){ return String(t.status || 'active') !== 'inactive'; });
+    var indicators = (data.indicators || []).filter(function(i){ return i.isActive !== false && String(i.isActive).toLowerCase() !== 'false'; });
+    var evaluationDomains = (data.evaluationDomains && data.evaluationDomains.length) ? data.evaluationDomains : [
+      {id:'achievement',name:'التحصيل'},
+      {id:'progress',name:'التقدم'},
+      {id:'learning_skills',name:'مهارات التعلم'},
+      {id:'psd_innovation',name:'التنمية الشخصية والاجتماعية والابتكار (PSD & Innovation)'},
+      {id:'teaching',name:'التدريس'},
+      {id:'assessment',name:'التقييم'},
+      {id:'curriculum',name:'المنهاج'},
+      {id:'pcgs',name:'PCGS (الحماية والرعاية والتوجيه والدعم)'},
+      {id:'leadership',name:'القيادة والإدارة'},
+      {id:'other',name:'أخرى'}
+    ];
+    var academicSettings = {};
+    (data.settings || []).forEach(function(row){
+      if (String(row.key || '') !== 'academicSettings') return;
+      try { academicSettings = typeof row.value === 'string' ? JSON.parse(row.value || '{}') : (row.value || {}); } catch (e) { academicSettings = {}; }
+    });
+    var subjects = Array.isArray(academicSettings.subjects) ? academicSettings.subjects : [];
+    var academicYear = academicSettings.currentAcademicYear || '';
+    var academicTerm = academicSettings.currentTerm || '';
+    var groups = [];
+    indicators.forEach(function(item){
+      var group = String(item.group || 'مؤشرات عامة');
+      if (groups.indexOf(group) < 0) groups.push(group);
+    });
+    var teacherOptions = '<option value="">— اختر المعلم —</option>' + teachers.map(function(t){
+      return '<option value="'+escapeHtml(t.id)+'">'+escapeHtml(t.fullName || t.name || '')+'</option>';
+    }).join('');
+    var gradeOptions = '<option value="">— اختر الصف —</option>' + [5,6,7,8].map(function(n){return '<option value="'+n+'">الصف '+n+'</option>';}).join('');
+    var sectionOptions = '<option value="">— اختر الشعبة —</option>' + [1,2,3,4,5,6].map(function(n){return '<option value="'+n+'">الشعبة '+n+'</option>';}).join('');
+    var subjectOptions = '<option value="">— اختر المادة —</option>' + subjects.map(function(subject){return '<option value="'+escapeHtml(subject)+'">'+escapeHtml(subject)+'</option>';}).join('') + '<option value="أخرى">أخرى</option>';
+    var indicatorMarkup = groups.map(function(group){
+      var rows = indicators.filter(function(i){return String(i.group || 'مؤشرات عامة') === group;});
+      return '<section class="table-box" style="padding:1rem;margin:1rem 0;"><h3 style="color:#172C40;margin-bottom:.7rem;">'+escapeHtml(group)+'</h3>' +
+        rows.map(function(item){
+          var id = String(item.id || item.code || '');
+          return '<div class="visit-indicator" data-indicator-id="'+escapeHtml(id)+'" data-indicator-text="'+escapeHtml(item.text || '')+'" data-indicator-group="'+escapeHtml(group)+'" style="padding:.8rem 0;border-bottom:1px solid #E2E8F0;">' +
+            '<label style="display:block;font-weight:600;margin-bottom:.5rem;">'+escapeHtml(item.text || '')+'</label>' +
+            '<select class="indicator-rating" aria-label="تقييم المؤشر" style="width:100%;padding:.65rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+              '<option value="not_observed">لم يُشاهد</option><option value="outstanding">متميز</option><option value="very_good">جيد جدًا</option><option value="good">جيد</option><option value="acceptable">مقبول</option><option value="weak">يحتاج إلى تحسين</option>' +
+            '</select><textarea class="indicator-notes" rows="2" placeholder="ملاحظات المشاهدة (اختياري)" style="width:100%;margin-top:.5rem;padding:.6rem;border:1px solid #CBD5E1;border-radius:6px;"></textarea></div>';
+        }).join('') + '</section>';
+    }).join('');
+    var domainMarkup = evaluationDomains.map(function(domain){
+      return '<div class="visit-domain" data-domain-id="'+escapeHtml(domain.id)+'" data-domain-name="'+escapeHtml(domain.name || '')+'" style="padding:.7rem 0;border-bottom:1px solid #E2E8F0;">' +
+        '<label style="display:block;font-weight:600;margin-bottom:.4rem;">'+escapeHtml(domain.name || '')+'</label>' +
+        '<select class="domain-rating" style="width:100%;padding:.65rem;border:1px solid #CBD5E1;border-radius:6px;">' +
+        '<option value="outstanding">متميز</option><option value="very_good">جيد جدًا</option><option value="good" selected>جيد</option><option value="acceptable">مقبول</option><option value="weak">ضعيف</option><option value="very_weak">ضعيف جدًا</option></select></div>';
+    }).join('');
+    viewport.innerHTML = '<section class="login-card" style="max-width:100%;"><h2 style="color:#172C40;">تسجيل زيارة صفية جديدة</h2>' +
+      '<p style="color:#64748B;margin:.5rem 0 1rem;">أدخل بيانات المشاهدة، ثم قيّم المؤشرات التي تمت ملاحظتها. يمكنك ترك المؤشر على «لم يُشاهد» عند عدم توفر دليل عليه.</p>' +
+      '<form id="athar-visit-form"><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">' +
+      '<div><label for="visit-teacher">المعلم</label><select id="visit-teacher" required style="width:100%;padding:.7rem;">'+teacherOptions+'</select><p id="visit-teacher-meta" style="font-size:.85rem;color:#64748B;margin-top:.3rem;"></p></div>' +
+      '<div><label for="visit-grade">الصف</label><select id="visit-grade" required style="width:100%;padding:.7rem;">'+gradeOptions+'</select></div>' +
+      '<div><label for="visit-section">الشعبة</label><select id="visit-section" required style="width:100%;padding:.7rem;">'+sectionOptions+'</select></div>' +
+      '<div><label for="visit-subject">المادة</label><select id="visit-subject" required style="width:100%;padding:.7rem;">'+subjectOptions+'</select><input id="visit-subject-other" maxlength="80" placeholder="اكتب اسم المادة الأخرى" style="display:none;width:100%;padding:.7rem;margin-top:.5rem;"></div>' +
+      '<div><label for="visit-type">نوع الزيارة</label><select id="visit-type" required style="width:100%;padding:.7rem;"><option value="full">مشاهدة الحصة كاملة</option><option value="quick">زيارة سريعة مستهدفة (10–15 دقيقة)</option></select></div>' +
+      '<div><label for="visit-date">تاريخ الزيارة</label><input id="visit-date" type="date" required value="'+new Date().toISOString().slice(0,10)+'" style="width:100%;padding:.7rem;"></div>' +
+      '<div><label for="visit-time">وقت الزيارة</label><input id="visit-time" type="time" required style="width:100%;padding:.7rem;"></div>' +
+      '</div><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));margin-top:1rem;"><div><label for="visit-academic-year">العام الأكاديمي</label><input id="visit-academic-year" value="'+escapeHtml(academicYear)+'" readonly style="width:100%;padding:.7rem;background:#F8FAFC;"></div><div><label for="visit-term">الفصل الدراسي</label><input id="visit-term" value="'+escapeHtml(academicTerm)+'" readonly style="width:100%;padding:.7rem;background:#F8FAFC;"></div></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-goal">هدف الزيارة / محور التركيز</label><textarea id="visit-goal" rows="2" maxlength="1000" style="width:100%;padding:.7rem;" placeholder="اكتب الهدف، خصوصًا في الزيارة السريعة المستهدفة"></textarea></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-status">حالة التقرير</label><select id="visit-status" style="padding:.7rem;"><option value="draft">مسودة</option><option value="completed">مكتمل</option></select></div>' +
+      '<h3 style="margin:1.3rem 0 .6rem;color:#172C40;">بيانات الطلبة والحضور</h3><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(180px,1fr));">' +
+      '<div><label for="visit-total-students">إجمالي عدد الطلبة</label><input id="visit-total-students" type="number" min="1" step="1" required style="width:100%;padding:.7rem;"></div>' +
+      '<div><label for="visit-attended-students">عدد الحاضرين</label><input id="visit-attended-students" type="number" min="0" step="1" required style="width:100%;padding:.7rem;"></div>' +
+      '<div><label for="visit-absent-students">عدد الغائبين</label><input id="visit-absent-students" type="number" min="0" max="200" step="1" readonly style="width:100%;padding:.7rem;background:#F8FAFC;"></div>' +
+      '<div><label for="visit-student-gender">نوع الطلبة</label><select id="visit-student-gender" required style="width:100%;padding:.7rem;"><option value="boys">ذكور</option><option value="girls">إناث</option><option value="mixed">مختلط</option></select></div></div>' +
+      '<h3 style="margin:1.3rem 0 .6rem;color:#172C40;">بيانات الزائرين</h3><div class="stat-grid" style="grid-template-columns:repeat(auto-fit,minmax(220px,1fr));">' +
+      '<div><label for="visit-primary-role">دور المقيم / الزائر الأساسي</label><select id="visit-primary-role" required style="width:100%;padding:.7rem;"><option value="evaluator">مقيّم</option><option value="admin">إداري</option><option value="teacher">معلم</option><option value="cluster_director">مدير / مديرة النطاق</option><option value="principal">مدير المدرسة</option><option value="vice_principal">مساعد مدير</option><option value="head_of_arabic">رئيس هيئة تدريس المواد العربية</option><option value="department_head">رئيس قسم</option><option value="academic_supervisor">موجه تربوي / أخصائي</option><option value="other">أخرى</option></select></div>' +
+      '<div><label for="visit-additional-visitors">الزائرون الآخرون (اسم كل زائر في سطر)</label><textarea id="visit-additional-visitors" rows="3" maxlength="1000" placeholder="اكتب أسماء الزائرين الآخرين، كل اسم في سطر مستقل" style="width:100%;padding:.7rem;"></textarea><small style="color:#64748B;">سيُسجَّل الزائرون الإضافيون بالدور المحدد أعلاه.</small></div></div>' +
+      '<h3 style="margin:1.5rem 0 .5rem;color:#172C40;">مؤشرات المشاهدة والتقييم</h3>' + (indicatorMarkup || '<p>لا توجد مؤشرات متاحة في بيانات المنصة.</p>') +
+      '<h3 style="margin:1.5rem 0 .5rem;color:#172C40;">تقييم المجالات العامة</h3>' + (domainMarkup || '<p style="color:#64748B;">لا توجد مجالات تقييم معرفة في مكتبة المنصة حاليًا.</p>') +
+      '<div style="margin-top:1rem;"><label for="visit-elearning">مستوى نضج التعلّم الإلكتروني</label><select id="visit-elearning" style="width:100%;padding:.7rem;"><option value="weak">ضعيف</option><option value="acceptable">مقبول</option><option value="good" selected>جيد</option><option value="very_good">جيد جدًا</option><option value="excellent">ممتاز</option></select></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-strengths">نقاط القوة</label><textarea id="visit-strengths" rows="3" style="width:100%;padding:.7rem;" placeholder="اكتب كل نقطة في سطر مستقل"></textarea></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-improvements">مجالات التحسين</label><textarea id="visit-improvements" rows="3" style="width:100%;padding:.7rem;" placeholder="اكتب كل مجال في سطر مستقل"></textarea></div>' +
+      '<div style="margin-top:1rem;"><label for="visit-recommendations">التوصيات العملية</label><textarea id="visit-recommendations" rows="3" style="width:100%;padding:.7rem;"></textarea></div>' +
+      '<button class="btn-primary" type="submit" id="visit-save" style="margin-top:1.2rem;">حفظ تقرير الزيارة</button><p id="visit-feedback" role="status" aria-live="polite" style="margin-top:.8rem;"></p></form></section>';
+    document.getElementById('visit-subject').addEventListener('change', function(){
+      var other = document.getElementById('visit-subject-other');
+      other.style.display = this.value === 'أخرى' ? 'block' : 'none';
+      other.required = this.value === 'أخرى';
+    });
+    document.getElementById('visit-type').addEventListener('change', function(){
+      var goal = document.getElementById('visit-goal');
+      goal.required = this.value === 'quick';
+      goal.placeholder = this.value === 'quick' ? 'اكتب الهدف المحدد للزيارة السريعة (إلزامي)' : 'اكتب الهدف أو محور التركيز (اختياري)';
+    });
+    document.getElementById('visit-type').dispatchEvent(new Event('change'));
+    document.getElementById('visit-teacher').addEventListener('change', function(){
+      var selected = teachers.find(function(t){return String(t.id) === this.value;}, this);
+      document.getElementById('visit-teacher-meta').textContent = selected ? 'الرقم الوظيفي: ' + (selected.jobNumber || '—') + ' | التخصص: ' + (selected.specialization || '—') : '';
+    });
+    function updateVisitAbsenceCount() {
+      var total = Number(document.getElementById('visit-total-students').value || 0);
+      var attended = Number(document.getElementById('visit-attended-students').value || 0);
+      document.getElementById('visit-absent-students').value = total >= attended ? total - attended : '';
     }
+    document.getElementById('visit-total-students').addEventListener('input', updateVisitAbsenceCount);
+    document.getElementById('visit-attended-students').addEventListener('input', updateVisitAbsenceCount);
+    document.getElementById('athar-visit-form').addEventListener('submit', saveAtharVisit);
+  }
+
+  function saveAtharVisit(event) {
+    event.preventDefault();
+    var button = document.getElementById('visit-save');
+    var feedback = document.getElementById('visit-feedback');
+    var teacherId = document.getElementById('visit-teacher').value;
+    if (!teacherId) { feedback.textContent = 'اختر المعلم أولاً.'; return; }
+    var teacher = (atharState.teachers || []).find(function(t){return String(t.id) === String(teacherId);});
+    if (!teacher) { feedback.textContent = 'تعذر العثور على بيانات المعلم المحدد. حدّث الصفحة وحاول مجددًا.'; return; }
+    var indicatorRows = Array.prototype.slice.call(document.querySelectorAll('.visit-indicator'));
+    var indicators = indicatorRows.map(function(row){
+      return {
+        indicatorId: row.getAttribute('data-indicator-id'),
+        indicatorText: row.getAttribute('data-indicator-text'),
+        indicatorGroup: row.getAttribute('data-indicator-group'),
+        rating: row.querySelector('.indicator-rating').value,
+        notes: row.querySelector('.indicator-notes').value.trim()
+      };
+    });
+    if (!indicators.length) { feedback.textContent = 'لا توجد مؤشرات محمّلة؛ لم يتم إرسال التقرير.'; return; }
+    var visitData = {
+      id: 'VST-' + Date.now(),
+      teacherId: teacherId,
+      grade: document.getElementById('visit-grade').value,
+      section: document.getElementById('visit-section').value,
+      subject: (document.getElementById('visit-subject').value === 'أخرى' ? document.getElementById('visit-subject-other').value : document.getElementById('visit-subject').value).trim(),
+      academicYear: document.getElementById('visit-academic-year').value,
+      term: document.getElementById('visit-term').value,
+      visitType: document.getElementById('visit-type').value,
+      date: document.getElementById('visit-date').value,
+      time: document.getElementById('visit-time').value,
+      visitGoal: document.getElementById('visit-goal').value.trim(),
+      status: document.getElementById('visit-status').value,
+      totalStudents: Number(document.getElementById('visit-total-students').value),
+      attendedStudents: Number(document.getElementById('visit-attended-students').value),
+      absentStudents: Number(document.getElementById('visit-absent-students').value),
+      studentGender: document.getElementById('visit-student-gender').value,
+      visitorRole: document.getElementById('visit-primary-role').value,
+      visitors: [{id:String((atharState.user || {}).id || 'current-evaluator'),name:String((atharState.user || {}).name || ''),role:document.getElementById('visit-primary-role').value}].concat(document.getElementById('visit-additional-visitors').value.split(/\r?\n/).map(function(name,index){return name.trim() ? {id:'visit-visitor-' + Date.now() + '-' + index,name:name.trim(),role:document.getElementById('visit-primary-role').value} : null;}).filter(Boolean)),
+      indicators: indicators,
+      domains: Array.prototype.slice.call(document.querySelectorAll('.visit-domain')).map(function(row){return {domainId:row.getAttribute('data-domain-id'),domainName:row.getAttribute('data-domain-name'),rating:row.querySelector('.domain-rating').value};}),
+      eLearningMaturity: document.getElementById('visit-elearning').value,
+      strengths: document.getElementById('visit-strengths').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
+      improvementAreas: document.getElementById('visit-improvements').value.split(/\r?\n/).map(function(x){return x.trim();}).filter(Boolean),
+      practicalRecommendations: document.getElementById('visit-recommendations').value.trim()
+    };
+    if (!visitData.grade || !visitData.section || !visitData.subject || !visitData.date || !visitData.time || !visitData.academicYear || !visitData.term) {
+      feedback.textContent = 'أكمل الصف والشعبة والمادة والتاريخ والوقت والعام الأكاديمي والفصل الدراسي قبل الحفظ.'; return;
+    }
+    if (visitData.visitType === 'quick' && !visitData.visitGoal) { feedback.textContent = 'اكتب هدف الزيارة السريعة قبل الحفظ.'; return; }
+    if (!Number.isInteger(visitData.totalStudents) || !Number.isInteger(visitData.attendedStudents) ||
+        visitData.totalStudents <= 0 || visitData.attendedStudents < 0 ||
+        visitData.attendedStudents > visitData.totalStudents) {
+      feedback.textContent = 'تحقق من أعداد الطلبة: يجب أن يكون عدد الحاضرين بين صفر وإجمالي الطلبة.'; return;
+    }
+    if (visitData.absentStudents !== visitData.totalStudents - visitData.attendedStudents) {
+      feedback.textContent = 'تعذر احتساب عدد الغائبين بصورة صحيحة؛ راجع بيانات الحضور.'; return;
+    }
+    button.disabled = true;
+    feedback.style.color = '#64748B';
+    feedback.textContent = 'جارٍ حفظ تقرير الزيارة ومؤشراته...';
+    google.script.run.withSuccessHandler(function(result){
+      button.disabled = false;
+      if (!result || !result.success) {
+        feedback.style.color = '#B91C1C';
+        feedback.textContent = result && result.error ? result.error : 'لم يؤكد الخادم حفظ التقرير.';
+        return;
+      }
+      feedback.style.color = '#047857';
+      feedback.textContent = 'تم حفظ تقرير الزيارة بنجاح. رقم التقرير: ' + (result.id || visitData.id);
+      loadAuthenticatedData();
+    }).withFailureHandler(function(){
+      button.disabled = false;
+      feedback.style.color = '#B91C1C';
+      feedback.textContent = 'تعذر الاتصال بالخادم؛ لم نتمكن من تأكيد الحفظ. تحقق من سجل الزيارات قبل إعادة المحاولة.';
+    }).dispatchBridgeRequest({action:'saveVisit',token:atharSessionToken,payload:visitData});
+  }
+
+  function saveAtharAccount(event) {
+    event.preventDefault();
+    var button = document.getElementById('account-save');
+    var feedback = document.getElementById('account-feedback');
+    var password = document.getElementById('account-password').value;
+    button.disabled = true;
+    feedback.textContent = 'جارٍ حفظ بيانات الحساب...';
+    google.script.run.withSuccessHandler(function(result) {
+      button.disabled = false;
+      if (!result || !result.success) {
+        feedback.style.color = '#B91C1C';
+        feedback.textContent = result && result.error ? result.error : 'تعذر تحديث الحساب.';
+        return;
+      }
+      atharState.user = result.user;
+      document.getElementById('user-display').textContent = (result.user.name || 'مستخدم') + ' — ' + (result.user.roleTitle || result.user.role);
+      document.getElementById('account-password').value = '';
+      document.getElementById('account-username').value = result.user.username || '';
+      feedback.style.color = '#047857';
+      feedback.textContent = 'تم تحديث بيانات الحساب بنجاح.';
+    }).withFailureHandler(function() {
+      button.disabled = false;
+      feedback.style.color = '#B91C1C';
+      feedback.textContent = 'تعذر الاتصال بالخادم. لم نؤكد حفظ التغييرات.';
+    }).dispatchBridgeRequest({action:'updateUserCredentials',token:atharSessionToken,payload:{
+      id:atharState.user.id,
+      name:document.getElementById('account-name').value.trim(),
+      username:document.getElementById('account-username').value.trim(),
+      password:password
+    }});
   }
 
   function showError(msg) {

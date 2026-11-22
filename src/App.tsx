@@ -12,7 +12,7 @@ import {
 } from './types';
 import { DEFAULT_ACADEMIC_SETTINGS, DEFAULT_PLATFORM_SETTINGS, DEFAULT_USERS } from './data/defaultData';
 import { clearAtharRemoteSession } from './services/gasBridgeClient';
-import { loadCentralData, changeVisitStatusCentral } from './services/centralDataService';
+import { loadCentralData, changeVisitStatusCentral, archiveVisitsCentral, restoreVisitsCentral } from './services/centralDataService';
 import { Header } from './components/Header';
 import { PublicHome } from './components/PublicHome';
 import { Dashboard } from './components/Dashboard';
@@ -63,6 +63,7 @@ export default function App() {
   const [teachers, setTeachers] = useState<Teacher[]>([]);
   const [visits, setVisits] = useState<ClassroomVisit[]>([]);
   const [plans, setPlans] = useState<ImprovementPlan[]>([]);
+  const [archivedPlans, setArchivedPlans] = useState<ImprovementPlan[]>([]);
   const [academicSettings, setAcademicSettings] = useState<AcademicSettings>(DEFAULT_ACADEMIC_SETTINGS);
   const [platformSettings, setPlatformSettings] = useState<PlatformSettings>(DEFAULT_PLATFORM_SETTINGS);
   const [auditLogs, setAuditLogs] = useState<AuditLogEntry[]>([]);
@@ -80,6 +81,7 @@ export default function App() {
       setTeachers(data.teachers);
       setVisits(data.visits);
       setPlans(data.plans);
+      setArchivedPlans(data.archivedPlans);
       setAcademicSettings(data.academicSettings);
       setPlatformSettings(data.platformSettings);
       setAuditLogs(data.auditLogs);
@@ -95,6 +97,10 @@ export default function App() {
     const normalizedRole = normalizeUserRole(newUser.role);
     const safeUser = normalizedRole ? { ...newUser, role: normalizedRole } : newUser;
     setCurrentUser(safeUser);
+    // Never carry a previously selected teacher/visit across account changes.
+    setSelectedVisitForReport(null);
+    setSelectedTeacherForReport(null);
+    setEditingVisit(null);
     // If switched to teacher, make sure they aren't on admin-only tabs
     if (safeUser.role === 'teacher' && ['settings', 'new-visit'].includes(activeTab)) {
       setActiveTab('dashboard');
@@ -106,16 +112,51 @@ export default function App() {
     clearAtharRemoteSession();
     setIsLoggedIn(false);
     setCurrentUser(DEFAULT_USERS[0]);
+    setSelectedVisitForReport(null);
+    setSelectedTeacherForReport(null);
+    setEditingVisit(null);
     setTeachers([]);
     setVisits([]);
     setPlans([]);
+    setArchivedPlans([]);
     setAuditLogs([]);
     setRegisteredVisitors([]);
     setActiveTab('home');
   };
 
+  // Administrative views are guarded here as well as in the navigation.
+  const canAccessAdminTools = ['platform_admin', 'school_admin'].includes(normalizeUserRole(currentUser.role) || '');
+  const canAccessSettings = ['platform_admin', 'school_admin', 'vice_principal'].includes(normalizeUserRole(currentUser.role) || '');
+
+  const isCurrentTeacherRecord = (record: { teacherJobNumber?: string; jobNumber?: string; teacherName?: string; fullName?: string }) => {
+    if (currentUser.role !== 'teacher') return true;
+    if (!currentUser.jobNumber) return false;
+    const recordJobNumber = String(record.teacherJobNumber || record.jobNumber || '').trim();
+    return recordJobNumber === String(currentUser.jobNumber).trim();
+  };
+  const visibleTeachers = currentUser.role === 'teacher'
+    ? teachers.filter(teacher => isCurrentTeacherRecord(teacher))
+    : teachers;
+  const visibleVisits = currentUser.role === 'teacher'
+    ? visits.filter(visit => isCurrentTeacherRecord(visit))
+    : visits;
+  const visiblePlans = currentUser.role === 'teacher'
+    ? plans.filter(plan => isCurrentTeacherRecord(plan))
+    : plans;
+  const visibleArchivedPlans = currentUser.role === 'teacher'
+    ? archivedPlans.filter(plan => isCurrentTeacherRecord(plan))
+    : archivedPlans;
+
   // Navigation router
   const handleNavigate = (tab: string, param?: any) => {
+    if ((tab === 'settings' && !canAccessSettings) || (tab === 'gas-hub' && !canAccessAdminTools)) {
+      setActiveTab('dashboard');
+      return;
+    }
+    if (tab === 'new-visit' && currentUser.role === 'teacher') {
+      setActiveTab('dashboard');
+      return;
+    }
     if (tab === 'new-visit') {
       setEditingVisit(null);
     }
@@ -133,7 +174,7 @@ export default function App() {
         currentUser={currentUser}
         onUserChange={handleUserChange}
         activeTab={activeTab}
-        onTabChange={setActiveTab}
+        onTabChange={handleNavigate}
         platformSettings={platformSettings}
         isLoggedIn={isLoggedIn}
         onLoginClick={() => setIsLoginModalOpen(true)}
@@ -158,9 +199,9 @@ export default function App() {
         {isLoggedIn && activeTab === 'dashboard' && (
           <Dashboard
             currentUser={currentUser}
-            visits={visits}
-            teachers={teachers}
-            plans={plans}
+            visits={visibleVisits}
+            teachers={visibleTeachers}
+            plans={visiblePlans}
             onNavigate={handleNavigate}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
             language={language}
@@ -181,7 +222,7 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'teachers' && (
           <TeachersList
-            teachers={teachers}
+            teachers={visibleTeachers}
             currentUser={currentUser}
             onRefreshTeachers={refreshAllData}
             onOpenTeacherReport={(teacher) => {
@@ -194,7 +235,7 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'visits' && (
           <VisitsList
-            visits={visits}
+            visits={visibleVisits}
             currentUser={currentUser}
             onOpenReport={(v) => setSelectedVisitForReport(v)}
             onEditVisit={(v) => {
@@ -210,17 +251,21 @@ export default function App() {
           />
         )}
 
-        {isLoggedIn && activeTab === 'new-visit' && (
+        {isLoggedIn && currentUser.role !== 'teacher' && activeTab === 'new-visit' && (
           <VisitForm
             currentUser={currentUser}
             teachers={teachers}
             academicSettings={academicSettings}
             registeredVisitors={registeredVisitors}
             editingVisit={editingVisit}
-            onSaveSuccess={(saved) => {
-              refreshAllData();
-              setSelectedVisitForReport(saved);
-              setActiveTab('visits');
+            onSaveSuccess={async (saved) => {
+              try {
+                await refreshAllData();
+                setSelectedVisitForReport(saved);
+                setActiveTab('visits');
+              } catch (error) {
+                alert(error instanceof Error ? `تم حفظ الزيارة، لكن تعذر تحديث البيانات المعروضة: ${error.message}` : 'تم حفظ الزيارة، لكن تعذر تحديث البيانات المعروضة. أعد تحميل الصفحة.');
+              }
             }}
             onCancel={() => setActiveTab('visits')}
             onRefreshData={refreshAllData}
@@ -230,8 +275,9 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'plans' && (
           <ImprovementPlansList
-            plans={plans}
-            teachers={teachers}
+            plans={visiblePlans}
+            archivedPlans={visibleArchivedPlans}
+            teachers={visibleTeachers}
             currentUser={currentUser}
             onRefreshPlans={refreshAllData}
             language={language}
@@ -240,14 +286,23 @@ export default function App() {
 
         {isLoggedIn && activeTab === 'reports' && (
           <ReportsView
-            visits={visits}
-            teachers={teachers}
-            plans={plans}
+            visits={visibleVisits}
+            teachers={visibleTeachers}
+            plans={visiblePlans}
             platformSettings={platformSettings}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
             onOpenTeacherReport={(t) => {
               setSelectedTeacherForReport(t);
               setActiveTab('teacher-report');
+            }}
+            canManageReports={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
+            onArchiveReports={async (ids) => {
+              await archiveVisitsCentral(ids);
+              await refreshAllData();
+            }}
+            onRestoreReports={async (ids) => {
+              await restoreVisitsCentral(ids);
+              await refreshAllData();
             }}
             language={language}
           />
@@ -256,8 +311,8 @@ export default function App() {
         {isLoggedIn && activeTab === 'teacher-report' && selectedTeacherForReport && (
           <TeacherReportView
             teacher={selectedTeacherForReport}
-            visits={visits}
-            plans={plans}
+            visits={visibleVisits}
+            plans={visiblePlans}
             platformSettings={platformSettings}
             onBack={() => setActiveTab('teachers')}
             onOpenVisitReport={(v) => setSelectedVisitForReport(v)}
@@ -265,11 +320,11 @@ export default function App() {
           />
         )}
 
-        {isLoggedIn && activeTab === 'gas-hub' && (
+        {isLoggedIn && canAccessAdminTools && activeTab === 'gas-hub' && (
           <GasIntegrationHub language={language} />
         )}
 
-        {isLoggedIn && activeTab === 'settings' && (
+        {isLoggedIn && canAccessSettings && activeTab === 'settings' && (
           <div className="space-y-8">
             <PlatformSettingsView
               settings={platformSettings}
@@ -298,10 +353,9 @@ export default function App() {
           onClose={() => setSelectedVisitForReport(null)}
           language={language}
           canDelete={['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role)}
-          onDeleteReport={(visitId) => {
-            void changeVisitStatusCentral(visitId, 'archived')
-              .then(() => refreshAllData())
-              .catch((error) => alert(error instanceof Error ? error.message : 'تعذر أرشفة التقرير.'));
+          onDeleteReport={async (visitId) => {
+            await changeVisitStatusCentral(visitId, 'archived');
+            await refreshAllData();
           }}
         />
       )}
@@ -326,6 +380,7 @@ export default function App() {
                 setTeachers([]);
                 setVisits([]);
                 setPlans([]);
+    setArchivedPlans([]);
                 setAuditLogs([]);
                 setRegisteredVisitors([]);
                 setActiveTab('home');

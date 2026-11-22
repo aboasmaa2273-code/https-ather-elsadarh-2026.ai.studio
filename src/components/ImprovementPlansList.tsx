@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ImprovementPlan, Teacher, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
-import { savePlanCentral, savePlanFollowUpCentral } from '../services/centralDataService';
+import { savePlanCentral, savePlanFollowUpCentral, archivePlansCentral, restorePlansCentral } from '../services/centralDataService';
 import { OFFICIAL_INDICATORS } from '../data/defaultData';
 import { 
   PlusCircle, 
@@ -12,12 +12,15 @@ import {
   Calendar, 
   TrendingUp, 
   X,
-  FileCheck
+  FileCheck,
+  Trash2,
+  RotateCcw
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 
 interface ImprovementPlansListProps {
   plans: ImprovementPlan[];
+  archivedPlans?: ImprovementPlan[];
   teachers: Teacher[];
   currentUser: User;
   onRefreshPlans: () => void;
@@ -27,6 +30,7 @@ interface ImprovementPlansListProps {
 
 export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
   plans,
+  archivedPlans = [],
   teachers,
   currentUser,
   onRefreshPlans,
@@ -35,6 +39,8 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterStatus, setFilterStatus] = useState('ALL');
+  const [showArchived, setShowArchived] = useState(false);
+  const [selectedPlanIds, setSelectedPlanIds] = useState<string[]>([]);
   
   // Modals
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(initiallyOpenCreate);
@@ -65,10 +71,14 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 
   const isTeacher = currentUser.role === 'teacher';
   const canCreate = AtharStorageService.canCreatePlan(currentUser);
+  const canManagePlanArchive = ['platform_admin', 'school_admin', 'vice_principal', 'evaluator'].includes(currentUser.role);
 
   // Filter plans based on role and query
-  const visiblePlans = plans.filter(p => {
-    if (isTeacher && p.teacherJobNumber !== currentUser.jobNumber && p.teacherName !== currentUser.name) {
+  const visiblePlans = (showArchived ? archivedPlans : plans).filter(p => {
+    if (isTeacher && (
+      !currentUser.jobNumber ||
+      String(p.teacherJobNumber || '').trim() !== String(currentUser.jobNumber).trim()
+    )) {
       return false;
     }
 
@@ -81,6 +91,38 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 
     return matchesSearch && matchesStatus;
   });
+
+  const handleArchivePlans = async (ids: string[]) => {
+    if (!ids.length) return;
+    if (!confirm(isEn ? `Archive ${ids.length} selected plan(s)? They can be restored later.` : `هل تريد أرشفة ${ids.length} خطة محددة؟ يمكن استعادتها لاحقًا.`)) return;
+    try {
+      await archivePlansCentral(ids);
+      setSelectedPlanIds([]);
+      await onRefreshPlans();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر أرشفة خطط التطوير.');
+    }
+  };
+
+  const handleRestorePlans = async (ids: string[]) => {
+    if (!ids.length) return;
+    if (!confirm(isEn ? `Restore ${ids.length} selected plan(s)?` : `هل تريد استعادة ${ids.length} خطة محددة؟`)) return;
+    try {
+      await restorePlansCentral(ids);
+      setSelectedPlanIds([]);
+      await onRefreshPlans();
+    } catch (error) {
+      alert(error instanceof Error ? error.message : 'تعذر استعادة خطط التطوير.');
+    }
+  };
+
+  const toggleAllVisiblePlans = () => {
+    const visibleIds = visiblePlans.map(plan => plan.id);
+    const allSelected = visibleIds.length > 0 && visibleIds.every(id => selectedPlanIds.includes(id));
+    setSelectedPlanIds(current => allSelected
+      ? current.filter(id => !visibleIds.includes(id))
+      : Array.from(new Set([...current, ...visibleIds])));
+  };
 
   const handleCreatePlanSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -111,7 +153,7 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 
   const handleOpenFollowUp = (plan: ImprovementPlan) => {
     setSelectedPlanForFollowUp(plan);
-    setFollowUpStatus(plan.status === 'completed' ? 'completed' : 'completed');
+    setFollowUpStatus(plan.status || 'in_progress');
     setFollowUpResult(plan.followUpResult || '');
     setFollowUpNotes(plan.followUpNotes || '');
     setIsFollowUpModalOpen(true);
@@ -146,7 +188,7 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
           </p>
         </div>
 
-        {canCreate && (
+        {canCreate && !showArchived && (
           <button
             onClick={() => setIsCreateModalOpen(true)}
             className="px-4 py-2 bg-[#172C40] text-white rounded-lg text-xs font-bold hover:bg-[#101F2D] transition-colors flex items-center gap-2 shadow-sm cursor-pointer"
@@ -170,7 +212,13 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
           />
         </div>
 
-        <div className="flex items-center gap-2 w-full md:w-auto">
+        <div className="flex flex-wrap items-center gap-2 w-full md:w-auto">
+          <button type="button" onClick={() => { setShowArchived(false); setSelectedPlanIds([]); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${!showArchived ? 'bg-[#172C40] text-white border-[#172C40]' : 'bg-white text-slate-600 border-slate-200'}`}>
+            {isEn ? 'Active plans' : 'الخطط النشطة'}
+          </button>
+          <button type="button" onClick={() => { setShowArchived(true); setSelectedPlanIds([]); }} className={`px-3 py-1.5 rounded-lg text-xs font-bold border cursor-pointer ${showArchived ? 'bg-[#172C40] text-white border-[#172C40]' : 'bg-white text-slate-600 border-slate-200'}`}>
+            {isEn ? 'Archive' : 'الأرشيف'}
+          </button>
           <select
             value={filterStatus}
             onChange={(e) => setFilterStatus(e.target.value)}
@@ -183,6 +231,23 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
           </select>
         </div>
       </div>
+
+      {canManagePlanArchive && (
+        <div className="flex flex-wrap items-center gap-2">
+          <button type="button" onClick={toggleAllVisiblePlans} disabled={!visiblePlans.length} className="px-3 py-1.5 rounded-lg border border-slate-300 text-slate-700 text-xs font-bold disabled:opacity-40 cursor-pointer">
+            {isEn ? 'Select all visible' : 'تحديد كل الخطط الظاهرة'}
+          </button>
+          {showArchived ? (
+            <button type="button" onClick={() => handleRestorePlans(selectedPlanIds)} disabled={!selectedPlanIds.length} className="px-3 py-1.5 rounded-lg bg-emerald-50 border border-emerald-200 text-emerald-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
+              <RotateCcw className="w-3.5 h-3.5" /> {isEn ? 'Restore selected' : `استعادة المحدد (${selectedPlanIds.length})`}
+            </button>
+          ) : (
+            <button type="button" onClick={() => handleArchivePlans(selectedPlanIds)} disabled={!selectedPlanIds.length} className="px-3 py-1.5 rounded-lg bg-rose-50 border border-rose-200 text-rose-700 text-xs font-bold disabled:opacity-40 cursor-pointer flex items-center gap-1.5">
+              <Trash2 className="w-3.5 h-3.5" /> {isEn ? 'Archive selected' : `أرشفة المحدد (${selectedPlanIds.length})`}
+            </button>
+          )}
+        </div>
+      )}
 
       {/* Plans Grid */}
       <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
@@ -198,14 +263,17 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
                   </span>
                 </div>
 
-                <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
-                  plan.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
-                  plan.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
-                  plan.status === 'needs_follow_up' ? 'bg-amber-100 text-amber-800' :
-                  'bg-slate-100 text-slate-700'
-                }`}>
-                  {AtharStorageService.getPlanStatusLabel(plan.status, language)}
-                </span>
+                <div className="flex items-center gap-2">
+                  {canManagePlanArchive && <input aria-label={`Select plan ${plan.id}`} type="checkbox" checked={selectedPlanIds.includes(plan.id)} onChange={() => setSelectedPlanIds(current => current.includes(plan.id) ? current.filter(id => id !== plan.id) : [...current, plan.id])} />}
+                  <span className={`text-[11px] font-bold px-2.5 py-1 rounded-full ${
+                    plan.status === 'completed' ? 'bg-emerald-100 text-emerald-800' :
+                    plan.status === 'in_progress' ? 'bg-blue-100 text-blue-800' :
+                    plan.status === 'needs_follow_up' ? 'bg-amber-100 text-amber-800' :
+                    'bg-slate-100 text-slate-700'
+                  }`}>
+                    {AtharStorageService.getPlanStatusLabel(plan.status, language)}
+                  </span>
+                </div>
               </div>
 
               <div className="p-3 rounded-lg bg-slate-50 border border-slate-100 text-xs space-y-1.5">
@@ -253,13 +321,24 @@ export const ImprovementPlansList: React.FC<ImprovementPlansListProps> = ({
 
               {/* Action buttons (evaluator / admin) */}
               {!isTeacher && (
-                <div className={`pt-2 border-t border-slate-100 flex ${isEn ? 'justify-end' : 'justify-end'}`}>
-                  <button
-                    onClick={() => handleOpenFollowUp(plan)}
-                    className="px-3 py-1 bg-[#F2EBDD] text-[#172C40] hover:bg-[#e4d7bf] rounded text-xs font-bold transition-colors cursor-pointer"
-                  >
-                    {t.plans.followUpBtn}
-                  </button>
+                <div className="pt-2 border-t border-slate-100 flex flex-wrap items-center justify-end gap-2">
+                  {!showArchived && (
+                    <button
+                      onClick={() => handleOpenFollowUp(plan)}
+                      className="px-3 py-1 bg-[#F2EBDD] text-[#172C40] hover:bg-[#e4d7bf] rounded text-xs font-bold transition-colors cursor-pointer"
+                    >
+                      {t.plans.followUpBtn}
+                    </button>
+                  )}
+                  {canManagePlanArchive && (showArchived ? (
+                    <button type="button" onClick={() => handleRestorePlans([plan.id])} className="px-3 py-1 bg-emerald-50 text-emerald-700 border border-emerald-200 rounded text-xs font-bold cursor-pointer flex items-center gap-1">
+                      <RotateCcw className="w-3.5 h-3.5" /> {isEn ? 'Restore' : 'استعادة'}
+                    </button>
+                  ) : (
+                    <button type="button" onClick={() => handleArchivePlans([plan.id])} className="px-3 py-1 bg-rose-50 text-rose-700 border border-rose-200 rounded text-xs font-bold cursor-pointer flex items-center gap-1">
+                      <Trash2 className="w-3.5 h-3.5" /> {isEn ? 'Archive' : 'أرشفة'}
+                    </button>
+                  ))}
                 </div>
               )}
             </div>

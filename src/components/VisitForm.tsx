@@ -161,7 +161,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
       {
         id: `vis-${Date.now()}-1`,
         name: currentUser.name || (isEn ? 'Lead Observer' : 'المقيم الزائر'),
-        role: editingVisit?.visitorRole || defaultRole
+        role: editingVisit?.visitorRole || defaultRole,
+        roleTitle: matched?.roleTitle || currentUser.roleTitle || ''
       }
     ];
   });
@@ -190,13 +191,14 @@ export const VisitForm: React.FC<VisitFormProps> = ({
         }
 
         if (prev.length === 0) {
-          return [{ id: `vis-${Date.now()}-1`, name: currentUser.name, role: userRole }];
+          return [{ id: `vis-${Date.now()}-1`, name: currentUser.name, role: userRole, roleTitle: matched?.roleTitle || currentUser.roleTitle || '' }];
         }
         const updated = [...prev];
         updated[0] = {
           ...updated[0],
           name: currentUser.name,
-          role: userRole
+          role: userRole,
+          roleTitle: matched?.roleTitle || currentUser.roleTitle || updated[0]?.roleTitle || ''
         };
         return updated;
       });
@@ -490,6 +492,9 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const [autoSaveStatus, setAutoSaveStatus] = useState<'saved' | 'saving' | 'error'>('saved');
   const [lastSavedTime, setLastSavedTime] = useState<string>('');
   const autoSaveTimerRef = useRef<any>(null);
+  // Preserve the pre-edit report exactly once, before the first autosave overwrites its details.
+  const editHistoryCapturedRef = useRef(false);
+  const editHistoryCapturePromiseRef = useRef<Promise<void> | null>(null);
 
   // Auto-fill teacher info when teacher selection changes
   const handleTeacherChange = (teacherId: string) => {
@@ -676,7 +681,23 @@ export const VisitForm: React.FC<VisitFormProps> = ({
   const saveVisitToStorage = async (finalStatus: ClassroomVisit['status'], isExplicitFinish: boolean) => {
     const visitObj = buildVisitObject(finalStatus);
     try {
-      await saveVisitCentral({ ...visitObj, recordHistory: isExplicitFinish });
+      if (editingVisit && !editHistoryCapturedRef.current) {
+        // The first save in an edit session must snapshot the original report before
+        // autosave replaces its indicator/domain rows. Concurrent saves wait for that snapshot.
+        let ownsHistoryCapture = false;
+        if (!editHistoryCapturePromiseRef.current) {
+          ownsHistoryCapture = true;
+          editHistoryCapturePromiseRef.current = saveVisitCentral({ ...visitObj, recordHistory: true })
+            .then(() => { editHistoryCapturedRef.current = true; })
+            .finally(() => { editHistoryCapturePromiseRef.current = null; });
+        }
+        await editHistoryCapturePromiseRef.current;
+        if (!ownsHistoryCapture) {
+          await saveVisitCentral({ ...visitObj, recordHistory: false });
+        }
+      } else {
+        await saveVisitCentral({ ...visitObj, recordHistory: false });
+      }
       setAutoSaveStatus('saved');
       setLastSavedTime(new Date().toLocaleTimeString(isEn ? 'en-US' : 'ar-AE', { hour: '2-digit', minute: '2-digit', second: '2-digit' }));
       if (isExplicitFinish) onSaveSuccess(visitObj);
@@ -1166,34 +1187,10 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         )}
                       </div>
 
-                      {activeRegisteredVisitors.length > 0 && (
-                        <div className="flex items-center justify-between text-[10px] text-slate-500">
-                          <span>{t.visitorsManagement.quickPick}:</span>
-                          <select
-                            onChange={(e) => {
-                              const found = activeRegisteredVisitors.find(rv => rv.id === e.target.value);
-                              if (found) {
-                                handleVisitorChange(visitor.id, 'name', found.name);
-                                handleVisitorChange(visitor.id, 'role', found.role);
-                                handleVisitorChange(visitor.id, 'roleTitle', found.role === 'other' ? (found.roleTitle || '') : '');
-                              }
-                            }}
-                            defaultValue=""
-                            className="bg-[#F2EBDD]/60 border border-[#C6A66A]/50 rounded px-1.5 py-0.5 text-[10px] font-bold text-[#172C40] focus:outline-none"
-                          >
-                            <option value="">{isEn ? '-- Select from directory --' : '-- اختيار من الدليل المعتمد --'}</option>
-                            {activeRegisteredVisitors.map(rv => (
-                              <option key={rv.id} value={rv.id}>
-                                {rv.name} ({rv.roleTitle || (isEn ? (translations.en.visitorRoles[rv.role as keyof typeof translations.en.visitorRoles] || rv.role) : AtharStorageService.getVisitorRoleLabel(rv.role))})
-                              </option>
-                            ))}
-                          </select>
-                        </div>
-                      )}
-
                       <input
                         type="text"
                         value={visitor.name}
+                        readOnly={idx === 0}
                         onChange={(e) => handleVisitorChange(visitor.id, 'name', e.target.value)}
                         placeholder={t.visitorsSection.visitorName}
                         className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
@@ -1207,45 +1204,49 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                         <span>{isEn ? 'Visitor / Evaluator Role:' : 'وظيفة الزائر / المقيم:'}</span>
                       </div>
 
-                      <div className="flex items-center gap-2">
-                        <select
-                          value={visitor.role}
-                          onChange={(e) => handleVisitorChange(visitor.id, 'role', e.target.value)}
-                          className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
-                        >
-                          <option value="evaluator">{t.visitorRoles.evaluator}</option>
-                          <option value="head_of_arabic">{t.visitorRoles.head_of_arabic || 'رئيس هيئة تدريس المواد العربية'}</option>
-                          <option value="department_head">{t.visitorRoles.department_head || 'رئيس قسم'}</option>
-                          <option value="cluster_director">{t.visitorRoles.cluster_director}</option>
-                          <option value="principal">{t.visitorRoles.principal}</option>
-                          <option value="vice_principal">{t.visitorRoles.vice_principal}</option>
-                          <option value="academic_supervisor">{t.visitorRoles.academic_supervisor}</option>
-                          <option value="admin">{t.visitorRoles.admin}</option>
-                          <option value="teacher">{t.visitorRoles.teacher}</option>
-                          <option value="other">{t.visitorRoles.other}</option>
-                        </select>
-
-                        {visitors.length > 1 && (
-                          <button
-                            type="button"
-                            onClick={() => handleRemoveVisitor(visitor.id)}
-                            className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
-                            title={t.visitorsSection.removeVisitor}
-                          >
-                            <Trash2 className="w-4 h-4" />
-                          </button>
-                        )}
-                      </div>
-
-                      {visitor.role === 'other' && (
-                        <input
-                          type="text"
-                          value={visitor.roleTitle || ''}
-                          onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
-                          placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
-                          aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
-                          className="w-full mt-2 px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
-                        />
+                      {idx === 0 ? (
+                        <div className="w-full px-3 py-1.5 bg-emerald-50 border border-emerald-200 rounded-md font-bold text-emerald-900">
+                          {visitor.roleTitle || currentUser.roleTitle || (isEn ? 'Authenticated evaluator' : AtharStorageService.getVisitorRoleLabel(visitor.role))}
+                        </div>
+                      ) : (
+                        <div className="space-y-2">
+                          <div className="flex items-center gap-2">
+                            <select
+                              value={visitor.role}
+                              onChange={(e) => handleVisitorChange(visitor.id, 'role', e.target.value)}
+                              className="w-full px-3 py-1.5 bg-slate-50 border border-slate-300 rounded-md font-bold text-[#172C40] focus:bg-white focus:outline-none focus:border-[#172C40]"
+                            >
+                              <option value="evaluator">{t.visitorRoles.evaluator}</option>
+                              <option value="head_of_arabic">{t.visitorRoles.head_of_arabic || 'رئيس هيئة تدريس المواد العربية'}</option>
+                              <option value="department_head">{t.visitorRoles.department_head || 'رئيس قسم'}</option>
+                              <option value="cluster_director">{t.visitorRoles.cluster_director}</option>
+                              <option value="principal">{t.visitorRoles.principal}</option>
+                              <option value="vice_principal">{t.visitorRoles.vice_principal}</option>
+                              <option value="academic_supervisor">{t.visitorRoles.academic_supervisor}</option>
+                              <option value="admin">{t.visitorRoles.admin}</option>
+                              <option value="teacher">{t.visitorRoles.teacher}</option>
+                              <option value="other">{t.visitorRoles.other}</option>
+                            </select>
+                            <button
+                              type="button"
+                              onClick={() => handleRemoveVisitor(visitor.id)}
+                              className="p-1.5 text-slate-400 hover:text-rose-600 rounded-md hover:bg-rose-50 transition-colors cursor-pointer shrink-0"
+                              title={t.visitorsSection.removeVisitor}
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                          {visitor.role === 'other' && (
+                            <input
+                              type="text"
+                              value={visitor.roleTitle || ''}
+                              onChange={(e) => handleVisitorChange(visitor.id, 'roleTitle', e.target.value)}
+                              placeholder={isEn ? 'Specify the role...' : 'اكتب المسمى الوظيفي...'}
+                              aria-label={isEn ? 'Other visitor role' : 'المسمى الوظيفي الآخر'}
+                              className="w-full px-3 py-1.5 bg-white border border-[#C6A66A] rounded-md text-sm text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                            />
+                          )}
+                        </div>
                       )}
                     </div>
                   </div>
