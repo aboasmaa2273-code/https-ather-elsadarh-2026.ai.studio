@@ -201,6 +201,48 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     }
   };
 
+  // Store a compact image in the existing platform settings record.
+  const handleLogoUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
+    const file = event.target.files?.[0];
+    if (!file) return;
+    if (!file.type.startsWith('image/')) {
+      showFeedback('error', isEn ? 'Please select an image file.' : 'يرجى اختيار ملف صورة.');
+      event.target.value = '';
+      return;
+    }
+    const reader = new FileReader();
+    reader.onload = () => {
+      const image = new window.Image();
+      image.onload = () => {
+        const canvas = document.createElement('canvas');
+        const scale = Math.min(1, 360 / Math.max(image.width, image.height));
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        if (!context) {
+          showFeedback('error', isEn ? 'Could not process the image.' : 'تعذرت معالجة الصورة.');
+          return;
+        }
+        context.fillStyle = '#ffffff';
+        context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        let compressed = canvas.toDataURL('image/jpeg', 0.62);
+        if (compressed.length > 45000) compressed = canvas.toDataURL('image/jpeg', 0.4);
+        if (compressed.length > 45000) {
+          showFeedback('error', isEn ? 'Image is too large. Please choose a smaller image.' : 'حجم الصورة كبير؛ اختر صورة أصغر.');
+          return;
+        }
+        setLogoUrl(compressed);
+        showFeedback('success', isEn ? 'Logo added. Save platform settings to apply it.' : 'تمت إضافة الشعار. اضغط حفظ الهوية والإعدادات لتثبيته.');
+      };
+      image.onerror = () => showFeedback('error', isEn ? 'Could not read the image.' : 'تعذر فتح الصورة.');
+      image.src = String(reader.result || '');
+    };
+    reader.onerror = () => showFeedback('error', isEn ? 'Could not read the image.' : 'تعذرت قراءة ملف الصورة.');
+    reader.readAsDataURL(file);
+    event.target.value = '';
+  };
+
   // Save Platform Identity
   const handleSavePlatform = async () => {
     const updated: PlatformSettings = {
@@ -636,11 +678,17 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 <label className="block font-bold text-[#172C40] mb-1">{t.settings.logoUrlLabel}</label>
                 <input
                   type="text"
-                  value={logoUrl}
+                  value={logoUrl.startsWith('data:image/') ? '' : logoUrl}
                   onChange={(e) => setLogoUrl(e.target.value)}
                   placeholder="https://..."
                   className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]"
                 />
+                <label className="inline-flex items-center gap-2 mt-2 px-3 py-2 rounded-lg bg-[#172C40] text-white text-xs font-bold cursor-pointer hover:bg-[#101F2D]">
+                  <ImageIcon className="w-4 h-4 text-[#C6A66A]" />
+                  {isEn ? 'Choose logo image' : 'إضافة صورة الشعار'}
+                  <input type="file" accept="image/*" onChange={handleLogoUpload} className="hidden" />
+                </label>
+                {logoUrl.startsWith('data:image/') && <span className="mr-3 text-xs text-emerald-700 font-bold">{isEn ? 'Image selected' : 'تم اختيار صورة الشعار'}</span>}
               </div>
 
               <div>

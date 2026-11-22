@@ -1,4 +1,5 @@
 import React from 'react';
+import defaultSchoolLogo from '../assets/images/athar_school_emblem_1793852788755.jpg';
 import { ClassroomVisit, PlatformSettings } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { 
@@ -200,6 +201,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
                     src={platformSettings.logoUrl} 
                     alt="شعار المدرسة" 
                     referrerPolicy="no-referrer"
+                    onError={(e) => { e.currentTarget.src = defaultSchoolLogo; }}
                     className="w-full h-full object-contain"
                   />
                 ) : (
