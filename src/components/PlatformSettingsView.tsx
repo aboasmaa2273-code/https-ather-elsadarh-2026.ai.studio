@@ -1,4 +1,5 @@
 import React, { useState, useEffect } from 'react';
+import defaultSchoolLogo from '../assets/images/athar_school_emblem_1793852788755.jpg';
 import { PlatformSettings, User, AuditLogEntry, RegisteredVisitor, VisitorRole, normalizeUserRole } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { atharRemoteAction, atharRemoteBootstrap } from '../services/gasBridgeClient';
@@ -199,6 +200,38 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
     } catch (error) {
       showFeedback('error', error instanceof Error ? error.message : (isEn ? 'Failed to clear logs.' : 'تعذر مسح السجل.'));
     }
+  };
+
+
+  const handleLogoUpload = (file?: File) => {
+    if (!file) return;
+    if (!file.type.startsWith('image/')) { showFeedback('error', isEn ? 'Please choose an image file.' : 'يرجى اختيار ملف صورة.'); return; }
+    const reader = new FileReader();
+    reader.onerror = () => showFeedback('error', isEn ? 'Could not read the image.' : 'تعذرت قراءة الصورة.');
+    reader.onload = () => {
+      const image = new Image();
+      image.onerror = () => showFeedback('error', isEn ? 'Could not open the image.' : 'تعذر فتح الصورة.');
+      image.onload = () => {
+        const scale = Math.min(1, 320 / Math.max(image.width, image.height));
+        const canvas = document.createElement('canvas');
+        canvas.width = Math.max(1, Math.round(image.width * scale));
+        canvas.height = Math.max(1, Math.round(image.height * scale));
+        const context = canvas.getContext('2d');
+        if (!context) { showFeedback('error', isEn ? 'Image processing is unavailable.' : 'تعذر تجهيز الصورة.'); return; }
+        context.fillStyle = '#ffffff'; context.fillRect(0, 0, canvas.width, canvas.height);
+        context.drawImage(image, 0, 0, canvas.width, canvas.height);
+        let compressed = '';
+        for (let quality = 0.82; quality >= 0.3; quality -= 0.08) {
+          compressed = canvas.toDataURL('image/jpeg', quality);
+          if (compressed.length <= 42000) break;
+        }
+        if (compressed.length > 42000) { showFeedback('error', isEn ? 'The image is too large. Choose a simpler logo image.' : 'حجم الصورة كبير. اختر صورة شعار أبسط.'); return; }
+        setLogoUrl(compressed);
+        showFeedback('success', isEn ? 'Logo image added. Save platform settings to apply it.' : 'تمت إضافة صورة الشعار. اضغط حفظ الإعدادات لتطبيقها.');
+      };
+      image.src = String(reader.result || '');
+    };
+    reader.readAsDataURL(file);
   };
 
   // Save Platform Identity
@@ -526,7 +559,7 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 <div className="flex items-center gap-3">
                   <div className="w-10 h-10 rounded-lg bg-white/10 p-1 flex items-center justify-center overflow-hidden">
                     {logoUrl ? (
-                      <img src={logoUrl} alt="Logo" className="w-full h-full object-contain" />
+                      <img src={logoUrl} alt="Logo" onError={(e) => { e.currentTarget.src = defaultSchoolLogo; }} className="w-full h-full object-contain" />
                     ) : (
                       <Building className="w-6 h-6 text-[#C6A66A]" />
                     )}
@@ -632,15 +665,18 @@ export const PlatformSettingsView: React.FC<PlatformSettingsViewProps> = ({
                 />
               </div>
 
+
               <div className="md:col-span-2">
                 <label className="block font-bold text-[#172C40] mb-1">{t.settings.logoUrlLabel}</label>
-                <input
-                  type="text"
-                  value={logoUrl}
-                  onChange={(e) => setLogoUrl(e.target.value)}
-                  placeholder="https://..."
-                  className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]"
-                />
+                <input type="text" value={logoUrl.startsWith('data:image/') ? '' : logoUrl} onChange={(e) => setLogoUrl(e.target.value)} placeholder="https://..." className="w-full px-3 py-2 border border-slate-300 rounded-lg font-mono text-[11px]" />
+                <div className="mt-2 flex items-center gap-3 flex-wrap">
+                  <label className="inline-flex items-center gap-2 px-3 py-2 rounded-lg bg-[#172C40] text-white text-xs font-bold cursor-pointer hover:bg-[#101F2D]">
+                    <ImageIcon className="w-4 h-4" />
+                    <span>{isEn ? 'Upload logo image' : 'رفع صورة الشعار'}</span>
+                    <input type="file" accept="image/*" className="hidden" onChange={(e) => { handleLogoUpload(e.target.files?.[0]); e.currentTarget.value = ''; }} />
+                  </label>
+                  {logoUrl && <img src={logoUrl} alt="معاينة شعار المدرسة" onError={(e) => { e.currentTarget.src = defaultSchoolLogo; }} className="w-12 h-12 object-contain border border-slate-200 rounded-lg p-1 bg-white" />}
+                </div>
               </div>
 
               <div>
