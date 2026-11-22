@@ -1397,6 +1397,23 @@ function rowsAsObjects_(sheet) {
   });
 }
 
+// Return only IDs that identify exactly one parent record across the whole database
+// and whose parent belongs to the current school. Child sheets without schoolId
+// must never be joined through an ambiguous parent ID.
+function getUniqueScopedRecordIds_(rows, idField, schoolId) {
+  var counts = Object.create(null);
+  rows.forEach(function(row) {
+    var id = String(row[idField] || '').trim();
+    if (id) counts[id] = (counts[id] || 0) + 1;
+  });
+  var unique = Object.create(null);
+  rows.forEach(function(row) {
+    var id = String(row[idField] || '').trim();
+    if (id && counts[id] === 1 && String(row.schoolId || '') === String(schoolId)) unique[id] = true;
+  });
+  return unique;
+}
+
 function dispatchApiAction_(action, payload, session) {
   // Canonicalize role and status at every server boundary, including older signed sessions.
   session.role = normalizeAtharRole_(session.role);
@@ -1498,8 +1515,12 @@ function dispatchApiAction_(action, payload, session) {
 
   if (action === 'bootstrap') {
     var teachers = rowsAsObjects_(ss.getSheetByName('Teachers')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
-    var visits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
-    var allPlanRows = rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(x) { return String(x.schoolId) === String(schoolId); });
+    var allVisitRows = rowsAsObjects_(ss.getSheetByName('Visits'));
+    var uniqueVisitIds = getUniqueScopedRecordIds_(allVisitRows, 'id', schoolId);
+    var visits = allVisitRows.filter(function(x) { return String(x.schoolId) === String(schoolId); });
+    var allPlanRowsAcrossSchools = rowsAsObjects_(ss.getSheetByName('ImprovementPlans'));
+    var uniquePlanIds = getUniqueScopedRecordIds_(allPlanRowsAcrossSchools, 'id', schoolId);
+    var allPlanRows = allPlanRowsAcrossSchools.filter(function(x) { return String(x.schoolId) === String(schoolId); });
     var plans = allPlanRows.filter(function(x) { return String(x.archiveStatus || 'active') !== 'archived'; });
     var archivedPlans = allPlanRows.filter(function(x) { return String(x.archiveStatus || 'active') === 'archived'; });
     var indicators = rowsAsObjects_(ss.getSheetByName('IndicatorLibrary'));
@@ -1574,12 +1595,18 @@ function dispatchApiAction_(action, payload, session) {
         });
     }
     visits = visits.map(function(v) {
-      v.indicators = visitIndicators.filter(function(x) { return String(x.visitId) === String(v.id); }).map(function(x) {
-        return { indicatorId: x.indicatorId, indicatorText: x.indicatorText, indicatorGroup: x.group, rating: x.rating, notes: x.notes };
-      });
-      v.domains = domains.filter(function(x) { return String(x.visitId) === String(v.id); }).map(function(x) {
-        return { domainId: x.domainId, domainName: x.domainName, rating: x.rating };
-      });
+      // VisitIndicators and VisitDomains have no schoolId column. Join them
+      // only when the parent visit ID is globally unique and belongs to this school.
+      v.indicators = uniqueVisitIds[String(v.id)]
+        ? visitIndicators.filter(function(x) { return String(x.visitId) === String(v.id); }).map(function(x) {
+            return { indicatorId: x.indicatorId, indicatorText: x.indicatorText, indicatorGroup: x.group, rating: x.rating, notes: x.notes };
+          })
+        : [];
+      v.domains = uniqueVisitIds[String(v.id)]
+        ? domains.filter(function(x) { return String(x.visitId) === String(v.id); }).map(function(x) {
+            return { domainId: x.domainId, domainName: x.domainName, rating: x.rating };
+          })
+        : [];
       try { v.strengths = JSON.parse(v.strengths || '[]'); } catch (e) { v.strengths = []; }
       try { v.improvementAreas = JSON.parse(v.improvementAreas || '[]'); } catch (e) { v.improvementAreas = []; }
       try { v.visitors = JSON.parse(v.visitors || '[]'); } catch (e) { v.visitors = []; }
@@ -1594,7 +1621,11 @@ function dispatchApiAction_(action, payload, session) {
         p.developmentalGoal = p.goal || '';
         p.actionProcedure = p.procedure || '';
         p.responsiblePerson = p.responsible || '';
-        var latest = followUps.filter(function(x) { return String(x.planId) === String(p.id); }).sort(function(a,b) { return String(b.recordedAt).localeCompare(String(a.recordedAt)); })[0];
+        // PlanFollowUps has no schoolId column; do not attach its rows unless
+        // the parent plan ID is globally unique and belongs to this school.
+        var latest = uniquePlanIds[String(p.id)]
+          ? followUps.filter(function(x) { return String(x.planId) === String(p.id); }).sort(function(a,b) { return String(b.recordedAt).localeCompare(String(a.recordedAt)); })[0]
+          : null;
         if (latest) {
           p.followUpResult = latest.result || '';
           p.followUpNotes = latest.notes || '';
@@ -1999,9 +2030,12 @@ function dispatchApiAction_(action, payload, session) {
     }
     var planTeacher = matchingPlanTeachers[0];
     var requestedPlanId = String(payload.id || '').trim();
-    var matchingPlans = requestedPlanId ? rowsAsObjects_(ss.getSheetByName('ImprovementPlans')).filter(function(p) {
-      return String(p.id) === requestedPlanId && String(p.schoolId) === String(schoolId);
-    }) : [];
+    var allPlansForSave = rowsAsObjects_(ss.getSheetByName('ImprovementPlans'));
+    var matchingPlansById = requestedPlanId ? allPlansForSave.filter(function(p) { return String(p.id) === requestedPlanId; }) : [];
+    if (requestedPlanId && (matchingPlansById.length !== 1 || String(matchingPlansById[0].schoolId) !== String(schoolId))) {
+      return { success: false, error: 'معرّف خطة التطوير غير فريد أو لا يتبع المدرسة؛ أوقفنا التعديل احترازيًا دون تغيير أي سجل.' };
+    }
+    var matchingPlans = matchingPlansById;
     if (requestedPlanId && matchingPlans.length !== 1) {
       return { success: false, error: matchingPlans.length > 1
         ? 'معرّف خطة التطوير مكرر؛ أوقفنا التعديل احترازيًا دون تغيير أي سجل.'
@@ -2232,9 +2266,12 @@ function dispatchApiAction_(action, payload, session) {
           matchingFollowUpPlans.push({ row: pi + 1, values: planData[pi] });
         }
       }
-      if (matchingFollowUpPlans.length !== 1) {
-        return { success: false, error: matchingFollowUpPlans.length
-          ? 'معرّف خطة التطوير مكرر؛ أوقفنا المتابعة دون تغيير أي سجل.'
+      var allRowsWithPlanId = planData.filter(function(row, index) {
+        return index > 0 && String(row[planIdColumn]) === String(payload.planId);
+      });
+      if (allRowsWithPlanId.length !== 1 || matchingFollowUpPlans.length !== 1) {
+        return { success: false, error: allRowsWithPlanId.length
+          ? 'معرّف خطة التطوير غير فريد على مستوى قاعدة البيانات؛ أوقفنا المتابعة لحماية خصوصية السجلات.'
           : 'خطة التطوير غير موجودة في المدرسة.' };
       }
       var selectedPlanRow = matchingFollowUpPlans[0];
@@ -3067,8 +3104,15 @@ function saveAdministrativeFollowUp_(payload, session, schoolId) {
 function recordVisitSnapshot_(ss, visitId, oldVisitRow, visitHeaders, schoolId, actorName, actorRole, action) {
   var visitObject = {};
   visitHeaders.forEach(function(h, i) { visitObject[h] = oldVisitRow[i]; });
-  var indicators = rowsAsObjects_(ss.getSheetByName('VisitIndicators')).filter(function(x) { return String(x.visitId) === String(visitId); });
-  var domains = rowsAsObjects_(ss.getSheetByName('VisitDomains')).filter(function(x) { return String(x.visitId) === String(visitId); });
+  var allVisitsForSnapshot = rowsAsObjects_(ss.getSheetByName('Visits'));
+  var uniqueSnapshotParent = allVisitsForSnapshot.filter(function(v) { return String(v.id) === String(visitId); });
+  var snapshotParentIsUnique = uniqueSnapshotParent.length === 1 && String(uniqueSnapshotParent[0].schoolId) === String(schoolId);
+  var indicators = snapshotParentIsUnique
+    ? rowsAsObjects_(ss.getSheetByName('VisitIndicators')).filter(function(x) { return String(x.visitId) === String(visitId); })
+    : [];
+  var domains = snapshotParentIsUnique
+    ? rowsAsObjects_(ss.getSheetByName('VisitDomains')).filter(function(x) { return String(x.visitId) === String(visitId); })
+    : [];
   var snapshot = { visit: visitObject, indicators: indicators, domains: domains };
   // Older production databases may not yet contain the optional visit-history sheet.
   // Create only this missing history sheet; never reinitialize or alter existing data.
@@ -3646,11 +3690,12 @@ function sendApprovedVisitReport_(payload, session, schoolId) {
   var visitId = String(payload.id || '');
   if (!visitId) return { success: false, error: 'رقم تقرير الزيارة مطلوب.' };
   var ss = getDatabaseSpreadsheet_();
-  var matchingVisits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
-    return String(v.id) === visitId && String(v.schoolId) === String(schoolId);
-  });
-  if (matchingVisits.length !== 1) {
-    return { success: false, error: matchingVisits.length ? 'تعذر الإرسال: يوجد أكثر من سجل للزيارة بالمعرّف نفسه. يرجى مراجعة البيانات.' : 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
+  var allVisitsForReport = rowsAsObjects_(ss.getSheetByName('Visits'));
+  var matchingVisits = allVisitsForReport.filter(function(v) { return String(v.id) === visitId; });
+  if (matchingVisits.length !== 1 || String(matchingVisits[0].schoolId) !== String(schoolId)) {
+    return { success: false, error: matchingVisits.length
+      ? 'تعذر الإرسال: معرّف الزيارة غير فريد على مستوى قاعدة البيانات. أوقفنا الإرسال لحماية خصوصية التفاصيل.'
+      : 'التقرير غير موجود في المدرسة المرتبطة بالحساب.' };
   }
   var visit = matchingVisits[0];
   if (session.role === 'evaluator' && String(visit.evaluatorId || '') !== String(session.id)) return { success: false, error: 'يمكنك إرسال تقارير الزيارات التي أجريتها فقط.' };
@@ -3745,12 +3790,11 @@ function sendTeacherVisitNotes_(payload, session, schoolId) {
   var notes = String(payload.notes || '').trim().substring(0, 5000);
   if (!visitId || !notes) return { success: false, error: 'اختر الزيارة واكتب الملاحظات المراد إرسالها.' };
   var ss = getDatabaseSpreadsheet_();
-  var matchingVisits = rowsAsObjects_(ss.getSheetByName('Visits')).filter(function(v) {
-    return String(v.id) === visitId && String(v.schoolId) === String(schoolId);
-  });
-  if (matchingVisits.length !== 1) {
-    return { success: false, error: matchingVisits.length > 1
-      ? 'رقم الزيارة مكرر؛ أوقفنا إرسال الملاحظات احترازيًا دون إرسال أي رسالة.'
+  var allVisitsForNotes = rowsAsObjects_(ss.getSheetByName('Visits'));
+  var matchingVisits = allVisitsForNotes.filter(function(v) { return String(v.id) === visitId; });
+  if (matchingVisits.length !== 1 || String(matchingVisits[0].schoolId) !== String(schoolId)) {
+    return { success: false, error: matchingVisits.length
+      ? 'رقم الزيارة غير فريد على مستوى قاعدة البيانات؛ أوقفنا إرسال الملاحظات لحماية الخصوصية.'
       : 'الزيارة غير موجودة في المدرسة المرتبطة بالحساب.' };
   }
   var visit = matchingVisits[0];
