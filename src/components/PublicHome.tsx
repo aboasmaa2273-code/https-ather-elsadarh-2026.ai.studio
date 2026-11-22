@@ -74,7 +74,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
   // Apply the verified school role title to the named leadership profile.
   // All other profiles continue to use their central-directory role title.
   const roster = [...evaluators];
-  if (!roster.some(person => String(person.name || '').replace(/\\s+/g, ' ').trim() === 'طلال معتوق النعيمي' || String(person.name || '').includes('طلال معتوق'))) {
+  if (!roster.some(person => String(person.name || '').replace(/\s+/g, ' ').trim() === 'طلال معتوق النعيمي' || String(person.name || '').includes('طلال معتوق'))) {
     roster.push({ id: 'evaluator_talal_matooq', name: 'طلال معتوق النعيمي', email: '', role: 'evaluator', schoolId: 'sch_alsadara_01', specialization: 'نائب مدير - مساعد مدير', username: '', status: 'active' });
   }
   const displayEvaluators = roster.map(person => {
