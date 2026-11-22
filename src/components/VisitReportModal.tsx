@@ -1,5 +1,4 @@
 import React from 'react';
-import schoolEmblem from '../assets/images/athar_school_emblem_1793852788755.jpg';
 import { ClassroomVisit, PlatformSettings } from '../types';
 import { AtharStorageService } from '../services/storageService';
 import { 
@@ -36,7 +35,7 @@ interface VisitReportModalProps {
   onClose: () => void;
   language?: Language;
   canDelete?: boolean;
-  onDeleteReport?: (visitId: string) => Promise<void>;
+  onDeleteReport?: (visitId: string) => void;
 }
 
 export const VisitReportModal: React.FC<VisitReportModalProps> = ({
@@ -51,7 +50,6 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
 
   const t = translations[language];
   const isEn = language === 'en';
-  const reportLogo = platformSettings.logoUrl || schoolEmblem;
 
   const handlePrint = () => {
     window.print();
@@ -158,22 +156,19 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <Printer className="w-4 h-4" />
               <span>{t.visitReportModal.printBtn}</span>
             </button>
-            {canDelete && visit.status !== 'archived' && onDeleteReport && (
+            {canDelete && onDeleteReport && (
               <button
-                onClick={async () => {
-                  if (!confirm(isEn ? 'Archive this report? It can be restored later.' : 'هل تريد أرشفة هذا التقرير مع الاحتفاظ به وإمكانية استعادته؟')) return;
-                  try {
-                    await onDeleteReport(visit.id);
+                onClick={() => {
+                  if (confirm(isEn ? 'Are you sure you want to delete this report permanently?' : 'هل أنت متأكد من رغبتك في حذف هذا التقرير نهائياً؟')) {
+                    onDeleteReport(visit.id);
                     onClose();
-                  } catch (error) {
-                    alert(error instanceof Error ? error.message : (isEn ? 'Failed to archive the report.' : 'تعذر أرشفة التقرير.'));
                   }
                 }}
                 className="px-3 py-1.5 bg-rose-600/90 text-white rounded-lg font-bold text-xs hover:bg-rose-700 transition-colors flex items-center gap-1.5 cursor-pointer shadow-xs border border-rose-400/40"
-                title={isEn ? 'Archive Report' : 'أرشفة التقرير'}
+                title={isEn ? 'Delete Report' : 'حذف التقرير'}
               >
                 <Trash2 className="w-3.5 h-3.5" />
-                <span>{isEn ? 'Archive Report' : 'أرشفة التقرير'}</span>
+                <span>{isEn ? 'Delete Report' : 'حذف التقرير'}</span>
               </button>
             )}
             <button
@@ -200,12 +195,11 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
 
             <div className="text-center">
               <div className="w-16 h-16 mx-auto rounded-full border border-[#C6A66A] p-1 bg-[#F2EBDD]/20 overflow-hidden flex items-center justify-center">
-                {reportLogo ? (
+                {platformSettings.logoUrl ? (
                   <img 
-                    src={reportLogo} 
+                    src={platformSettings.logoUrl} 
                     alt="شعار المدرسة" 
                     referrerPolicy="no-referrer"
-                    onError={(event) => { event.currentTarget.src = schoolEmblem; }}
                     className="w-full h-full object-contain"
                   />
                 ) : (
@@ -259,9 +253,6 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
             <div>
               <span className="text-slate-400 block text-[10px]">{t.visitReportModal.evaluator}</span>
               <span className="font-bold text-[#172C40]">{visit.evaluatorName}</span>
-              {(visit.visitors?.[0]?.roleTitle) && (
-                <span className="block text-[10px] text-slate-500 mt-0.5">{visit.visitors[0].roleTitle}</span>
-              )}
             </div>
             <div>
               <span className="text-slate-400 block text-[10px]">{t.visits.visitTime}:</span>
@@ -516,9 +507,9 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">{visit.teacherName}</div>
             </div>
             <div>
-              <span className="text-slate-500 block mb-6">{isEn ? 'School Approval' : 'اعتماد إدارة المدرسة'}:</span>
+              <span className="text-slate-500 block mb-6">{t.visitReportModal.principalSig}:</span>
               <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">
-                {isEn ? 'School Administration' : 'إدارة المدرسة'}
+                {platformSettings.principalName || (isEn ? 'School Leadership' : 'إدارة مدرسة الصدارة')}
               </div>
             </div>
           </div>

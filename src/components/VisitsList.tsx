@@ -1,7 +1,7 @@
 import React, { useState } from 'react';
 import { ClassroomVisit, User } from '../types';
 import { AtharStorageService } from '../services/storageService';
-import { changeVisitStatusCentral, restoreVisitCentral } from '../services/centralDataService';
+import { changeVisitStatusCentral } from '../services/centralDataService';
 import { 
   Search, 
   PlusCircle, 
@@ -15,8 +15,7 @@ import {
   AlertCircle,
   Users,
   GraduationCap,
-  Trash2,
-  RotateCcw
+  Trash2
 } from 'lucide-react';
 import { translations, Language } from '../i18n/translations';
 import { translateSubject, translateGrade, translateSection } from '../utils/bilingualHelper';
@@ -42,7 +41,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
 }) => {
   const [searchTerm, setSearchTerm] = useState('');
   const [filterType, setFilterType] = useState('ALL');
-  const [filterStatus, setFilterStatus] = useState('active');
+  const [filterStatus, setFilterStatus] = useState('ALL');
   const [filterTerm, setFilterTerm] = useState('ALL');
 
   const t = translations[language];
@@ -64,7 +63,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
       v.subject.toLowerCase().includes(searchTerm.toLowerCase());
 
     const matchesType = filterType === 'ALL' || v.visitType === filterType;
-    const matchesStatus = filterStatus === 'ALL' || (filterStatus === 'active' ? v.status !== 'archived' : v.status === filterStatus);
+    const matchesStatus = filterStatus === 'ALL' || v.status === filterStatus;
     const matchesTerm = filterTerm === 'ALL' || v.term === filterTerm;
 
     return matchesSearch && matchesType && matchesStatus && matchesTerm;
@@ -80,22 +79,12 @@ export const VisitsList: React.FC<VisitsListProps> = ({
   };
 
   const handleDeleteVisit = async (visitId: string) => {
-    if (!confirm(isEn ? 'Archive this visit record? It can be restored later.' : 'هل تريد أرشفة سجل هذه الزيارة؟ يمكن استعادته لاحقًا.')) return;
+    if (!confirm(isEn ? 'Archive this visit record? It will remain available in the history.' : 'هل تريد أرشفة سجل هذه الزيارة مع الاحتفاظ به في السجل التاريخي؟')) return;
     try {
       await changeVisitStatusCentral(visitId, 'archived');
       await onRefreshVisits();
     } catch (error) {
       alert(error instanceof Error ? error.message : 'تعذرت أرشفة الزيارة.');
-    }
-  };
-
-  const handleRestoreVisit = async (visitId: string) => {
-    if (!confirm(isEn ? 'Restore this archived visit?' : 'هل تريد استعادة هذه الزيارة من الأرشيف؟')) return;
-    try {
-      await restoreVisitCentral(visitId);
-      await onRefreshVisits();
-    } catch (error) {
-      alert(error instanceof Error ? error.message : 'تعذرت استعادة الزيارة.');
     }
   };
 
@@ -208,12 +197,10 @@ export const VisitsList: React.FC<VisitsListProps> = ({
             onChange={(e) => setFilterStatus(e.target.value)}
             className="bg-slate-50 border border-slate-200 rounded-lg px-2.5 py-1.5 focus:outline-none cursor-pointer"
           >
-            <option value="active">{isEn ? 'Active records' : 'السجلات النشطة'}</option>
             <option value="ALL">{t.visits.filterAllStatuses}</option>
             <option value="approved">{t.status.approved}</option>
             <option value="completed">{t.status.completed}</option>
             <option value="draft">{t.status.draft}</option>
-            <option value="archived">{isEn ? 'Archived' : 'الأرشيف'}</option>
           </select>
 
           <select
@@ -250,8 +237,8 @@ export const VisitsList: React.FC<VisitsListProps> = ({
             <tbody className="divide-y divide-slate-100">
               {visibleVisits.length > 0 ? (
                 visibleVisits.map((visit) => {
-                  const canEdit = visit.status !== 'archived' && AtharStorageService.canEditVisit(currentUser, visit);
-                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && !['approved', 'archived'].includes(visit.status);
+                  const canEdit = AtharStorageService.canEditVisit(currentUser, visit);
+                  const canApprove = AtharStorageService.canApproveVisit(currentUser) && visit.status !== 'approved';
                   const canDelete = ['platform_admin', 'school_admin', 'vice_principal'].includes(currentUser.role);
 
                   return (
@@ -358,15 +345,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
                             </button>
                           )}
 
-                          {canDelete && (visit.status === 'archived' ? (
-                            <button
-                              onClick={() => handleRestoreVisit(visit.id)}
-                              className="p-1.5 rounded-lg bg-emerald-50 hover:bg-emerald-600 hover:text-white text-emerald-700 border border-emerald-200 transition-colors cursor-pointer"
-                              title={isEn ? 'Restore visit' : 'استعادة الزيارة'}
-                            >
-                              <RotateCcw className="w-3.5 h-3.5" />
-                            </button>
-                          ) : (
+                          {canDelete && (
                             <button
                               onClick={() => handleDeleteVisit(visit.id)}
                               className="p-1.5 rounded-lg bg-rose-50 hover:bg-rose-600 hover:text-white text-rose-600 border border-rose-200 transition-colors cursor-pointer"
@@ -374,7 +353,7 @@ export const VisitsList: React.FC<VisitsListProps> = ({
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
-                          ))}
+                          )}
                         </div>
                       </td>
                     </tr>

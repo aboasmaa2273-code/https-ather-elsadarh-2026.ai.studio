@@ -37,20 +37,6 @@ class AtharGasBridgeClient {
   private pending = new Map<string, PendingRequest>();
   private sequence = 0;
   private endpoint = '';
-  private bridgeWindow: Window | null = null;
-  private bridgeOrigin = '';
-  private messageListener: ((event: MessageEvent) => void) | null = null;
-  private rejectLoading: ((reason: Error) => void) | null = null;
-  private loadingTimer: number | null = null;
-
-  private isGoogleBridgeOrigin(origin: string): boolean {
-    try {
-      const hostname = new URL(origin).hostname;
-      return hostname === 'script.google.com' || hostname.endsWith('.googleusercontent.com');
-    } catch {
-      return false;
-    }
-  }
 
   configure(webAppUrl: string): void {
     const normalized = webAppUrl.trim();
@@ -109,38 +95,26 @@ class AtharGasBridgeClient {
       frame.style.pointerEvents = 'none';
       frame.style.border = '0';
       const timer = window.setTimeout(() => {
-        this.loadingTimer = null;
         this.loading = null;
-        this.rejectLoading = null;
-        if (this.messageListener === onMessage) this.messageListener = null;
         frame.remove();
         window.removeEventListener('message', onMessage);
         reject(new Error('تعذر فتح جسر Google Apps Script. تحقق من رابط النشر وإتاحته.'));
       }, 20000);
-      this.loadingTimer = timer;
 
       const onMessage = (event: MessageEvent) => {
         const root = frame.contentWindow;
         if (!root || !event.data) return;
         const frameWindows = this.getFrameWindows(root);
-        if (!event.source || !frameWindows.some((candidate) => candidate === event.source)) return;
-        if (!this.isGoogleBridgeOrigin(event.origin)) return;
+        if (!frameWindows.some((candidate) => candidate === event.source)) return;
 
         if (event.data.channel === CHANNEL_READY) {
-          // Pin the exact Google-hosted Bridge.html frame that announced readiness.
-          // Never send credentials or session tokens to every nested frame.
-          this.bridgeWindow = event.source as Window;
-          this.bridgeOrigin = event.origin;
           window.clearTimeout(timer);
-          this.loadingTimer = null;
           this.ready = true;
           this.loading = null;
-          this.rejectLoading = null;
           resolve();
           return;
         }
         if (event.data.channel === CHANNEL_RESPONSE && event.data.id) {
-          if (event.source !== this.bridgeWindow || event.origin !== this.bridgeOrigin) return;
           const pending = this.pending.get(event.data.id);
           if (!pending) return;
           window.clearTimeout(pending.timeout);
@@ -148,15 +122,10 @@ class AtharGasBridgeClient {
           pending.resolve(event.data.result as BridgeResponse);
         }
       };
-      this.messageListener = onMessage;
-      this.rejectLoading = reject;
       window.addEventListener('message', onMessage);
       frame.addEventListener('error', () => {
         window.clearTimeout(timer);
-        this.loadingTimer = null;
         window.removeEventListener('message', onMessage);
-        if (this.messageListener === onMessage) this.messageListener = null;
-        this.rejectLoading = null;
         this.loading = null;
         reject(new Error('فشل تحميل جسر Google Apps Script.'));
       }, { once: true });
@@ -169,8 +138,8 @@ class AtharGasBridgeClient {
 
   async request<T = unknown>(request: BridgeRequest): Promise<BridgeResponse<T>> {
     await this.ensureFrame();
-    const target = this.bridgeWindow;
-    if (!target || !this.bridgeOrigin) throw new Error('لم يتم التحقق من إطار جسر Google.');
+    const root = this.frame?.contentWindow;
+    if (!root) throw new Error('اتصال قاعدة البيانات غير متاح.');
     const id = `athar_${Date.now()}_${++this.sequence}`;
     return new Promise<BridgeResponse<T>>((resolve, reject) => {
       const timeout = window.setTimeout(() => {
@@ -184,35 +153,22 @@ class AtharGasBridgeClient {
       });
 
       const message = { channel: CHANNEL_REQUEST, id, request };
-      // Send only to the exact Google-hosted frame that completed the handshake.
-      try {
-        target.postMessage(message, this.bridgeOrigin);
-      } catch {
-        window.clearTimeout(timeout);
-        this.pending.delete(id);
-        reject(new Error('تعذر إرسال الطلب إلى جسر Google Apps Script.'));
-      }
+      // The actual Apps Script HTML runs in a nested sandbox frame, not
+      // necessarily in the outer iframe's contentWindow. Send to the
+      // discovered frame tree; only Bridge.html handles this channel.
+      this.getFrameWindows(root).forEach((target) => {
+        try {
+          target.postMessage(message, '*');
+        } catch {
+          // Continue sending to the remaining discovered frames.
+        }
+      });
     });
   }
 
   dispose(): void {
     this.ready = false;
     this.loading = null;
-    if (this.loadingTimer !== null) {
-      window.clearTimeout(this.loadingTimer);
-      this.loadingTimer = null;
-    }
-    if (this.messageListener) {
-      window.removeEventListener('message', this.messageListener);
-      this.messageListener = null;
-    }
-    if (this.rejectLoading) {
-      const reject = this.rejectLoading;
-      this.rejectLoading = null;
-      reject(new Error('تم تغيير اتصال قاعدة البيانات قبل اكتمال الجاهزية.'));
-    }
-    this.bridgeWindow = null;
-    this.bridgeOrigin = '';
     this.frame?.remove();
     this.frame = null;
     this.pending.forEach((item) => {

@@ -14,7 +14,6 @@ type CentralBootstrap = {
   teachers?: Record<string, unknown>[];
   visits?: Record<string, unknown>[];
   plans?: Record<string, unknown>[];
-  archivedPlans?: Record<string, unknown>[];
   settings?: { key: string; value: unknown }[];
   auditLogs?: Record<string, unknown>[];
   visitors?: Record<string, unknown>[];
@@ -61,7 +60,7 @@ export async function loadCentralData() {
     improvementAreas: Array.isArray(item.improvementAreas) ? item.improvementAreas : []
   })) as ClassroomVisit[];
 
-  const mapPlans = (items: Record<string, unknown>[] = []) => items.map((item) => ({
+  const plans = (data.plans || []).map((item) => ({
     ...item,
     id: String(item.id || ''),
     schoolId: String(item.schoolId || ''),
@@ -70,8 +69,6 @@ export async function loadCentralData() {
     actionProcedure: String(item.actionProcedure || item.procedure || ''),
     responsiblePerson: String(item.responsiblePerson || item.responsible || '')
   })) as ImprovementPlan[];
-  const plans = mapPlans(data.plans || []);
-  const archivedPlans = mapPlans(data.archivedPlans || []);
 
   const auditLogs = (data.auditLogs || []).map((item) => ({
     ...item,
@@ -88,7 +85,6 @@ export async function loadCentralData() {
     teachers,
     visits,
     plans,
-    archivedPlans,
     auditLogs,
     registeredVisitors: (data.visitors || []).map((item) => ({
       ...item,
@@ -131,30 +127,6 @@ export async function changeVisitStatusCentral(id: string, status: ClassroomVisi
     : '';
   if (!action) throw new Error('حالة الزيارة المطلوبة غير مدعومة من الخادم.');
   return atharRemoteAction(action, { id });
-}
-
-export async function restoreVisitCentral(id: string) {
-  return atharRemoteAction('restoreVisit', { id });
-}
-
-export async function archiveVisitsCentral(ids: string[]) {
-  if (!ids.length) throw new Error('حدد تقريراً واحداً على الأقل.');
-  return atharRemoteAction('archiveVisits', { ids });
-}
-
-export async function restoreVisitsCentral(ids: string[]) {
-  if (!ids.length) throw new Error('حدد تقريراً واحداً على الأقل.');
-  return atharRemoteAction('restoreVisits', { ids });
-}
-
-export async function archivePlansCentral(ids: string[]) {
-  if (!ids.length) throw new Error('حدد خطة واحدة على الأقل.');
-  return atharRemoteAction('deletePlans', { ids });
-}
-
-export async function restorePlansCentral(ids: string[]) {
-  if (!ids.length) throw new Error('حدد خطة واحدة على الأقل.');
-  return atharRemoteAction('restorePlans', { ids });
 }
 
 export async function savePlanCentral(plan: Partial<ImprovementPlan>) {
