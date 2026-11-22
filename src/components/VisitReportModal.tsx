@@ -507,10 +507,7 @@ export const VisitReportModal: React.FC<VisitReportModalProps> = ({
               <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">{visit.teacherName}</div>
             </div>
             <div>
-              <span className="text-slate-500 block mb-6">{t.visitReportModal.principalSig}:</span>
-              <div className="font-bold text-[#172C40] border-t border-slate-300 pt-1">
-                {platformSettings.principalName || (isEn ? 'School Leadership' : 'إدارة مدرسة الصدارة')}
-              </div>
+              <span className="text-slate-500 block mb-6">{isEn ? 'School Administration Approval' : 'اعتماد إدارة المدرسة'}</span>
             </div>
           </div>
 
