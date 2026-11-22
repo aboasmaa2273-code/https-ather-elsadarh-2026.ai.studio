@@ -274,14 +274,14 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
         {/* Evaluators Cards Grid */}
         <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4">
           {displayEvaluators.map((user) => {
-            const isAisha = user.id === 'user_cluster_director_aisha' || user.name.includes('عائشة الغفلي');
-            const isHeadArabic = user.id === 'user_head_arabic' || user.name.includes('المواد العربية');
+            const isAisha = user.name.includes('عائشة الغفلي');
+            const isHeadArabic = user.name.includes('المواد العربية');
             const isPrincipal = user.role === 'school_admin' || user.name.includes('مدير المدرسة');
             const isVP = user.role === 'vice_principal' || user.name.includes('مساعد المدير');
 
             return (
               <div
-                key={user.id}
+                key={user.name + '-' + user.role}
                 className={`rounded-2xl p-5 border-2 transition-all hover:shadow-xl relative flex flex-col justify-between space-y-4 bg-white cursor-pointer group ${
                   isAisha 
                     ? 'border-[#C6A66A] bg-gradient-to-b from-amber-50/30 to-white shadow-md' 
