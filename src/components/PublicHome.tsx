@@ -241,7 +241,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
             <div className="flex flex-col sm:flex-row md:flex-col gap-2.5 shrink-0 w-full md:w-auto">
               <button
-                onClick={onLoginClick}
+                onClick={() => onLoginClick()}
                 className="px-6 py-3.5 bg-gradient-to-r from-[#C6A66A] to-[#b89556] hover:from-[#d4b478] hover:to-[#c6a66a] text-[#172C40] font-black text-sm rounded-xl transition-all shadow-lg hover:shadow-[#C6A66A]/20 flex items-center justify-center gap-2 cursor-pointer transform hover:-translate-y-0.5 active:translate-y-0"
               >
                 <Lock className="w-4 h-4 text-[#172C40]" />
