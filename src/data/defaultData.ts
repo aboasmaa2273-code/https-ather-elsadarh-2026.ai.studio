@@ -1,3 +1,4 @@
+import schoolLogo from '../assets/images/athar_school_emblem_1793852788755.jpg';
 import { 
   IndicatorDefinition, 
   Teacher, 
