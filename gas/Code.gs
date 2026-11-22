@@ -862,13 +862,20 @@ function saveTeacher_(teacherData) {
     var data = sheet.getDataRange().getValues();
     var targetSchoolId = String(teacherData.schoolId || 'sch_alsadara_01');
     var existingRowIndex = -1;
+    var matchingTeacherIdRows = [];
     for (var i = 1; i < data.length; i++) {
       if (String(data[i][1]) !== targetSchoolId) continue;
-      if (teacherData.id && String(data[i][0]) === String(teacherData.id)) existingRowIndex = i + 1;
+      if (teacherData.id && String(data[i][0]) === String(teacherData.id)) matchingTeacherIdRows.push(i + 1);
       if (data[i][3] && String(data[i][3]).trim() === jobNumber && String(data[i][0]) !== String(teacherData.id || '')) {
         return { success: false, error: 'الرقم الوظيفي (' + jobNumber + ') مستخدم مسبقاً لمعلم آخر في المدرسة.' };
       }
     }
+    if (teacherData.id && matchingTeacherIdRows.length !== 1) {
+      return { success: false, error: matchingTeacherIdRows.length
+        ? 'معرّف المعلم مكرر؛ أوقفنا التعديل احترازيًا دون تغيير أي بيانات.'
+        : 'لا يمكن تعديل معلم غير موجود في المدرسة المرتبطة بالحساب.' };
+    }
+    if (teacherData.id) existingRowIndex = matchingTeacherIdRows[0];
     if (teacherData.id && existingRowIndex < 0) {
       return { success: false, error: 'لا يمكن تعديل معلم غير موجود في المدرسة المرتبطة بالحساب.' };
     }
