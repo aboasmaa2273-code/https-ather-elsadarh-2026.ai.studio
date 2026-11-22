@@ -107,6 +107,15 @@ export const VisitForm: React.FC<VisitFormProps> = ({
     }
     return POTENTIAL_VISIT_GOALS[0]?.id || 'custom';
   });
+  // Preserve a custom general domain name when an existing visit is edited.
+  const [customDomainName, setCustomDomainName] = useState<string>(() => {
+    const otherDomain = editingVisit?.domains?.find(d => d.domainId === 'other');
+    if (!otherDomain) return '';
+    const savedName = otherDomain.domainName?.trim() || '';
+    return savedName && savedName !== 'أخرى' && savedName.toLowerCase() !== 'other school criteria'
+      ? savedName
+      : '';
+  });
   const [status, setStatus] = useState<ClassroomVisit['status']>(editingVisit?.status || 'in_progress');
 
   // New Student Demographics & Attendance
@@ -613,7 +622,9 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
     const formattedDomains: DomainEvaluation[] = GENERAL_DOMAINS.map(d => ({
       domainId: d.id,
-      domainName: isEn ? (d.nameEn || d.name) : d.name,
+      domainName: d.id === 'other' && customDomainName.trim()
+        ? customDomainName.trim()
+        : (isEn ? (d.nameEn || d.name) : d.name),
       rating: domainRatings[d.id] || 'good'
     }));
 
@@ -1271,7 +1282,8 @@ export const VisitForm: React.FC<VisitFormProps> = ({
             </div>
 
             {/* Dropdown containing all potential visit goals */}
-            <div className="relative">
+            <div className="flex flex-col sm:flex-row gap-2">
+              <div className="relative flex-1">
               <select
                 value={selectedGoalPresetId}
                 onChange={(e) => handleGoalPresetChange(e.target.value)}
@@ -1289,6 +1301,18 @@ export const VisitForm: React.FC<VisitFormProps> = ({
                 ))}
                 <option value="custom">{t.visits.customGoalOption}</option>
               </select>
+              </div>
+              <button
+                type="button"
+                onClick={() => {
+                  setSelectedGoalPresetId('custom');
+                  setVisitGoal('');
+                  triggerAutoSave();
+                }}
+                className={`px-5 py-2.5 rounded-lg border-2 text-xs font-extrabold transition-colors ${selectedGoalPresetId === 'custom' ? 'bg-[#172C40] text-white border-[#172C40]' : 'bg-white text-[#172C40] border-[#C6A66A] hover:bg-[#F2EBDD]'}`}
+              >
+                {isEn ? 'Other goal' : 'أخرى'}
+              </button>
             </div>
 
             {/* Editable goal text */}
@@ -1590,7 +1614,24 @@ export const VisitForm: React.FC<VisitFormProps> = ({
 
               return (
                 <div key={domain.id} className="p-4 rounded-xl border border-slate-200 bg-slate-50/50 space-y-2">
-                  <span className="font-extrabold text-[#172C40] block text-sm font-['Tajawal']">{domainName}</span>
+                  {domain.id === 'other' ? (
+                    <div className="flex flex-col sm:flex-row sm:items-center gap-2">
+                      <span className="font-extrabold text-[#172C40] text-sm font-['Tajawal'] shrink-0">{domainName}</span>
+                      <input
+                        type="text"
+                        value={customDomainName}
+                        onChange={(e) => {
+                          setCustomDomainName(e.target.value);
+                          triggerAutoSave();
+                        }}
+                        placeholder={isEn ? 'Write the additional domain...' : 'اكتب المجال المناسب الذي تريد تقييمه...'}
+                        aria-label={isEn ? 'Custom general domain' : 'المجال العام الآخر'}
+                        className="w-full px-3 py-2 bg-white border border-[#C6A66A] rounded-lg text-xs text-[#172C40] focus:outline-none focus:border-[#172C40]"
+                      />
+                    </div>
+                  ) : (
+                    <span className="font-extrabold text-[#172C40] block text-sm font-['Tajawal']">{domainName}</span>
+                  )}
                   <div className="grid grid-cols-3 sm:grid-cols-6 gap-1">
                     {(['outstanding', 'very_good', 'good', 'acceptable', 'weak', 'very_weak'] as DomainPerformanceLevel[]).map((level) => {
                       const isSelected = currentRating === level;
