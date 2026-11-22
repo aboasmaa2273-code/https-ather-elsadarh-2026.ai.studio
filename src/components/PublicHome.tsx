@@ -152,7 +152,7 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
               </a>
 
               <button
-                onClick={onLoginClick}
+                onClick={() => onLoginClick()}
                 className="px-5 py-3.5 bg-white/10 hover:bg-white/20 text-white text-xs font-bold rounded-xl border border-white/20 transition-all flex items-center gap-2 cursor-pointer"
               >
                 <Lock className="w-4 h-4 text-[#C6A66A]" />
