@@ -980,7 +980,7 @@ function getPublicEvaluators_() {
     if (seen[key]) return;
     seen[key] = true;
     evaluators.push({
-      id: String(account.id || ''),
+      // Public directory returns display information only; never expose internal account or school IDs.
       name: String(visitor.name || account.name || '').trim(),
       email: '',
       role: String(account.publicRole || account.role || 'evaluator'),
@@ -1004,7 +1004,7 @@ function getPublicEvaluators_() {
     if (accountSchool !== schoolId || eligibleRoles.indexOf(role) < 0 ||
         (status !== 'active' && status !== '') || seen[key]) return;
     evaluators.push({
-      id: key,
+      // Compatibility fallback also returns display information only.
       name: String(user.name || '').trim(),
       email: '',
       role: role,
@@ -1019,7 +1019,7 @@ function getPublicEvaluators_() {
     seen[key] = true;
   });
 
-  evaluators = evaluators.filter(function(user) { return user.id && user.name; });
+  evaluators = evaluators.filter(function(user) { return user.name; });
   evaluators.sort(function(a, b) { return a.name.localeCompare(b.name, 'ar'); });
   var response = { success: true, evaluators: evaluators };
   cache.put('ATHAR_PUBLIC_EVALUATORS_V2', JSON.stringify(response), 30);
