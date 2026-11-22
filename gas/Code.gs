@@ -2928,15 +2928,25 @@ function updateUserCredentials_(payload, session) {
       var directoryNameCol = directoryHeaders.indexOf('name');
       var directoryUsernameCol = directoryHeaders.indexOf('username');
       if (directorySchoolCol >= 0 && directoryNameCol >= 0 && directoryUsernameCol >= 0) {
+        var matchingDirectoryRows = [];
         for (var di = 1; di < directoryValues.length; di++) {
           if (String(directoryValues[di][directorySchoolCol] || 'sch_alsadara_01') === String(row[schoolCol] || session.schoolId) &&
               String(directoryValues[di][directoryUsernameCol] || '').trim().toLowerCase() === previousUsername) {
-            var nextDirectoryRow = directoryValues[di].slice();
-            nextDirectoryRow[directoryNameCol] = name;
-            nextDirectoryRow[directoryUsernameCol] = username;
-            directorySnapshots.push({ row: di + 1, before: directoryValues[di].slice(), after: nextDirectoryRow });
+            matchingDirectoryRows.push(di);
           }
         }
+        // RegisteredVisitors has no stable Users.accountId link. If the old
+        // username resolves to multiple directory rows, do not guess which
+        // visitor belongs to this account or rename several records together.
+        if (matchingDirectoryRows.length > 1) {
+          return { success: false, error: 'اسم المستخدم مرتبط بأكثر من سجل في دليل الزائرين؛ أوقفنا تحديث الحساب احترازيًا دون تغيير أي بيانات. راجع السجلات المكررة أولًا.' };
+        }
+        matchingDirectoryRows.forEach(function(directoryIndex) {
+          var nextDirectoryRow = directoryValues[directoryIndex].slice();
+          nextDirectoryRow[directoryNameCol] = name;
+          nextDirectoryRow[directoryUsernameCol] = username;
+          directorySnapshots.push({ row: directoryIndex + 1, before: directoryValues[directoryIndex].slice(), after: nextDirectoryRow });
+        });
       }
     }
 
