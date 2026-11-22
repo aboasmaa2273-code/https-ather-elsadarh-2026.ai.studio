@@ -55,6 +55,7 @@ export default function App() {
   const [isLoggedIn, setIsLoggedIn] = useState<boolean>(false);
   const [currentUser, setCurrentUser] = useState<User>(DEFAULT_USERS[0]);
   const [isLoginModalOpen, setIsLoginModalOpen] = useState<boolean>(false);
+  const [selectedEvaluatorName, setSelectedEvaluatorName] = useState<string>('');
 
   // Active Navigation Tab - Starts on the Home page with the hero picture
   const [activeTab, setActiveTab] = useState<string>('home');
@@ -136,7 +137,7 @@ export default function App() {
         onTabChange={setActiveTab}
         platformSettings={platformSettings}
         isLoggedIn={isLoggedIn}
-        onLoginClick={() => setIsLoginModalOpen(true)}
+        onLoginClick={() => { setSelectedEvaluatorName(''); setIsLoginModalOpen(true); }}
         onLogoutClick={handleLogout}
         language={language}
         onLanguageChange={setLanguage}
@@ -149,7 +150,7 @@ export default function App() {
         {(!isLoggedIn || activeTab === 'home') && (
           <PublicHome
             platformSettings={platformSettings}
-            onLoginClick={() => setIsLoginModalOpen(true)}
+            onLoginClick={(evaluatorName) => { setSelectedEvaluatorName(evaluatorName || ''); setIsLoginModalOpen(true); }}
             language={language}
           />
         )}
@@ -311,6 +312,7 @@ export default function App() {
         <LoginModal
           isOpen={isLoginModalOpen}
           onClose={() => setIsLoginModalOpen(false)}
+          selectedEvaluatorName={selectedEvaluatorName}
           onLoginSuccess={(user) => {
             handleUserChange(user);
             setIsLoginModalOpen(false);
