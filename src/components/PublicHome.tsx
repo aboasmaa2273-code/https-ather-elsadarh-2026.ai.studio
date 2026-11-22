@@ -25,7 +25,7 @@ import { translations, Language } from '../i18n/translations';
 
 interface PublicHomeProps {
   platformSettings: PlatformSettings;
-  onLoginClick: () => void;
+  onLoginClick: (evaluatorName?: string) => void;
   onAddNewEvaluator?: (name: string, roleTitle?: string) => void;
   language?: Language;
 }
@@ -67,13 +67,17 @@ export const PublicHome: React.FC<PublicHomeProps> = ({
 
   // Public evaluator cards must never create an authenticated session.
   // Every access attempt goes through the central username/password login.
-  const handleCardClick = (_user: User, _navigateTo: string = 'new-visit') => {
-    onLoginClick();
+  const handleCardClick = (user: User, _navigateTo: string = 'new-visit') => {
+    onLoginClick(user.name);
   };
 
   // Apply the verified school role title to the named leadership profile.
   // All other profiles continue to use their central-directory role title.
-  const displayEvaluators = evaluators.map(person => {
+  const roster = [...evaluators];
+  if (!roster.some(person => String(person.name || '').replace(/\\s+/g, ' ').trim() === 'طلال معتوق النعيمي' || String(person.name || '').includes('طلال معتوق'))) {
+    roster.push({ id: 'evaluator_talal_matooq', name: 'طلال معتوق النعيمي', email: '', role: 'evaluator', schoolId: 'sch_alsadara_01', specialization: 'نائب مدير - مساعد مدير', username: '', status: 'active' });
+  }
+  const displayEvaluators = roster.map(person => {
     const normalizedName = String(person.name || '').replace(/\s+/g, ' ').trim();
     if (normalizedName === 'طلال معتوق على سعيد النعيمي') {
       return { ...person, roleTitle: 'نائب مدير - مساعد مدير' };
