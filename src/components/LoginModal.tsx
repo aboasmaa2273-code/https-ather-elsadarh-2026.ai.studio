@@ -21,6 +21,7 @@ interface LoginModalProps {
   isOpen: boolean;
   onClose: () => void;
   onLoginSuccess: (user: User) => void;
+  selectedEvaluatorName?: string;
   language?: Language;
 }
 
@@ -28,6 +29,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
   isOpen,
   onClose,
   onLoginSuccess,
+  selectedEvaluatorName,
   language = 'ar'
 }) => {
   const isEn = language === 'en';
@@ -67,7 +69,7 @@ export const LoginModal: React.FC<LoginModalProps> = ({
             setErrorMessage(isEn ? 'This account has an unsupported role. Contact the platform administrator.' : 'دور هذا الحساب غير معتمد. يُرجى مراجعة مسؤول المنصة.');
             return;
           }
-          onLoginSuccess({ ...user, role: normalizedRole });
+          onLoginSuccess({ ...user, role: normalizedRole, ...(selectedEvaluatorName ? { name: selectedEvaluatorName } : {}) });
           onClose();
         } else {
           setErrorMessage(remote.error || (isEn ? 'Invalid credentials.' : 'بيانات الدخول غير صحيحة.'));
