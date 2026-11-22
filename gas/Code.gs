@@ -3036,8 +3036,13 @@ function saveInternalNote_(payload, session, schoolId) {
     return { success: false, error: 'يمكنك تعديل الملاحظات التي أنشأتها بحسابك فقط. الملاحظات القديمة التي لا تحمل هوية منشئ موثقة متاحة للإدارة للتعديل.' };
   }
   if (payload.visitId) {
-    var matchingLinkedVisits = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId); });
-    if (matchingLinkedVisits.length !== 1 || String(matchingLinkedVisits[0].teacherId) !== String(teacher.id)) return { success: false, error: matchingLinkedVisits.length > 1 ? 'رقم التقرير المرتبط مكرر؛ أوقفنا الحفظ احترازيًا.' : 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+    var allLinkedVisits = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits'));
+    var matchingLinkedVisits = allLinkedVisits.filter(function(v) { return String(v.id) === String(payload.visitId); });
+    if (matchingLinkedVisits.length !== 1 || String(matchingLinkedVisits[0].schoolId) !== String(schoolId) || String(matchingLinkedVisits[0].teacherId) !== String(teacher.id)) {
+      return { success: false, error: matchingLinkedVisits.length
+        ? 'معرّف التقرير المرتبط غير فريد أو لا يتبع المعلم والمدرسة المحددين؛ أوقفنا الحفظ لحماية الخصوصية.'
+        : 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+    }
   }
   if (existing) {
     getDatabaseSpreadsheet_().getSheetByName('InternalNoteHistory').appendRow([
@@ -3072,8 +3077,13 @@ function saveAdministrativeFollowUp_(payload, session, schoolId) {
   if (matchingFollowUpTeachers.length !== 1) return { success: false, error: matchingFollowUpTeachers.length > 1 ? 'معرّف المعلم مكرر داخل المدرسة؛ أوقفنا حفظ المتابعة احترازيًا.' : 'المعلم المحدد غير موجود في المدرسة.' };
   var teacher = matchingFollowUpTeachers[0];
   if (payload.visitId) {
-    var matchingLinkedVisits = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits')).filter(function(v) { return String(v.id) === String(payload.visitId) && String(v.schoolId) === String(schoolId); });
-    if (matchingLinkedVisits.length !== 1 || String(matchingLinkedVisits[0].teacherId) !== String(teacher.id)) return { success: false, error: matchingLinkedVisits.length > 1 ? 'رقم التقرير المرتبط مكرر؛ أوقفنا الحفظ احترازيًا.' : 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+    var allLinkedVisits = rowsAsObjects_(getDatabaseSpreadsheet_().getSheetByName('Visits'));
+    var matchingLinkedVisits = allLinkedVisits.filter(function(v) { return String(v.id) === String(payload.visitId); });
+    if (matchingLinkedVisits.length !== 1 || String(matchingLinkedVisits[0].schoolId) !== String(schoolId) || String(matchingLinkedVisits[0].teacherId) !== String(teacher.id)) {
+      return { success: false, error: matchingLinkedVisits.length
+        ? 'معرّف التقرير المرتبط غير فريد أو لا يتبع المعلم والمدرسة المحددين؛ أوقفنا الحفظ لحماية الخصوصية.'
+        : 'التقرير المرتبط لا يتبع المعلم المحدد أو غير موجود.' };
+    }
   }
   var now = new Date().toISOString();
   var id = String(payload.id || Utilities.getUuid());
